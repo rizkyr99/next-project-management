@@ -7,7 +7,15 @@ export async function proxy(request: NextRequest) {
     headers: await headers(),
   });
 
-  if (!session) {
+  const isAuthPage =
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/register');
+
+  if (isAuthPage && session) {
+    return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  if (!isAuthPage && !session) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
@@ -15,8 +23,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/workspaces',
-    '/:workspaceId((?!login|register|api|_next|favicon.ico).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|static|.*\\.).*)'],
 };
