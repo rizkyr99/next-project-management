@@ -38,12 +38,12 @@ export function RegisterForm() {
         email: values.email,
         password: values.password,
         name: values.name,
-        callbackURL: '/workspaces',
+        callbackURL: '/',
       },
       {
         onSuccess: () => {
           toast.success('Registration successful!', { position: 'top-center' });
-          router.push('/workspaces');
+          router.push('/');
         },
         onError: (ctx) => {
           toast.error(ctx.error.message || 'Failed to register', {
