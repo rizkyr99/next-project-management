@@ -18,6 +18,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Rocket } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import z from 'zod';
 
 const workspaceFormSchema = z.object({
@@ -48,9 +49,10 @@ export default function CreateWorkspace() {
   const onSubmit = async (values: z.infer<typeof workspaceFormSchema>) => {
     const result = await createWorkspace(values);
     if (result?.error) {
-      alert(result.error);
+      toast.error(result.error, { position: 'top-center' });
       return;
     }
+    setStep(step + 1);
   };
   return (
     <div className='bg-background h-dvh flex items-center justify-center p-6'>

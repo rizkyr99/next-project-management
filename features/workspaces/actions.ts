@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { workspace } from '@/db/schema';
+import { member, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -29,13 +29,25 @@ export async function createWorkspace(
   const validated = createWorkspaceSchema.parse(values);
 
   try {
-    await db.insert(workspace).values({
-      name: validated.name,
-      slug: validated.url,
-      description: validated.description,
-      userId,
+    await db.transaction(async (tx) => {
+      const [newWorkspace] = await tx
+        .insert(workspace)
+        .values({
+          name: validated.name,
+          slug: validated.url,
+          description: validated.description,
+          userId,
+        })
+        .returning({ id: workspace.id });
+
+      await tx.insert(member).values({
+        workspaceId: newWorkspace.id,
+        userId,
+        role: 'owner',
+      });
     });
   } catch (error) {
+    console.error('Workspace Creation Error:', error);
     return { error: 'URL already taken or database error' };
   }
 

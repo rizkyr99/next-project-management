@@ -97,7 +97,11 @@ export function RegisterForm() {
             </FormItem>
           )}
         />
-        <Button size='lg' type='submit' className='w-full'>
+        <Button
+          size='lg'
+          type='submit'
+          className='w-full'
+          disabled={form.formState.isSubmitting}>
           Register
         </Button>
       </form>

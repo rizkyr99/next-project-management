@@ -111,6 +111,27 @@ export const workspace = pgTable(
   (table) => [index('workspace_userId_idx').on(table.userId)]
 );
 
+export const member = pgTable(
+  'member',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: text('role')
+      .$type<'owner' | 'admin' | 'member'>()
+      .default('member')
+      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('member_workspaceId_idx').on(table.workspaceId)]
+);
+
 export const project = pgTable(
   'project',
   {
@@ -129,11 +150,17 @@ export const project = pgTable(
 );
 
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
-  user: one(user, {
-    fields: [workspace.userId],
-    references: [user.id],
-  }),
+  members: many(member),
   projects: many(project),
+  owner: one(user, { fields: [workspace.userId], references: [user.id] }),
+}));
+
+export const memberRelations = relations(member, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [member.workspaceId],
+    references: [workspace.id],
+  }),
+  user: one(user, { fields: [member.userId], references: [user.id] }),
 }));
 
 export const projectRelations = relations(project, ({ one }) => ({
