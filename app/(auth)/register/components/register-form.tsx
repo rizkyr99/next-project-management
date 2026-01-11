@@ -38,12 +38,12 @@ export function RegisterForm() {
         email: values.email,
         password: values.password,
         name: values.name,
-        callbackURL: '/workspaces',
+        callbackURL: '/',
       },
       {
         onSuccess: () => {
           toast.success('Registration successful!', { position: 'top-center' });
-          router.push('/workspaces');
+          router.push('/');
         },
         onError: (ctx) => {
           toast.error(ctx.error.message || 'Failed to register', {
@@ -97,7 +97,11 @@ export function RegisterForm() {
             </FormItem>
           )}
         />
-        <Button size='lg' type='submit' className='w-full'>
+        <Button
+          size='lg'
+          type='submit'
+          className='w-full'
+          disabled={form.formState.isSubmitting}>
           Register
         </Button>
       </form>
