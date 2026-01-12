@@ -12,23 +12,50 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { authClient } from '@/lib/auth-client';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 
-const formSchema = z.object({
+const loginSchema = z.object({
   email: z.email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
+  rememberMe: z.boolean().optional(),
 });
 
 export function LoginForm() {
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const router = useRouter();
+
+  const form = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       email: '',
       password: '',
+      rememberMe: false,
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
+  const onSubmit = async (values: z.infer<typeof loginSchema>) => {
+    await authClient.signIn.email(
+      {
+        email: values.email,
+        password: values.password,
+        rememberMe: values.rememberMe,
+        callbackURL: '/',
+      },
+      {
+        onSuccess: () => {
+          toast.success('Login successful!', { position: 'top-center' });
+          router.push('/');
+        },
+        onError: (ctx) => {
+          toast.error(ctx.error.message || 'Failed to login', {
+            position: 'top-center',
+          });
+        },
+      }
+    );
   };
 
   return (
@@ -62,6 +89,25 @@ export function LoginForm() {
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name='rememberMe'
+          render={({ field }) => (
+            <FormItem>
+              <FormControl>
+                <div className='flex items-center gap-3'>
+                  <Checkbox
+                    id='rememberMe'
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                  <Label htmlFor='rememberMe'>Remember me</Label>
+                </div>
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
         <Button type='submit' size='lg' className='w-full'>
           Login
         </Button>
