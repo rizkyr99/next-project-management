@@ -4,7 +4,6 @@ import { db } from '@/db/drizzle';
 import { member, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 const createWorkspaceSchema = z.object({
@@ -37,17 +36,17 @@ export async function createWorkspace(
         description: validated.description,
         userId,
       })
-      .returning({ id: workspace.id });
+      .returning({ id: workspace.id, slug: workspace.slug });
 
     await db.insert(member).values({
       workspaceId: newWorkspace.id,
       userId,
       role: 'owner',
     });
+
+    return { slug: newWorkspace.slug };
   } catch (error) {
     console.error('Workspace Creation Error:', error);
     return { error: 'URL already taken or database error' };
   }
-
-  redirect(`/${validated.url}`);
 }

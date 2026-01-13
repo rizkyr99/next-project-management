@@ -1,3 +1,5 @@
+import { AppSidebar } from '@/components/app-sidebar';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { db } from '@/db/drizzle';
 import { member, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
@@ -34,9 +36,14 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className='flex h-screen overflow-hidden'>
-      <aside className='hidden md:flex w-64 flex-col border-r bg-card'></aside>
-      <main>{children}</main>
-    </div>
+    <SidebarProvider>
+      <div className='flex h-screen overflow-hidden'>
+        <AppSidebar />
+        <main>
+          <SidebarTrigger />
+          {children}
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }
