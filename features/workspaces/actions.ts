@@ -3,6 +3,7 @@
 import { db } from '@/db/drizzle';
 import { member, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
+import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 
@@ -43,6 +44,8 @@ export async function createWorkspace(
       userId,
       role: 'owner',
     });
+
+    revalidatePath(`/${newWorkspace.slug}`, 'layout');
 
     return { slug: newWorkspace.slug };
   } catch (error) {

@@ -17,18 +17,24 @@ import {
 import { Briefcase, ChevronsUpDown } from 'lucide-react';
 import { CreateWorkspaceDialog } from '@/features/workspaces/components/create-workspace-dialog';
 
-interface WorkspaceSwitcherProps {
-  workspaces: {
-    id: string;
-    name: string;
-    slug: string;
-  }[];
+interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
 }
 
-export function WorkspaceSwitcher({ workspaces }: WorkspaceSwitcherProps) {
+interface WorkspaceSwitcherProps {
+  workspaces?: Workspace[];
+}
+
+export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const { isMobile } = useSidebar();
-  const [activeWorkspace, setActiveWorkspace] = useState(workspaces[0]);
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
+    () => workspaces[0] ?? null
+  );
+
+  if (!activeWorkspace) return null;
 
   return (
     <SidebarMenu>

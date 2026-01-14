@@ -38,7 +38,7 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider>
       <div className='flex h-screen overflow-hidden'>
-        <AppSidebar />
+        <AppSidebar workspaces={userWorkspaces} />
         <main>
           <SidebarTrigger />
           {children}

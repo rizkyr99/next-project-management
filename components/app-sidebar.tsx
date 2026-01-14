@@ -7,14 +7,16 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
-export function AppSidebar() {
-  const workspaces = [
-    {
-      id: '1',
-      name: 'Workspace 1',
-      slug: 'workspace-1',
-    },
-  ];
+interface AppSidebarProps {
+  workspaces: {
+    id: string;
+    name: string;
+    slug: string;
+    role: 'owner' | 'admin' | 'member';
+  }[];
+}
+
+export function AppSidebar({ workspaces }: AppSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader>
