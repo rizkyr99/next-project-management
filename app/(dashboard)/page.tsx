@@ -20,5 +20,5 @@ export default async function DashboardPage() {
     redirect('/create-workspace');
   }
 
-  redirect(`/${userWorkspaces[0].slug}`);
+  redirect(`/workspaces/${userWorkspaces[0].slug}`);
 }

@@ -14,7 +14,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 
@@ -25,8 +24,6 @@ const loginSchema = z.object({
 });
 
 export function LoginForm() {
-  const router = useRouter();
-
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -47,7 +44,6 @@ export function LoginForm() {
       {
         onSuccess: () => {
           toast.success('Login successful!', { position: 'top-center' });
-          router.push('/');
         },
         onError: (ctx) => {
           toast.error(ctx.error.message || 'Failed to login', {

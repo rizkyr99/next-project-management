@@ -41,7 +41,7 @@ export function CreateWorkspaceForm({ onSuccess }: CreateWorkspaceFormProps) {
       toast.error(result.error, { position: 'top-center' });
       return;
     }
-    router.push(`${result.slug}`);
+    router.push(`/workspaces/${result.slug}`);
     onSuccess?.();
   };
 

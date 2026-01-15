@@ -42,7 +42,7 @@ export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
   }, [slug, workspaces]);
 
   const handleSelectWorkspace = (workspace: Workspace) => {
-    router.push(`/${workspace.slug}`);
+    router.push(`/workspaces/${workspace.slug}`);
     setOpen(false);
   };
 

@@ -1,5 +1,6 @@
 import { AppSidebar } from '@/components/app-sidebar';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Header } from '@/components/header';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import { db } from '@/db/drizzle';
 import { member, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
@@ -37,13 +38,11 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className='flex h-screen overflow-hidden'>
-        <AppSidebar workspaces={userWorkspaces} />
-        <main>
-          <SidebarTrigger />
-          {children}
-        </main>
-      </div>
+      <AppSidebar workspaces={userWorkspaces} />
+      <main className='flex-1'>
+        <Header />
+        {children}
+      </main>
     </SidebarProvider>
   );
 }
