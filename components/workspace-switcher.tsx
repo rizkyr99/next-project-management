@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,7 @@ import {
 } from './ui/sidebar';
 import { Briefcase, ChevronsUpDown } from 'lucide-react';
 import { CreateWorkspaceDialog } from '@/features/workspaces/components/create-workspace-dialog';
+import { useParams, useRouter } from 'next/navigation';
 
 interface Workspace {
   id: string;
@@ -30,9 +31,20 @@ interface WorkspaceSwitcherProps {
 export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const { isMobile } = useSidebar();
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(
-    () => workspaces[0] ?? null
-  );
+
+  const router = useRouter();
+  const params = useParams<{ workspaceSlug: string }>();
+  const slug = params.workspaceSlug;
+
+  const activeWorkspace = useMemo(() => {
+    if (!workspaces.length) return null;
+    return workspaces.find((w) => w.slug === slug) ?? workspaces[0] ?? null;
+  }, [slug, workspaces]);
+
+  const handleSelectWorkspace = (workspace: Workspace) => {
+    router.push(`/${workspace.slug}`);
+    setOpen(false);
+  };
 
   if (!activeWorkspace) return null;
 
@@ -66,7 +78,7 @@ export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
             {workspaces.map((workspace) => (
               <DropdownMenuItem
                 key={workspace.id}
-                onClick={() => setActiveWorkspace(workspace)}
+                onClick={() => handleSelectWorkspace(workspace)}
                 className='p-2'>
                 <div className='flex size-6 items-center justify-center rounded-md border'>
                   <Briefcase className='size-3.5 shrink-0' />
