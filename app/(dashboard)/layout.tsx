@@ -1,10 +1,5 @@
-import { AppSidebar } from '@/components/app-sidebar';
-import { Header } from '@/components/header';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { db } from '@/db/drizzle';
-import { member, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -21,28 +16,5 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  const userWorkspaces = await db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      slug: workspace.slug,
-      role: member.role,
-    })
-    .from(member)
-    .innerJoin(workspace, eq(member.workspaceId, workspace.id))
-    .where(eq(member.userId, session.user.id));
-
-  if (userWorkspaces.length === 0) {
-    redirect('/create-workspace');
-  }
-
-  return (
-    <SidebarProvider>
-      <AppSidebar workspaces={userWorkspaces} />
-      <main className='flex-1'>
-        <Header />
-        {children}
-      </main>
-    </SidebarProvider>
-  );
+  return <SidebarProvider>{children}</SidebarProvider>;
 }

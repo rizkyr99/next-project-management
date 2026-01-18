@@ -12,9 +12,12 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { CheckSquare, Dumbbell, Home, Settings } from 'lucide-react';
+import { CheckSquare, Dumbbell, Home, List, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
+import { useEffect } from 'react';
+import { cn } from '@/lib/utils';
 
 interface AppSidebarProps {
   workspaces: {
@@ -23,29 +26,34 @@ interface AppSidebarProps {
     slug: string;
     role: 'owner' | 'admin' | 'member';
   }[];
+  projects: {
+    id: string;
+    name: string;
+  }[];
 }
 
-const items = [
-  {
-    title: 'Home',
-    url: '/',
-    icon: Home,
-  },
-  {
-    title: 'My tasks',
-    url: '/my-tasks',
-    icon: CheckSquare,
-  },
-  {
-    title: 'Settings',
-    url: '/settings',
-    icon: Settings,
-  },
-];
+export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
+  const params = useParams<{ workspaceSlug: string; projectId: string }>();
+  const { workspaceSlug, projectId } = params;
 
-const projects = [{ title: 'Forge Gym', url: 'forge', icon: Dumbbell }];
+  const items = [
+    {
+      title: 'Home',
+      url: `/workspaces/${workspaceSlug}`,
+      icon: Home,
+    },
+    {
+      title: 'My tasks',
+      url: `/workspaces/${workspaceSlug}/my-tasks`,
+      icon: CheckSquare,
+    },
+    {
+      title: 'Settings',
+      url: `/workspaces/${workspaceSlug}/settings`,
+      icon: Settings,
+    },
+  ];
 
-export function AppSidebar({ workspaces }: AppSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader>
@@ -80,11 +88,15 @@ export function AppSidebar({ workspaces }: AppSidebarProps) {
                 </div>
               )}
               {projects.map((project) => (
-                <SidebarMenuItem key={project.url}>
+                <SidebarMenuItem key={project.id}>
                   <SidebarMenuButton asChild>
-                    <Link href={project.url}>
-                      <project.icon />
-                      <span>{project.title}</span>
+                    <Link
+                      href={`/workspaces/${workspaceSlug}/projects/${project.id}`}
+                      className={cn(
+                        projectId === project.id && 'bg-muted font-medium'
+                      )}>
+                      <List />
+                      <span>{project.name}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

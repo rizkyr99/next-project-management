@@ -45,7 +45,7 @@ export async function createWorkspace(
       role: 'owner',
     });
 
-    revalidatePath(`/${newWorkspace.slug}`, 'layout');
+    revalidatePath(`/workspaces/${newWorkspace.slug}`, 'layout');
 
     return { slug: newWorkspace.slug };
   } catch (error) {

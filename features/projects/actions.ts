@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import z from 'zod';
 import { createProjectSchema } from './schema';
+import { revalidatePath } from 'next/cache';
 
 export async function createProject(
   values: z.infer<typeof createProjectSchema>
@@ -43,6 +44,11 @@ export async function createProject(
         workspaceId: membership.workspaceId,
       })
       .returning();
+
+    revalidatePath(
+      `/workspaces/${workspaceSlug}/projects/${newProject.id}`,
+      'layout'
+    );
 
     return { project: newProject };
   } catch (error) {
