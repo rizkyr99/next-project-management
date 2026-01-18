@@ -135,7 +135,9 @@ export const member = pgTable(
 export const project = pgTable(
   'project',
   {
-    id: text('id').primaryKey(),
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
     name: text('name').notNull(),
     description: text('description'),
     workspaceId: text('workspace_id')
