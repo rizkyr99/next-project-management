@@ -50,9 +50,9 @@ export default async function WorkspaceLayout({
   return (
     <>
       <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} />
-      <div className='flex-1'>
+      <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
         <Header />
-        <main>{children}</main>
+        <main className='flex-1'>{children}</main>
       </div>
     </>
   );

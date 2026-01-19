@@ -12,11 +12,10 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { CheckSquare, Dumbbell, Home, List, Settings } from 'lucide-react';
+import { CheckSquare, Home, List, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
-import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 interface AppSidebarProps {

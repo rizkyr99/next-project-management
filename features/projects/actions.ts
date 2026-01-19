@@ -52,6 +52,7 @@ export async function createProject(
 
     return { project: newProject };
   } catch (error) {
+    console.error('Project Creation Error:', error);
     return { error: 'Failed to create project.' };
   }
 }
