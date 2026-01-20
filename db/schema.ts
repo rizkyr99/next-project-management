@@ -1,5 +1,13 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, text, timestamp, boolean, index } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  index,
+  varchar,
+  integer,
+} from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -151,6 +159,19 @@ export const project = pgTable(
   (table) => [index('project_workspaceId_idx').on(table.workspaceId)]
 );
 
+export const taskStatus = pgTable('task_status', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => project.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 64 }).notNull(),
+  order: integer('order').notNull(),
+  isDefault: boolean('is_default').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   members: many(member),
   projects: many(project),
@@ -165,9 +186,17 @@ export const memberRelations = relations(member, ({ one }) => ({
   user: one(user, { fields: [member.userId], references: [user.id] }),
 }));
 
-export const projectRelations = relations(project, ({ one }) => ({
+export const projectRelations = relations(project, ({ one, many }) => ({
   workspace: one(workspace, {
     fields: [project.workspaceId],
     references: [workspace.id],
+  }),
+  statuses: many(taskStatus),
+}));
+
+export const taskStatusRelations = relations(taskStatus, ({ one }) => ({
+  project: one(project, {
+    fields: [taskStatus.projectId],
+    references: [project.id],
   }),
 }));

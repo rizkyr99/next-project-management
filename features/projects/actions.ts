@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { member, project, workspace } from '@/db/schema';
+import { member, project, taskStatus, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
@@ -45,6 +45,29 @@ export async function createProject(
       })
       .returning();
 
+    try {
+      await db.insert(taskStatus).values([
+        {
+          name: 'To Do',
+          order: 1,
+          projectId: newProject.id,
+          isDefault: true,
+        },
+        {
+          name: 'In Progress',
+          order: 2,
+          projectId: newProject.id,
+        },
+        {
+          name: 'Done',
+          order: 3,
+          projectId: newProject.id,
+        },
+      ]);
+    } catch (statusError) {
+      console.error('Failed to create default statuses:', statusError);
+    }
+
     revalidatePath(
       `/workspaces/${workspaceSlug}/projects/${newProject.id}`,
       'layout'
@@ -52,6 +75,7 @@ export async function createProject(
 
     return { project: newProject };
   } catch (error) {
+    console.error('Project Creation Error:', error);
     return { error: 'Failed to create project.' };
   }
 }
