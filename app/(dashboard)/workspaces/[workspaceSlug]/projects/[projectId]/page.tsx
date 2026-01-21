@@ -17,6 +17,18 @@ export default async function ProjectIdPage({
     with: {
       statuses: {
         orderBy: (taskStatus, { asc }) => [asc(taskStatus.order)],
+        with: {
+          tasks: {
+            orderBy: (task, { asc }) => [asc(task.order)],
+            with: {
+              assignees: {
+                with: {
+                  user: true,
+                },
+              },
+            },
+          },
+        },
       },
     },
   });
@@ -44,7 +56,11 @@ export default async function ProjectIdPage({
       </div>
       <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
         {data?.statuses.map((status) => (
-          <BoardColumn key={status.name} title={status.name} />
+          <BoardColumn
+            key={status.name}
+            title={status.name}
+            tasks={status.tasks}
+          />
         ))}
       </div>
     </div>

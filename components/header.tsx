@@ -29,7 +29,7 @@ export function Header() {
   };
 
   return (
-    <header className='h-16 border-b flex justify-between items-center px-4'>
+    <header className='h-16 border-b flex justify-between items-center px-4 shrink-0'>
       <SidebarTrigger />
       <div className='flex items-center gap-4'>
         <Button variant='ghost' size='icon-sm'>

@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { member, project, taskStatus, workspace } from '@/db/schema';
+import { member, project, task, taskStatus, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
@@ -10,7 +10,7 @@ import { createProjectSchema } from './schema';
 import { revalidatePath } from 'next/cache';
 
 export async function createProject(
-  values: z.infer<typeof createProjectSchema>
+  values: z.infer<typeof createProjectSchema>,
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
 
@@ -22,7 +22,7 @@ export async function createProject(
   const userId = session.user.id;
 
   try {
-    const result = await db
+    const [membership] = await db
       .select({
         workspaceId: workspace.id,
       })
@@ -30,8 +30,6 @@ export async function createProject(
       .innerJoin(member, eq(member.workspaceId, workspace.id))
       .where(and(eq(workspace.slug, workspaceSlug), eq(member.userId, userId)))
       .limit(1);
-
-    const membership = result[0];
 
     if (!membership) {
       throw new Error('Workspace not found or access denied');
@@ -45,8 +43,9 @@ export async function createProject(
       })
       .returning();
 
-    try {
-      await db.insert(taskStatus).values([
+    const createdStatuses = await db
+      .insert(taskStatus)
+      .values([
         {
           name: 'To Do',
           order: 1,
@@ -63,14 +62,24 @@ export async function createProject(
           order: 3,
           projectId: newProject.id,
         },
-      ]);
-    } catch (statusError) {
-      console.error('Failed to create default statuses:', statusError);
+      ])
+      .returning({ id: taskStatus.id, name: taskStatus.name });
+
+    const todoStatus = createdStatuses.find((s) => s.name === 'To Do');
+
+    if (todoStatus) {
+      await db.insert(task).values({
+        title: 'Welcome to your new project!',
+        description: 'This is a default task to help you get started.',
+        projectId: newProject.id,
+        statusId: todoStatus.id,
+        order: 1,
+      });
     }
 
     revalidatePath(
       `/workspaces/${workspaceSlug}/projects/${newProject.id}`,
-      'layout'
+      'layout',
     );
 
     return { project: newProject };
