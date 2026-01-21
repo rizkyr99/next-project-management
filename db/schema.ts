@@ -7,7 +7,12 @@ import {
   index,
   varchar,
   integer,
+  pgEnum,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
+
+export const roleEnum = pgEnum('role', ['owner', 'admin', 'member']);
+export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -38,7 +43,7 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
   },
-  (table) => [index('session_userId_idx').on(table.userId)]
+  (table) => [index('session_userId_idx').on(table.userId)],
 );
 
 export const account = pgTable(
@@ -62,7 +67,7 @@ export const account = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index('account_userId_idx').on(table.userId)]
+  (table) => [index('account_userId_idx').on(table.userId)],
 );
 
 export const verification = pgTable(
@@ -78,7 +83,7 @@ export const verification = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index('verification_identifier_idx').on(table.identifier)]
+  (table) => [index('verification_identifier_idx').on(table.identifier)],
 );
 
 export const userRelations = relations(user, ({ many }) => ({
@@ -113,10 +118,10 @@ export const workspace = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index('workspace_userId_idx').on(table.userId)]
+  (table) => [index('workspace_userId_idx').on(table.userId)],
 );
 
 export const member = pgTable(
@@ -131,13 +136,10 @@ export const member = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    role: text('role')
-      .$type<'owner' | 'admin' | 'member'>()
-      .default('member')
-      .notNull(),
+    role: roleEnum('role').default('member').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('member_workspaceId_idx').on(table.workspaceId)]
+  (table) => [index('member_workspaceId_idx').on(table.workspaceId)],
 );
 
 export const project = pgTable(
@@ -153,10 +155,10 @@ export const project = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index('project_workspaceId_idx').on(table.workspaceId)]
+  (table) => [index('project_workspaceId_idx').on(table.workspaceId)],
 );
 
 export const taskStatus = pgTable('task_status', {
@@ -171,6 +173,47 @@ export const taskStatus = pgTable('task_status', {
   isDefault: boolean('is_default').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const task = pgTable(
+  'task',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    title: varchar('title', { length: 255 }).notNull(),
+    description: text('description'),
+    priority: priorityEnum('priority').default('medium').notNull(),
+    dueDate: timestamp('due_date', { withTimezone: true }),
+    order: integer('order').notNull(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    statusId: text('status_id')
+      .notNull()
+      .references(() => taskStatus.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index('task_projectId_idx').on(table.projectId),
+    index('task_statusId_idx').on(table.statusId),
+  ],
+);
+
+export const taskAssignee = pgTable(
+  'task_assignee',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.taskId, table.userId] }),
+  }),
+);
 
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   members: many(member),
@@ -192,6 +235,7 @@ export const projectRelations = relations(project, ({ one, many }) => ({
     references: [workspace.id],
   }),
   statuses: many(taskStatus),
+  tasks: many(task),
 }));
 
 export const taskStatusRelations = relations(taskStatus, ({ one }) => ({
@@ -199,4 +243,18 @@ export const taskStatusRelations = relations(taskStatus, ({ one }) => ({
     fields: [taskStatus.projectId],
     references: [project.id],
   }),
+}));
+
+export const taskRelations = relations(task, ({ one, many }) => ({
+  project: one(project, { fields: [task.projectId], references: [project.id] }),
+  status: one(taskStatus, {
+    fields: [task.statusId],
+    references: [taskStatus.id],
+  }),
+  assignees: many(taskAssignee),
+}));
+
+export const taskAssigneeRelations = relations(taskAssignee, ({ one }) => ({
+  task: one(task, { fields: [taskAssignee.taskId], references: [task.id] }),
+  user: one(user, { fields: [taskAssignee.userId], references: [user.id] }),
 }));
