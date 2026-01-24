@@ -57,7 +57,8 @@ export default async function ProjectIdPage({
       <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
         {data?.statuses.map((status) => (
           <BoardColumn
-            key={status.name}
+            key={status.id}
+            id={status.id}
             title={status.name}
             tasks={status.tasks}
           />

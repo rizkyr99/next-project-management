@@ -1,8 +1,8 @@
-import { Button } from '@/components/ui/button';
 import { TaskCard } from './task-card';
-import { Plus } from 'lucide-react';
+import { AddTaskInline } from './add-task-inline';
 
 interface BoardColumnProps {
+  id: string;
   title: string;
   tasks?: {
     id: string;
@@ -16,7 +16,7 @@ interface BoardColumnProps {
   }[];
 }
 
-export function BoardColumn({ title, tasks = [] }: BoardColumnProps) {
+export function BoardColumn({ id, title, tasks = [] }: BoardColumnProps) {
   return (
     <div className='bg-muted w-64 p-2 rounded-lg space-y-2 shrink-0'>
       <div className='text-muted-foreground font-medium text-sm uppercase'>
@@ -26,13 +26,7 @@ export function BoardColumn({ title, tasks = [] }: BoardColumnProps) {
         {tasks.map((task) => (
           <TaskCard key={task.id} title={task.title} />
         ))}
-        <Button
-          variant='ghost'
-          size='sm'
-          className='hover:bg-background/50 w-full justify-start'>
-          <Plus />
-          Add task
-        </Button>
+        <AddTaskInline statusId={id} />
       </div>
     </div>
   );
