@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { db } from '@/db/drizzle';
 import { project } from '@/db/schema';
-import { BoardColumn } from '@/features/tasks/components/board-column';
+import { BoardView } from '@/features/projects/components/board-view';
 import { eq } from 'drizzle-orm';
 import { Kanban, List, Table } from 'lucide-react';
 
@@ -54,16 +54,7 @@ export default async function ProjectIdPage({
           </Button>
         </div>
       </div>
-      <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
-        {data?.statuses.map((status) => (
-          <BoardColumn
-            key={status.id}
-            id={status.id}
-            title={status.name}
-            tasks={status.tasks}
-          />
-        ))}
-      </div>
+      <BoardView project={data} />
     </div>
   );
 }

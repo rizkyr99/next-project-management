@@ -7,3 +7,14 @@ export const createTaskSchema = z.object({
   projectId: z.uuid(),
   statusId: z.uuid(),
 });
+
+export const reorderTasksSchema = z.object({
+  projectId: z.uuid(),
+  statusId: z.uuid(),
+  tasks: z.array(
+    z.object({
+      id: z.uuid(),
+      order: z.number(),
+    }),
+  ),
+});
