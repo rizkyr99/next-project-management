@@ -17,6 +17,18 @@ import { useRouter } from 'next/navigation';
 
 export function Header() {
   const router = useRouter();
+  const { data: session } = authClient.useSession();
+
+  const user = session?.user;
+  const userName = user?.name || user?.email || 'User';
+  const userEmail = user?.email || 'No email';
+  const initialsSource = user?.name || user?.email || 'U';
+  const initials = initialsSource
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
 
   const handleLogout = async () => {
     await authClient.signOut({
@@ -39,7 +51,9 @@ export function Header() {
           <DropdownMenuTrigger>
             <div className=''>
               <Avatar className='size-8 rounded-lg'>
-                <AvatarFallback className='rounded-lg'>CN</AvatarFallback>
+                <AvatarFallback className='rounded-lg'>
+                  {initials || 'U'}
+                </AvatarFallback>
               </Avatar>
             </div>
           </DropdownMenuTrigger>
@@ -51,11 +65,13 @@ export function Header() {
             <DropdownMenuLabel className='p-0 font-normal'>
               <div className='flex items-center gap-2 px-1 py-1.5 text-left text-sm'>
                 <Avatar className='size-8 rounded-lg'>
-                  <AvatarFallback className='rounded-lg'>CN</AvatarFallback>
+                  <AvatarFallback className='rounded-lg'>
+                    {initials || 'U'}
+                  </AvatarFallback>
                 </Avatar>
                 <div className='grid flex-1 text-left text-sm leading-tight'>
-                  <span className='truncate font-medium'>username</span>
-                  <span className='truncate text-xs'>email@gmail.com</span>
+                  <span className='truncate font-medium'>{userName}</span>
+                  <span className='truncate text-xs'>{userEmail}</span>
                 </div>
               </div>
             </DropdownMenuLabel>

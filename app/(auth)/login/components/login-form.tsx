@@ -50,7 +50,7 @@ export function LoginForm() {
             position: 'top-center',
           });
         },
-      }
+      },
     );
   };
 
@@ -104,7 +104,11 @@ export function LoginForm() {
           )}
         />
 
-        <Button type='submit' size='lg' className='w-full'>
+        <Button
+          type='submit'
+          size='lg'
+          className='w-full'
+          disabled={form.formState.isSubmitting}>
           Login
         </Button>
       </form>
