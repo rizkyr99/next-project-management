@@ -2,6 +2,7 @@ import { TaskCard } from './task-card';
 import { AddTaskInline } from './add-task-inline';
 import {
   SortableContext,
+  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 
@@ -21,6 +22,8 @@ interface BoardColumnProps {
 }
 
 export function BoardColumn({ id, title, tasks = [] }: BoardColumnProps) {
+  const { setNodeRef } = useSortable({ id });
+
   return (
     <div className='bg-muted w-64 p-2 rounded-lg space-y-2 shrink-0'>
       <div className='text-muted-foreground font-medium text-sm uppercase'>
@@ -29,7 +32,7 @@ export function BoardColumn({ id, title, tasks = [] }: BoardColumnProps) {
       <SortableContext
         items={tasks.map((t) => t.id)}
         strategy={verticalListSortingStrategy}>
-        <div className='space-y-1'>
+        <div ref={setNodeRef} className='space-y-1'>
           {tasks.map((task) => (
             <TaskCard key={task.id} id={task.id} title={task.title} />
           ))}

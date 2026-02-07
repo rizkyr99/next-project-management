@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { db } from '@/db/drizzle';
 import { project } from '@/db/schema';
-import { BoardView } from '@/features/projects/components/board-view';
 import { eq } from 'drizzle-orm';
 import { Kanban, List, Table } from 'lucide-react';
+import BoardView from '@/features/projects/components/board-view-client';
 
 export default async function ProjectIdPage({
   params,

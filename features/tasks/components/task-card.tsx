@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { UserCircle } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 interface TaskCardProps {
   id: string;
   title: string;
@@ -17,9 +18,7 @@ export function TaskCard({ id, title }: TaskCardProps) {
   } = useSortable({ id });
 
   const style = {
-    transform: transform
-      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-      : undefined,
+    transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };

@@ -2,17 +2,21 @@
 
 import { reorderTasks } from '@/features/tasks/actions';
 import { BoardColumn } from '@/features/tasks/components/board-column';
+import { TaskCard } from '@/features/tasks/components/task-card';
 import {
-  closestCenter,
   DndContext,
   DragEndEvent,
+  DragOverEvent,
+  DragOverlay,
+  DragStartEvent,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 
 interface BoardViewProps {
   project?: {
@@ -36,7 +40,11 @@ interface BoardViewProps {
 
 export function BoardView({ project }: BoardViewProps) {
   const [statuses, setStatuses] = useState(project?.statuses ?? []);
-  const id = useId();
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const activeTask = statuses
+    .flatMap((s) => s.tasks)
+    .find((t) => t.id === activeId);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -60,37 +68,100 @@ export function BoardView({ project }: BoardViewProps) {
     });
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
 
-    if (!over || active.id === over.id) return;
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    const activeStatusIndex = statuses.findIndex((status) =>
+      status.tasks.some((t) => t.id === activeId),
+    );
+    const overStatusIndex = statuses.findIndex(
+      (status) =>
+        status.id === overId || status.tasks.some((t) => t.id === overId),
+    );
+
+    if (activeStatusIndex === -1 || overStatusIndex === -1) return;
+    if (activeStatusIndex === overStatusIndex) return;
+
+    const activeStatus = statuses[activeStatusIndex];
+    const overStatus = statuses[overStatusIndex];
+    const activeTask = activeStatus.tasks.find((t) => t.id === activeId)!;
+
+    const newActiveStatusTasks = activeStatus.tasks.filter(
+      (t) => t.id !== activeId,
+    );
+
+    const overTaskIndex = overStatus.tasks.findIndex((t) => t.id === overId);
+    const newOverStatusTasks = [...overStatus.tasks];
+
+    if (overTaskIndex === -1) {
+      newOverStatusTasks.push(activeTask);
+    } else {
+      newOverStatusTasks.splice(overTaskIndex, 0, activeTask);
+    }
+
+    const newStatuses = [...statuses];
+    newStatuses[activeStatusIndex] = {
+      ...activeStatus,
+      tasks: newActiveStatusTasks,
+    };
+    newStatuses[overStatusIndex] = {
+      ...overStatus,
+      tasks: newOverStatusTasks,
+    };
+
+    setStatuses(newStatuses);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
 
     const statusIndex = statuses.findIndex((status) =>
       status.tasks.some((t) => t.id === active.id),
     );
 
+    if (statusIndex === -1) return;
+
     const status = statuses[statusIndex];
-    const oldIndex = status.tasks.findIndex((t) => t.id === active.id);
-    const newIndex = status.tasks.findIndex((t) => t.id === over.id);
+    const oldIndex = status.tasks.findIndex((t) => t.id === activeId);
+    const newIndex = status.tasks.findIndex((t) => t.id === overId);
 
-    const reordered = arrayMove(status.tasks, oldIndex, newIndex);
+    let finalTasks = status.tasks;
 
-    const newStatuses = [...statuses];
-    newStatuses[statusIndex] = {
-      ...statuses[statusIndex],
-      tasks: reordered,
-    };
+    if (newIndex !== -1 && oldIndex !== newIndex) {
+      finalTasks = arrayMove(status.tasks, oldIndex, newIndex);
 
-    setStatuses(newStatuses);
+      const newStatuses = [...statuses];
+      newStatuses[statusIndex] = {
+        ...status,
+        tasks: finalTasks,
+      };
 
-    persistTaskOrder(project!.id, status.id, reordered);
+      setStatuses(newStatuses);
+    }
+
+    await persistTaskOrder(project!.id, status.id, finalTasks);
   };
 
   return (
     <DndContext
-      id={id}
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={pointerWithin}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}>
       <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
         {statuses.map((status) => (
@@ -102,6 +173,11 @@ export function BoardView({ project }: BoardViewProps) {
           />
         ))}
       </div>
+      <DragOverlay>
+        {activeTask ? (
+          <TaskCard id={activeTask.id} title={activeTask.title} />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
