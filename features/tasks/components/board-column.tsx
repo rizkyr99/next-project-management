@@ -16,12 +16,25 @@ interface BoardColumnProps {
       user: {
         id: string;
         name: string;
+        email?: string;
+        image?: string | null;
       };
     }[];
   }[];
+  availableAssignees?: {
+    id: string;
+    name: string;
+    email?: string;
+    image?: string | null;
+  }[];
 }
 
-export function BoardColumn({ id, title, tasks = [] }: BoardColumnProps) {
+export function BoardColumn({
+  id,
+  title,
+  tasks = [],
+  availableAssignees = [],
+}: BoardColumnProps) {
   const { setNodeRef } = useSortable({ id });
 
   return (
@@ -34,7 +47,13 @@ export function BoardColumn({ id, title, tasks = [] }: BoardColumnProps) {
         strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className='space-y-1'>
           {tasks.map((task) => (
-            <TaskCard key={task.id} id={task.id} title={task.title} />
+            <TaskCard
+              key={task.id}
+              id={task.id}
+              title={task.title}
+              assignees={task.assignees}
+              availableAssignees={availableAssignees}
+            />
           ))}
           <AddTaskInline statusId={id} />
         </div>

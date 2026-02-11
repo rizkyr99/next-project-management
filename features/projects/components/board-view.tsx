@@ -16,7 +16,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface BoardViewProps {
   project?: {
@@ -31,6 +31,8 @@ interface BoardViewProps {
           user: {
             id: string;
             name: string;
+            email?: string;
+            image?: string | null;
           };
         }[];
       }[];
@@ -45,6 +47,23 @@ export function BoardView({ project }: BoardViewProps) {
   const activeTask = statuses
     .flatMap((s) => s.tasks)
     .find((t) => t.id === activeId);
+
+  const availableAssignees = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; name: string; email?: string; image?: string | null }
+    >();
+
+    for (const status of statuses) {
+      for (const task of status.tasks) {
+        for (const assignee of task.assignees) {
+          map.set(assignee.user.id, assignee.user);
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  }, [statuses]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -170,12 +189,18 @@ export function BoardView({ project }: BoardViewProps) {
             id={status.id}
             title={status.name}
             tasks={status.tasks}
+            availableAssignees={availableAssignees}
           />
         ))}
       </div>
       <DragOverlay>
         {activeTask ? (
-          <TaskCard id={activeTask.id} title={activeTask.title} />
+          <TaskCard
+            id={activeTask.id}
+            title={activeTask.title}
+            assignees={activeTask.assignees}
+            availableAssignees={availableAssignees}
+          />
         ) : null}
       </DragOverlay>
     </DndContext>
