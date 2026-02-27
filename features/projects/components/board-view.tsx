@@ -16,7 +16,8 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 interface BoardViewProps {
   project?: {
@@ -43,6 +44,7 @@ interface BoardViewProps {
 export function BoardView({ project }: BoardViewProps) {
   const [statuses, setStatuses] = useState(project?.statuses ?? []);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const previousStatusesRef = useRef<typeof statuses | null>(null);
 
   const activeTask = statuses
     .flatMap((s) => s.tasks)
@@ -77,17 +79,34 @@ export function BoardView({ project }: BoardViewProps) {
     statusId: string,
     tasks: { id: string }[],
   ) => {
-    await reorderTasks({
-      projectId,
-      statusId,
-      tasks: tasks.map((t, index) => ({
-        id: t.id,
-        order: index,
-      })),
-    });
+    try {
+      const result = await reorderTasks({
+        projectId,
+        statusId,
+        tasks: tasks.map((t, index) => ({
+          id: t.id,
+          order: index,
+        })),
+      });
+
+      if (result?.error) {
+        return { ok: false as const, error: result.error };
+      }
+
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to reorder',
+      };
+    }
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    previousStatusesRef.current = statuses.map((status) => ({
+      ...status,
+      tasks: [...status.tasks],
+    }));
     setActiveId(event.active.id as string);
   };
 
@@ -143,7 +162,13 @@ export function BoardView({ project }: BoardViewProps) {
     const { active, over } = event;
     setActiveId(null);
 
-    if (!over) return;
+    if (!over) {
+      if (previousStatusesRef.current) {
+        setStatuses(previousStatusesRef.current);
+      }
+      previousStatusesRef.current = null;
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
@@ -172,7 +197,22 @@ export function BoardView({ project }: BoardViewProps) {
       setStatuses(newStatuses);
     }
 
-    await persistTaskOrder(project!.id, status.id, finalTasks);
+    const persistResult = await persistTaskOrder(
+      project!.id,
+      status.id,
+      finalTasks,
+    );
+
+    if (!persistResult.ok) {
+      toast.error(persistResult.error || 'Failed to reorder tasks', {
+        position: 'top-center',
+      });
+      if (previousStatusesRef.current) {
+        setStatuses(previousStatusesRef.current);
+      }
+    }
+
+    previousStatusesRef.current = null;
   };
 
   return (
