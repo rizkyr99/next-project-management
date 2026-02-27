@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Target, UserCircle, Users } from 'lucide-react';
+import { Target, Users } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -256,44 +256,45 @@ export function TaskCard({
                 )
               }
               trigger={
-                <button
-                  type='button'
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => event.stopPropagation()}
-                  className='flex items-center'>
-                  {selectedAssignees.length > 0 || invitedEmails.length > 0 ? (
-                    <div className='flex items-center -space-x-2'>
-                      {selectedAssignees.map((assignee) => {
-                        const label = assignee.name || assignee.email || 'U';
-                        return (
-                          <Avatar
-                            key={assignee.id}
-                            className='size-7 border-2 border-background'>
-                            {assignee.image ? (
-                              <AvatarImage src={assignee.image} alt={label} />
-                            ) : null}
-                            <AvatarFallback className='text-[11px] font-medium'>
-                              {getInitials(label) || 'U'}
-                            </AvatarFallback>
-                          </Avatar>
-                        );
-                      })}
-                      {invitedEmails.map((email) => (
-                        <Avatar
-                          key={email}
-                          className='size-7 border-2 border-background'>
-                          <AvatarFallback className='text-[11px] font-medium'>
-                            {getInitials(email) || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                      ))}
-                    </div>
-                  ) : (
-                    <Button variant='outline' size='icon-sm'>
-                      <UserCircle />
-                    </Button>
-                  )}
-                </button>
+                // <button
+                //   type='button'
+                //   onPointerDown={(event) => event.stopPropagation()}
+                //   onClick={(event) => event.stopPropagation()}
+                //   className='flex items-center'>
+                //   {selectedAssignees.length > 0 || invitedEmails.length > 0 ? (
+                //     <div className='flex items-center -space-x-2'>
+                //       {selectedAssignees.map((assignee) => {
+                //         const label = assignee.name || assignee.email || 'U';
+                //         return (
+                //           <Avatar
+                //             key={assignee.id}
+                //             className='size-7 border-2 border-background'>
+                //             {assignee.image ? (
+                //               <AvatarImage src={assignee.image} alt={label} />
+                //             ) : null}
+                //             <AvatarFallback className='text-[11px] font-medium'>
+                //               {getInitials(label) || 'U'}
+                //             </AvatarFallback>
+                //           </Avatar>
+                //         );
+                //       })}
+                //       {invitedEmails.map((email) => (
+                //         <Avatar
+                //           key={email}
+                //           className='size-7 border-2 border-background'>
+                //           <AvatarFallback className='text-[11px] font-medium'>
+                //             {getInitials(email) || 'U'}
+                //           </AvatarFallback>
+                //         </Avatar>
+                //       ))}
+                //     </div>
+                //   ) : (
+                //     <Button variant='outline' size='icon-sm'>
+                //       <UserCircle />
+                //     </Button>
+                //   )}
+                // </button>
+                <div></div>
               }
             />
           </div>

@@ -13,6 +13,12 @@ import {
 
 export const roleEnum = pgEnum('role', ['owner', 'admin', 'member']);
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
+export const inviteStatusEnum = pgEnum('invite_status', [
+  'pending',
+  'accepted',
+  'revoked',
+  'expired',
+]);
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -142,6 +148,28 @@ export const member = pgTable(
   (table) => [index('member_workspaceId_idx').on(table.workspaceId)],
 );
 
+export const workspaceInvite = pgTable(
+  'workspace_invite',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    role: roleEnum('role').default('member').notNull(),
+    status: inviteStatusEnum('status').default('pending').notNull(),
+    token: text('token').notNull(),
+    invitedByUserId: text('invited_by_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('workspace_invite_workspaceId_idx').on(table.workspaceId)],
+);
+
 export const project = pgTable(
   'project',
   {
@@ -217,6 +245,7 @@ export const taskAssignee = pgTable(
 
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   members: many(member),
+  invites: many(workspaceInvite),
   projects: many(project),
   owner: one(user, { fields: [workspace.userId], references: [user.id] }),
 }));
@@ -227,6 +256,17 @@ export const memberRelations = relations(member, ({ one }) => ({
     references: [workspace.id],
   }),
   user: one(user, { fields: [member.userId], references: [user.id] }),
+}));
+
+export const workspaceInviteRelations = relations(workspaceInvite, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [workspaceInvite.workspaceId],
+    references: [workspace.id],
+  }),
+  invitedBy: one(user, {
+    fields: [workspaceInvite.invitedByUserId],
+    references: [user.id],
+  }),
 }));
 
 export const projectRelations = relations(project, ({ one, many }) => ({

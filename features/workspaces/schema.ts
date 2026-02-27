@@ -7,7 +7,13 @@ export const workspaceFormSchema = z.object({
     .min(1, 'Workspace URL is required')
     .regex(
       /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      'URL must contain only lowercase letters, numbers, and hyphens'
+      'URL must contain only lowercase letters, numbers, and hyphens',
     ),
   description: z.string().optional(),
+});
+
+export const inviteMemberSchema = z.object({
+  workspaceSlug: z.string().min(1, 'Workspace is required'),
+  email: z.email('Enter a valid email'),
+  role: z.enum(['admin', 'member']),
 });
