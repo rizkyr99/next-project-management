@@ -8,7 +8,7 @@ import BoardView from '@/features/projects/components/board-view-client';
 export default async function ProjectIdPage({
   params,
 }: {
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
 
