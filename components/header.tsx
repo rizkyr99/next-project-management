@@ -1,5 +1,5 @@
 'use client';
-import { BadgeCheck, Bell, LogOut } from 'lucide-react';
+import { BadgeCheck, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import {
   DropdownMenu,
@@ -11,9 +11,9 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { SidebarTrigger } from './ui/sidebar';
-import { Button } from './ui/button';
 import { authClient } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
+import { NotificationsPopover } from './notifications-popover';
 
 export function Header() {
   const router = useRouter();
@@ -44,9 +44,7 @@ export function Header() {
     <header className='h-16 border-b flex justify-between items-center px-4 shrink-0'>
       <SidebarTrigger />
       <div className='flex items-center gap-4'>
-        <Button variant='ghost' size='icon-sm'>
-          <Bell />
-        </Button>
+        <NotificationsPopover />
         <DropdownMenu>
           <DropdownMenuTrigger>
             <div className=''>
