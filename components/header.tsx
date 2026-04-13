@@ -215,7 +215,10 @@ export function Header() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  router.push(`/workspaces/${workspaceSlug}/account`)
+                }>
                 <BadgeCheck />
                 Account
               </DropdownMenuItem>
