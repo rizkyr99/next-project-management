@@ -1,7 +1,13 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { member, user, workspace, workspaceInvite } from '@/db/schema';
+import {
+  member,
+  user as userTable,
+  user,
+  workspace,
+  workspaceInvite,
+} from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -16,7 +22,7 @@ const createWorkspaceSchema = z.object({
 });
 
 export async function createWorkspace(
-  values: z.infer<typeof createWorkspaceSchema>
+  values: z.infer<typeof createWorkspaceSchema>,
 ) {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -56,8 +62,14 @@ export async function createWorkspace(
   }
 }
 
-export async function inviteWorkspaceMember(
-  values: z.infer<typeof inviteMemberSchema>
+const inviteUserSchema = z.object({
+  email: z.email('Invalid email address'),
+  role: z.enum(['member', 'admin']),
+});
+
+export async function inviteUserToWorkspace(
+  workspaceSlug: string,
+  values: z.infer<typeof inviteUserSchema>,
 ) {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -67,93 +79,66 @@ export async function inviteWorkspaceMember(
     throw new Error('Unauthorized');
   }
 
-  const validated = inviteMemberSchema.parse(values);
-  const email = validated.email.trim().toLowerCase();
+  const inviterId = session.user.id;
+  const validated = inviteUserSchema.parse(values);
 
-  const [membership] = await db
-    .select({
-      workspaceId: workspace.id,
-      role: member.role,
-    })
+  const [targetWorkspace] = await db
+    .select()
     .from(workspace)
-    .innerJoin(member, eq(member.workspaceId, workspace.id))
+    .where(eq(workspace.slug, workspaceSlug));
+
+  if (!targetWorkspace) {
+    return { error: 'Workspace not found' };
+  }
+
+  const [inviterMember] = await db
+    .select()
+    .from(member)
     .where(
       and(
-        eq(workspace.slug, validated.workspaceSlug),
-        eq(member.userId, session.user.id),
+        eq(member.workspaceId, targetWorkspace.id),
+        eq(member.userId, inviterId),
       ),
     );
 
-  if (!membership) {
-    return { error: 'Workspace not found or access denied' };
+  if (!inviterMember || !['owner', 'admin'].includes(inviterMember.role)) {
+    return { error: 'You do not have permission to invite members' };
   }
 
-  if (membership.role !== 'owner' && membership.role !== 'admin') {
-    return { error: 'Only admins or owners can invite members' };
+  const [invitedUser] = await db
+    .select()
+    .from(userTable)
+    .where(eq(userTable.email, validated.email));
+
+  if (!invitedUser) {
+    return { error: 'No account found with that email address' };
   }
 
-  const [existingUser] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.email, email));
-
-  if (existingUser) {
-    const [existingMember] = await db
-      .select({ id: member.id })
-      .from(member)
-      .where(
-        and(
-          eq(member.workspaceId, membership.workspaceId),
-          eq(member.userId, existingUser.id),
-        ),
-      );
-
-    if (existingMember) {
-      return { error: 'That user is already a member' };
-    }
-
-    await db.insert(member).values({
-      workspaceId: membership.workspaceId,
-      userId: existingUser.id,
-      role: validated.role,
-    });
-
-    revalidatePath(`/workspaces/${validated.workspaceSlug}/settings`);
-    revalidatePath(`/workspaces/${validated.workspaceSlug}`, 'layout');
-
-    return { status: 'added' as const };
+  if (invitedUser.id === inviterId) {
+    return { error: 'You cannot invite yourself' };
   }
 
-  const now = new Date();
-  const [existingInvite] = await db
-    .select({
-      id: workspaceInvite.id,
-      expiresAt: workspaceInvite.expiresAt,
-    })
-    .from(workspaceInvite)
+  const [alreadyMember] = await db
+    .select()
+    .from(member)
     .where(
       and(
-        eq(workspaceInvite.workspaceId, membership.workspaceId),
-        eq(workspaceInvite.email, email),
-        eq(workspaceInvite.status, 'pending'),
+        eq(member.workspaceId, targetWorkspace.id),
+        eq(member.userId, invitedUser.id),
       ),
     );
 
-  if (existingInvite && existingInvite.expiresAt > now) {
-    return { error: 'An invite is already pending for this email' };
+  if (alreadyMember) {
+    return { error: 'User is already a member of this workspace' };
   }
 
-  await db.insert(workspaceInvite).values({
-    workspaceId: membership.workspaceId,
-    email,
+  await db.insert(member).values({
+    workspaceId: targetWorkspace.id,
+    userId: invitedUser.id,
     role: validated.role,
-    status: 'pending',
-    token: crypto.randomUUID(),
-    invitedByUserId: session.user.id,
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
   });
 
-  revalidatePath(`/workspaces/${validated.workspaceSlug}/settings`);
+  revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');
 
-  return { status: 'invited' as const };
+  return { success: true, name: invitedUser.name || invitedUser.email };
 }
