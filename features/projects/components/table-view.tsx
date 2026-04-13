@@ -51,6 +51,7 @@ import { toast } from 'sonner';
 type Priority = 'low' | 'medium' | 'high';
 
 interface TableViewProps {
+  workspaceMembers?: { id: string; name: string; email: string; image: string | null }[];
   project?: {
     id: string;
     statuses: {
@@ -112,7 +113,7 @@ function formatDate(date: Date | null) {
   const label = d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
-    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
   });
   return { label, isOverdue };
 }

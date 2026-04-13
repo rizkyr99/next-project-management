@@ -9,9 +9,13 @@ import {
 interface BoardColumnProps {
   id: string;
   title: string;
+  projectId: string;
+  statuses: { id: string; name: string }[];
   tasks?: {
     id: string;
     title: string;
+    priority: 'low' | 'medium' | 'high';
+    dueDate?: Date | null;
     assignees: {
       user: {
         id: string;
@@ -32,9 +36,11 @@ interface BoardColumnProps {
 export function BoardColumn({
   id,
   title,
+  projectId,
+  statuses,
   tasks = [],
   availableAssignees = [],
-}: BoardColumnProps) {
+}: Readonly<BoardColumnProps>) {
   const { setNodeRef } = useSortable({ id });
 
   return (
@@ -51,6 +57,11 @@ export function BoardColumn({
               key={task.id}
               id={task.id}
               title={task.title}
+              priority={task.priority}
+              dueDate={task.dueDate}
+              statusId={id}
+              projectId={projectId}
+              statuses={statuses}
               assignees={task.assignees}
               availableAssignees={availableAssignees}
             />

@@ -11,16 +11,13 @@ import {
   updateTaskStatusSchema,
 } from './schema';
 import { db } from '@/db/drizzle';
-import { task } from '@/db/schema';
+import { task, taskAssignee } from '@/db/schema';
 import { revalidatePath } from 'next/cache';
 import { eq, inArray } from 'drizzle-orm';
 
 export async function createTask(values: z.infer<typeof createTaskSchema>) {
   const session = await auth.api.getSession({ headers: await headers() });
-
-  if (!session || !session.user) {
-    throw new Error('Unauthorized');
-  }
+  if (!session?.user) throw new Error('Unauthorized');
 
   try {
     const [newTask] = await db
@@ -47,10 +44,7 @@ export async function updateTaskStatus(
   values: z.infer<typeof updateTaskStatusSchema>,
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
-
-  if (!session || !session.user) {
-    throw new Error('Unauthorized');
-  }
+  if (!session?.user) throw new Error('Unauthorized');
 
   try {
     await db
@@ -105,10 +99,7 @@ export async function bulkDeleteTasks(
 
 export async function reorderTasks(values: z.infer<typeof reorderTasksSchema>) {
   const session = await auth.api.getSession({ headers: await headers() });
-
-  if (!session || !session.user) {
-    throw new Error('Unauthorized');
-  }
+  if (!session?.user) throw new Error('Unauthorized');
 
   const { projectId, statusId, tasks } = values;
 
@@ -126,5 +117,84 @@ export async function reorderTasks(values: z.infer<typeof reorderTasksSchema>) {
   } catch (error) {
     console.error('Error reordering tasks:', error);
     return { error: 'Failed to reorder tasks.' };
+  }
+}
+
+export async function updateTaskTitle(
+  taskId: string,
+  title: string,
+  projectId: string,
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  try {
+    await db.update(task).set({ title }).where(eq(task.id, taskId));
+    revalidatePath(`/projects/${projectId}`, 'page');
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating task title:', error);
+    return { error: 'Failed to update title.' };
+  }
+}
+
+export async function updateTaskPriority(
+  taskId: string,
+  priority: 'low' | 'medium' | 'high',
+  projectId: string,
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  try {
+    await db.update(task).set({ priority }).where(eq(task.id, taskId));
+    revalidatePath(`/projects/${projectId}`, 'page');
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating task priority:', error);
+    return { error: 'Failed to update priority.' };
+  }
+}
+
+export async function updateTaskDueDate(
+  taskId: string,
+  dueDate: Date | null,
+  projectId: string,
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  try {
+    await db.update(task).set({ dueDate }).where(eq(task.id, taskId));
+    revalidatePath(`/projects/${projectId}`, 'page');
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating task due date:', error);
+    return { error: 'Failed to update due date.' };
+  }
+}
+
+export async function updateTaskAssignees(
+  taskId: string,
+  assigneeIds: string[],
+  projectId: string,
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  try {
+    await db.delete(taskAssignee).where(eq(taskAssignee.taskId, taskId));
+
+    if (assigneeIds.length > 0) {
+      await db.insert(taskAssignee).values(
+        assigneeIds.map((userId) => ({ taskId, userId })),
+      );
+    }
+
+    revalidatePath(`/projects/${projectId}`, 'page');
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating task assignees:', error);
+    return { error: 'Failed to update assignees.' };
   }
 }

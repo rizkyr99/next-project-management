@@ -16,10 +16,18 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+interface WorkspaceMember {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
 interface BoardViewProps {
+  workspaceMembers?: WorkspaceMember[];
   project?: {
     id: string;
     statuses: {
@@ -28,6 +36,8 @@ interface BoardViewProps {
       tasks: {
         id: string;
         title: string;
+        priority: 'low' | 'medium' | 'high';
+        dueDate?: Date | null;
         assignees: {
           user: {
             id: string;
@@ -41,7 +51,7 @@ interface BoardViewProps {
   };
 }
 
-export function BoardView({ project }: BoardViewProps) {
+export function BoardView({ project, workspaceMembers = [] }: BoardViewProps) {
   const [statuses, setStatuses] = useState(project?.statuses ?? []);
   const [activeId, setActiveId] = useState<string | null>(null);
   const previousStatusesRef = useRef<typeof statuses | null>(null);
@@ -49,23 +59,6 @@ export function BoardView({ project }: BoardViewProps) {
   const activeTask = statuses
     .flatMap((s) => s.tasks)
     .find((t) => t.id === activeId);
-
-  const availableAssignees = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; name: string; email?: string; image?: string | null }
-    >();
-
-    for (const status of statuses) {
-      for (const task of status.tasks) {
-        for (const assignee of task.assignees) {
-          map.set(assignee.user.id, assignee.user);
-        }
-      }
-    }
-
-    return Array.from(map.values());
-  }, [statuses]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -228,8 +221,10 @@ export function BoardView({ project }: BoardViewProps) {
             key={status.id}
             id={status.id}
             title={status.name}
+            projectId={project!.id}
+            statuses={statuses.map((s) => ({ id: s.id, name: s.name }))}
             tasks={status.tasks}
-            availableAssignees={availableAssignees}
+            availableAssignees={workspaceMembers}
           />
         ))}
       </div>
@@ -238,8 +233,13 @@ export function BoardView({ project }: BoardViewProps) {
           <TaskCard
             id={activeTask.id}
             title={activeTask.title}
+            priority={activeTask.priority}
+            dueDate={activeTask.dueDate}
+            statusId={statuses.find((s) => s.tasks.some((t) => t.id === activeTask.id))?.id ?? ''}
+            projectId={project!.id}
+            statuses={statuses.map((s) => ({ id: s.id, name: s.name }))}
             assignees={activeTask.assignees}
-            availableAssignees={availableAssignees}
+            availableAssignees={workspaceMembers}
           />
         ) : null}
       </DragOverlay>

@@ -34,6 +34,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 interface ListViewProps {
+  workspaceMembers?: { id: string; name: string; email: string; image: string | null }[];
   project?: {
     id: string;
     statuses: {
