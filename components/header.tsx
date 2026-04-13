@@ -46,6 +46,7 @@ import z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { inviteUserToWorkspace } from '@/features/workspaces/actions';
 import { toast } from 'sonner';
+import { Button } from './ui/button';
 
 const inviteUserFormSchema = z.object({
   email: z.email('Invalid email address'),

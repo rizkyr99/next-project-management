@@ -1,19 +1,12 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import {
-  member,
-  user as userTable,
-  user,
-  workspace,
-  workspaceInvite,
-} from '@/db/schema';
+import { member, user as userTable, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { z } from 'zod';
-import { inviteMemberSchema } from './schema';
 
 const createWorkspaceSchema = z.object({
   name: z.string().min(1, 'Name is required'),
