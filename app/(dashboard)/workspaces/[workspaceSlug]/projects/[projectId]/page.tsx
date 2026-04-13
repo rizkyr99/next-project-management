@@ -3,6 +3,7 @@ import { project } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import BoardView from '@/features/projects/components/board-view-client';
 import { ListView } from '@/features/projects/components/list-view';
+import { TableView } from '@/features/projects/components/table-view';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
 import { Suspense } from 'react';
 
@@ -52,11 +53,7 @@ export default async function ProjectIdPage({
       </div>
       {currentView === 'board' && <BoardView project={data} />}
       {currentView === 'list' && <ListView project={data} />}
-      {currentView === 'table' && (
-        <div className='flex-1 flex items-center justify-center text-muted-foreground text-sm'>
-          Table view coming soon.
-        </div>
-      )}
+      {currentView === 'table' && <TableView project={data} />}
     </div>
   );
 }
