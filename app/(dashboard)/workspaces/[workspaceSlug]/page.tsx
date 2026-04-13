@@ -1,65 +1,216 @@
-import Image from "next/image";
+import { db } from '@/db/drizzle';
+import {
+  member,
+  project,
+  task,
+  taskStatus,
+  user,
+  workspace,
+} from '@/db/schema';
+import { auth } from '@/lib/auth';
+import { and, count, eq } from 'drizzle-orm';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Briefcase, CheckSquare, Users, ArrowRight } from 'lucide-react';
 
-export default function Home() {
+export default async function WorkspaceHomePage({
+  params,
+}: {
+  params: Promise<{ readonly workspaceSlug: string }>;
+}) {
+  const { workspaceSlug } = await params;
+
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect('/login');
+
+  const [currentWorkspace] = await db
+    .select()
+    .from(workspace)
+    .where(eq(workspace.slug, workspaceSlug));
+
+  if (!currentWorkspace) redirect('/create-workspace');
+
+  const [currentMember] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(
+      and(
+        eq(member.workspaceId, currentWorkspace.id),
+        eq(member.userId, session.user.id),
+      ),
+    );
+
+  if (!currentMember) redirect('/create-workspace');
+
+  const projects = await db
+    .select({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      createdAt: project.createdAt,
+    })
+    .from(project)
+    .where(eq(project.workspaceId, currentWorkspace.id));
+
+  const taskCountsRaw = await db
+    .select({ projectId: task.projectId, count: count() })
+    .from(task)
+    .innerJoin(taskStatus, eq(task.statusId, taskStatus.id))
+    .innerJoin(project, eq(taskStatus.projectId, project.id))
+    .where(eq(project.workspaceId, currentWorkspace.id))
+    .groupBy(task.projectId);
+
+  const taskCountMap = Object.fromEntries(
+    taskCountsRaw.map((r) => [r.projectId, r.count]),
+  );
+
+  const totalTasks = taskCountsRaw.reduce((sum, r) => sum + r.count, 0);
+
+  const members = await db
+    .select({
+      id: member.id,
+      name: user.name,
+      role: member.role,
+    })
+    .from(member)
+    .innerJoin(user, eq(member.userId, user.id))
+    .where(eq(member.workspaceId, currentWorkspace.id));
+
+  const firstName = session.user.name?.split(' ')[0] ?? 'there';
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className='flex-1 p-6 md:p-8 space-y-8 max-w-5xl'>
+      <div>
+        <h1 className='text-2xl font-semibold'>Welcome back, {firstName}</h1>
+        <p className='text-sm text-muted-foreground mt-1'>
+          Here&apos;s an overview of{' '}
+          <span className='font-medium text-foreground'>
+            {currentWorkspace.name}
+          </span>
+          .
+        </p>
+      </div>
+
+      <div className='grid gap-4 sm:grid-cols-3'>
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>
+              Projects
+            </CardTitle>
+            <Briefcase className='size-4 text-muted-foreground' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>{projects.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>
+              Total tasks
+            </CardTitle>
+            <CheckSquare className='size-4 text-muted-foreground' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>{totalTasks}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>
+              Members
+            </CardTitle>
+            <Users className='size-4 text-muted-foreground' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold'>{members.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className='space-y-3'>
+        <div className='flex items-center justify-between'>
+          <h2 className='text-base font-semibold'>Projects</h2>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        {projects.length === 0 ? (
+          <Card className='border-dashed'>
+            <CardContent className='flex flex-col items-center justify-center py-10 text-center text-sm text-muted-foreground gap-1'>
+              <Briefcase className='size-8 mb-2 opacity-30' />
+              <p className='font-medium'>No projects yet</p>
+              <p>Create your first project from the sidebar.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+            {projects.map((p) => (
+              <Link
+                key={p.id}
+                href={`/workspaces/${workspaceSlug}/projects/${p.id}`}>
+                <Card className='h-full transition-shadow hover:shadow-md cursor-pointer'>
+                  <CardHeader className='pb-2'>
+                    <CardTitle className='text-sm font-semibold truncate'>
+                      {p.name}
+                    </CardTitle>
+                    {p.description && (
+                      <CardDescription className='text-xs line-clamp-2'>
+                        {p.description}
+                      </CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent className='flex items-center justify-between'>
+                    <span className='text-xs text-muted-foreground'>
+                      {taskCountMap[p.id] ?? 0}{' '}
+                      {(taskCountMap[p.id] ?? 0) === 1 ? 'task' : 'tasks'}
+                    </span>
+                    <ArrowRight className='size-3.5 text-muted-foreground' />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className='space-y-3'>
+        <h2 className='text-base font-semibold'>Members</h2>
+        <Card>
+          <CardContent className='divide-y p-0'>
+            {members.map((m) => (
+              <div key={m.id} className='flex items-center gap-3 px-4 py-3'>
+                <Avatar className='size-8'>
+                  <AvatarFallback className='text-xs'>
+                    {m.name?.charAt(0).toUpperCase() ?? 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <span className='flex-1 text-sm font-medium'>{m.name}</span>
+                <Badge
+                  variant={
+                    m.role === 'owner'
+                      ? 'default'
+                      : m.role === 'admin'
+                        ? 'secondary'
+                        : 'outline'
+                  }
+                  className='text-xs capitalize'>
+                  {m.role}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
