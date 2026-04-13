@@ -1,16 +1,23 @@
-import { Button } from '@/components/ui/button';
 import { db } from '@/db/drizzle';
 import { project } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { Kanban, List, Table } from 'lucide-react';
 import BoardView from '@/features/projects/components/board-view-client';
+import { ListView } from '@/features/projects/components/list-view';
+import { ViewSwitcher } from '@/features/projects/components/view-switcher';
+import { Suspense } from 'react';
+
+type View = 'board' | 'list' | 'table';
 
 export default async function ProjectIdPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
-  const { projectId } = await params;
+  const [{ projectId }, { view }] = await Promise.all([params, searchParams]);
+  const currentView: View =
+    view === 'list' || view === 'table' ? view : 'board';
 
   const data = await db.query.project.findFirst({
     where: eq(project.id, projectId),
@@ -39,22 +46,17 @@ export default async function ProjectIdPage({
         <div className='text-lg font-semibold flex items-center justify-between'>
           {data?.name}
         </div>
-        <div className='flex items-center gap-1 bg-secondary w-fit rounded-lg p-1'>
-          <Button variant='outline' size='sm'>
-            <Kanban />
-            <span>Board</span>
-          </Button>
-          <Button variant='ghost' size='sm'>
-            <List />
-            List
-          </Button>
-          <Button variant='ghost' size='sm'>
-            <Table />
-            Table
-          </Button>
-        </div>
+        <Suspense>
+          <ViewSwitcher currentView={currentView} />
+        </Suspense>
       </div>
-      <BoardView project={data} />
+      {currentView === 'board' && <BoardView project={data} />}
+      {currentView === 'list' && <ListView project={data} />}
+      {currentView === 'table' && (
+        <div className='flex-1 flex items-center justify-center text-muted-foreground text-sm'>
+          Table view coming soon.
+        </div>
+      )}
     </div>
   );
 }

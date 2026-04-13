@@ -8,6 +8,23 @@ export const createTaskSchema = z.object({
   statusId: z.uuid(),
 });
 
+export const updateTaskStatusSchema = z.object({
+  taskId: z.uuid(),
+  statusId: z.uuid(),
+  projectId: z.uuid(),
+});
+
+export const bulkUpdateStatusSchema = z.object({
+  taskIds: z.array(z.uuid()).min(1),
+  statusId: z.uuid(),
+  projectId: z.uuid(),
+});
+
+export const bulkDeleteTasksSchema = z.object({
+  taskIds: z.array(z.uuid()).min(1),
+  projectId: z.uuid(),
+});
+
 export const reorderTasksSchema = z.object({
   projectId: z.uuid(),
   statusId: z.uuid(),

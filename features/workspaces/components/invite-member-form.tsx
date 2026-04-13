@@ -20,7 +20,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import z from 'zod';
-import { inviteWorkspaceMember } from '../actions';
+import { inviteUserToWorkspace } from '../actions';
 import { inviteMemberSchema } from '../schema';
 import { toast } from 'sonner';
 
@@ -43,13 +43,13 @@ export function InviteMemberForm({
   });
 
   const onSubmit = async (values: z.infer<typeof inviteMemberSchema>) => {
-    const result = await inviteWorkspaceMember(values);
+    const result = await inviteUserToWorkspace(workspaceSlug, values);
     if (result?.error) {
       toast.error(result.error, { position: 'top-center' });
       return;
     }
 
-    if (result?.status === 'added') {
+    if (result?.success) {
       toast.success('Member added to workspace', { position: 'top-center' });
     } else {
       toast.success('Invite sent', { position: 'top-center' });
@@ -114,11 +114,11 @@ export function InviteMemberForm({
             </Button>
           </div>
         </div>
-        {!canInvite ? (
+        {!canInvite && (
           <p className='text-sm text-muted-foreground'>
             Only workspace admins or owners can invite members.
           </p>
-        ) : null}
+        )}
       </form>
     </Form>
   );
