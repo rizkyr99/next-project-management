@@ -11,7 +11,7 @@ import {
   updateTaskStatusSchema,
 } from './schema';
 import { db } from '@/db/drizzle';
-import { task, taskAssignee } from '@/db/schema';
+import { notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { revalidatePath } from 'next/cache';
 import { eq, inArray } from 'drizzle-orm';
 
@@ -183,12 +183,45 @@ export async function updateTaskAssignees(
   if (!session?.user) throw new Error('Unauthorized');
 
   try {
+    const existing = await db
+      .select({ userId: taskAssignee.userId })
+      .from(taskAssignee)
+      .where(eq(taskAssignee.taskId, taskId));
+    const existingIds = new Set(existing.map((r) => r.userId));
+
     await db.delete(taskAssignee).where(eq(taskAssignee.taskId, taskId));
 
     if (assigneeIds.length > 0) {
       await db.insert(taskAssignee).values(
         assigneeIds.map((userId) => ({ taskId, userId })),
       );
+
+      const newlyAddedIds = assigneeIds.filter(
+        (uid) => !existingIds.has(uid) && uid !== session.user.id,
+      );
+
+      if (newlyAddedIds.length > 0) {
+        const [assignedTask] = await db
+          .select({ title: task.title })
+          .from(task)
+          .where(eq(task.id, taskId));
+
+        const [actor] = await db
+          .select({ name: userTable.name })
+          .from(userTable)
+          .where(eq(userTable.id, session.user.id));
+
+        if (assignedTask && actor) {
+          await db.insert(notification).values(
+            newlyAddedIds.map((userId) => ({
+              userId,
+              type: 'task_assigned' as const,
+              actorName: actor.name,
+              taskTitle: assignedTask.title,
+            })),
+          );
+        }
+      }
     }
 
     revalidatePath(`/projects/${projectId}`, 'page');

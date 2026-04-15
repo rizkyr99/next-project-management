@@ -2,81 +2,18 @@
 
 import { formatDistanceToNow } from 'date-fns';
 import { Bell, Clock3, MessageSquare, UserPlus, Users } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import {
+  getNotifications,
+  markAllAsRead,
+  markAsRead,
+} from '@/features/notifications/actions';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
-type BaseNotification = {
-  id: string;
-  createdAt: Date;
-  read: boolean;
-};
+type NotificationRow = Awaited<ReturnType<typeof getNotifications>>[number];
 
-type TaskAssignedNotification = BaseNotification & {
-  type: 'task_assigned';
-  actorName: string;
-  taskTitle: string;
-};
-
-type WorkspaceInviteNotification = BaseNotification & {
-  type: 'workspace_invite';
-  actorName: string;
-  workspaceName: string;
-};
-
-type CommentMentionNotification = BaseNotification & {
-  type: 'comment_mention';
-  actorName: string;
-  taskTitle: string;
-};
-
-type DueSoonNotification = BaseNotification & {
-  type: 'due_soon';
-  taskTitle: string;
-  dueLabel: string;
-};
-
-type NotificationItem =
-  | TaskAssignedNotification
-  | WorkspaceInviteNotification
-  | CommentMentionNotification
-  | DueSoonNotification;
-
-const sampleNotifications: NotificationItem[] = [
-  {
-    id: '1',
-    type: 'task_assigned',
-    actorName: 'Alex Miller',
-    taskTitle: 'Design System Update',
-    createdAt: new Date(Date.now() - 2 * 60 * 1000),
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'workspace_invite',
-    actorName: 'Nadia',
-    workspaceName: 'Marketing Ops',
-    createdAt: new Date(Date.now() - 15 * 60 * 1000),
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'comment_mention',
-    actorName: 'Ryan',
-    taskTitle: 'Landing page QA',
-    createdAt: new Date(Date.now() - 45 * 60 * 1000),
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'due_soon',
-    taskTitle: 'Prepare sprint retro',
-    dueLabel: 'tomorrow',
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-    read: true,
-  },
-];
-
-function renderNotificationContent(item: NotificationItem) {
+function renderNotificationContent(item: NotificationRow) {
   switch (item.type) {
     case 'task_assigned':
       return {
@@ -93,11 +30,11 @@ function renderNotificationContent(item: NotificationItem) {
     case 'workspace_invite':
       return {
         icon: <Users className='size-5 text-muted-foreground' />,
-        title: 'Workspace invite',
+        title: 'Added to workspace',
         description: (
           <>
             <span className='text-foreground font-medium'>{item.actorName}</span>{' '}
-            invited you to{' '}
+            added you to{' '}
             <span className='text-foreground font-medium'>{item.workspaceName}</span>
           </>
         ),
@@ -129,10 +66,46 @@ function renderNotificationContent(item: NotificationItem) {
 }
 
 export function NotificationsPopover() {
-  const unreadCount = sampleNotifications.filter((item) => !item.read).length;
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [isPending, startTransition] = useTransition();
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleOpen = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (isOpen) {
+      startTransition(async () => {
+        const data = await getNotifications();
+        setNotifications(data);
+      });
+    }
+  };
+
+  function markAllRead(prev: NotificationRow[]): NotificationRow[] {
+    return prev.map((n) => ({ ...n, read: true }));
+  }
+
+  function markOneRead(id: string, prev: NotificationRow[]): NotificationRow[] {
+    return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+  }
+
+  const handleMarkAllAsRead = () => {
+    startTransition(async () => {
+      await markAllAsRead();
+      setNotifications(markAllRead);
+    });
+  };
+
+  const handleMarkAsRead = (id: string) => {
+    startTransition(async () => {
+      await markAsRead(id);
+      setNotifications((prev) => markOneRead(id, prev));
+    });
+  };
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={handleOpen}>
       <PopoverTrigger asChild>
         <Button variant='ghost' size='icon-sm' className='relative'>
           <Bell />
@@ -146,28 +119,56 @@ export function NotificationsPopover() {
       <PopoverContent align='end' className='w-96 p-0'>
         <div className='flex items-center justify-between gap-4 px-4 py-2'>
           <h2 className='font-semibold'>Notifications</h2>
-          <Button variant='link' size='sm'>
-            Mark all as read
-          </Button>
+          {unreadCount > 0 && (
+            <Button
+              variant='link'
+              size='sm'
+              onClick={handleMarkAllAsRead}
+              disabled={isPending}>
+              Mark all as read
+            </Button>
+          )}
         </div>
         <div>
-          {sampleNotifications.map((item) => {
+          {isPending && notifications.length === 0 ? (
+            <div className='flex items-center justify-center py-8 text-sm text-muted-foreground'>
+              Loading…
+            </div>
+          ) : null}
+          {!isPending && notifications.length === 0 ? (
+            <div className='flex items-center justify-center py-8 text-sm text-muted-foreground'>
+              No notifications yet
+            </div>
+          ) : null}
+          {notifications.map((item) => {
             const content = renderNotificationContent(item);
+            const unread = !item.read;
             return (
-              <div key={item.id} className='p-4 flex items-start gap-2 border-t'>
+              <button
+                key={item.id}
+                type='button'
+                className={`w-full text-left p-4 flex items-start gap-2 border-t transition-colors hover:bg-muted/50 ${
+                  unread ? 'bg-muted/30' : ''
+                }`}
+                onClick={() => unread && handleMarkAsRead(item.id)}>
                 <div className='size-10 bg-muted flex items-center justify-center rounded-full shrink-0'>
                   {content.icon}
                 </div>
                 <div className='space-y-1 flex-1'>
                   <div className='flex items-center justify-between gap-4'>
                     <p className='text-sm font-medium'>{content.title}</p>
-                    <p className='text-xs text-muted-foreground'>
-                      {formatDistanceToNow(item.createdAt, { addSuffix: true })}
-                    </p>
+                    <div className='flex items-center gap-1.5 shrink-0'>
+                      {unread && (
+                        <span className='size-2 rounded-full bg-primary' />
+                      )}
+                      <p className='text-xs text-muted-foreground'>
+                        {formatDistanceToNow(item.createdAt, { addSuffix: true })}
+                      </p>
+                    </div>
                   </div>
                   <p className='text-xs text-muted-foreground'>{content.description}</p>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

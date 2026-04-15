@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { member, user as userTable, workspace, workspaceInvite } from '@/db/schema';
+import { member, notification, user as userTable, workspace, workspaceInvite } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -130,6 +130,13 @@ export async function inviteUserToWorkspace(
     workspaceId: targetWorkspace.id,
     userId: invitedUser.id,
     role: validated.role,
+  });
+
+  await db.insert(notification).values({
+    userId: invitedUser.id,
+    type: 'workspace_invite',
+    actorName: session.user.name,
+    workspaceName: targetWorkspace.name,
   });
 
   revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');

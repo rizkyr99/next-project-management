@@ -13,6 +13,12 @@ import {
 
 export const roleEnum = pgEnum('role', ['owner', 'admin', 'member']);
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'task_assigned',
+  'workspace_invite',
+  'comment_mention',
+  'due_soon',
+]);
 export const inviteStatusEnum = pgEnum('invite_status', [
   'pending',
   'accepted',
@@ -298,4 +304,28 @@ export const taskRelations = relations(task, ({ one, many }) => ({
 export const taskAssigneeRelations = relations(taskAssignee, ({ one }) => ({
   task: one(task, { fields: [taskAssignee.taskId], references: [task.id] }),
   user: one(user, { fields: [taskAssignee.userId], references: [user.id] }),
+}));
+
+export const notification = pgTable(
+  'notification',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    type: notificationTypeEnum('type').notNull(),
+    read: boolean('read').default(false).notNull(),
+    actorName: text('actor_name'),
+    taskTitle: text('task_title'),
+    workspaceName: text('workspace_name'),
+    dueLabel: text('due_label'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('notification_userId_idx').on(table.userId)],
+);
+
+export const notificationRelations = relations(notification, ({ one }) => ({
+  user: one(user, { fields: [notification.userId], references: [user.id] }),
 }));
