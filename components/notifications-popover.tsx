@@ -2,7 +2,7 @@
 
 import { formatDistanceToNow } from 'date-fns';
 import { Bell, Clock3, MessageSquare, UserPlus, Users } from 'lucide-react';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import {
   getNotifications,
   markAllAsRead,
@@ -12,6 +12,24 @@ import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 type NotificationRow = Awaited<ReturnType<typeof getNotifications>>[number];
+
+type SSERow = NotificationRow & { createdAt: string };
+
+function mergeIncoming(incoming: NotificationRow[], prev: NotificationRow[]): NotificationRow[] {
+  const existingIds = new Set(prev.map((n) => n.id));
+  const novel = incoming.filter((n) => !existingIds.has(n.id));
+  return [...novel, ...prev];
+}
+
+function parseSSEData(raw: string): NotificationRow[] | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.type !== 'notifications' || !parsed.data.length) return null;
+    return parsed.data.map((n: SSERow) => ({ ...n, createdAt: new Date(n.createdAt) }));
+  } catch {
+    return null;
+  }
+}
 
 function renderNotificationContent(item: NotificationRow) {
   switch (item.type) {
@@ -69,6 +87,19 @@ export function NotificationsPopover() {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const source = new EventSource('/api/notifications/stream');
+
+    source.onmessage = (event) => {
+      const incoming = parseSSEData(event.data as string);
+      if (incoming) {
+        setNotifications((prev) => mergeIncoming(incoming, prev));
+      }
+    };
+
+    return () => source.close();
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
