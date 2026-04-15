@@ -36,12 +36,16 @@ export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
   const params = useParams<{ workspaceSlug: string }>();
   const slug = params.workspaceSlug;
 
+  const [optimisticSlug, setOptimisticSlug] = useState<string | null>(null);
+
   const activeWorkspace = useMemo(() => {
     if (!workspaces.length) return null;
-    return workspaces.find((w) => w.slug === slug) ?? workspaces[0] ?? null;
-  }, [slug, workspaces]);
+    const currentSlug = optimisticSlug ?? slug;
+    return workspaces.find((w) => w.slug === currentSlug) ?? workspaces[0] ?? null;
+  }, [slug, optimisticSlug, workspaces]);
 
   const handleSelectWorkspace = (workspace: Workspace) => {
+    setOptimisticSlug(workspace.slug);
     router.push(`/workspaces/${workspace.slug}`);
     setOpen(false);
   };
