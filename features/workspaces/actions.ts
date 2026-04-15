@@ -3,6 +3,7 @@
 import { db } from '@/db/drizzle';
 import { member, notification, user as userTable, workspace, workspaceInvite } from '@/db/schema';
 import { auth } from '@/lib/auth';
+import { sendWorkspaceInviteEmail } from '@/lib/email';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
@@ -137,6 +138,13 @@ export async function inviteUserToWorkspace(
     type: 'workspace_invite',
     actorName: session.user.name,
     workspaceName: targetWorkspace.name,
+  });
+
+  await sendWorkspaceInviteEmail({
+    to: invitedUser.email,
+    inviterName: session.user.name,
+    workspaceName: targetWorkspace.name,
+    workspaceSlug: targetWorkspace.slug,
   });
 
   revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');
