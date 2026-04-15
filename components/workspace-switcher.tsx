@@ -30,13 +30,12 @@ interface WorkspaceSwitcherProps {
 
 export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
+  const [optimisticSlug, setOptimisticSlug] = useState<string | null>(null);
   const { isMobile } = useSidebar();
 
   const router = useRouter();
   const params = useParams<{ workspaceSlug: string }>();
   const slug = params.workspaceSlug;
-
-  const [optimisticSlug, setOptimisticSlug] = useState<string | null>(null);
 
   const activeWorkspace = useMemo(() => {
     if (!workspaces.length) return null;
