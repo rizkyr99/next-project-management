@@ -11,9 +11,27 @@ import {
   updateTaskStatusSchema,
 } from './schema';
 import { db } from '@/db/drizzle';
-import { comment, notification, task, taskAssignee, user as userTable } from '@/db/schema';
+import { comment, notification, project as projectTable, task, taskAssignee, user as userTable } from '@/db/schema';
+import { insertActivity } from '@/lib/activity';
 import { revalidatePath } from 'next/cache';
 import { and, asc, eq, inArray } from 'drizzle-orm';
+
+async function getTaskContext(taskId: string) {
+  const [row] = await db
+    .select({ taskTitle: task.title, workspaceId: projectTable.workspaceId, projectId: task.projectId })
+    .from(task)
+    .innerJoin(projectTable, eq(task.projectId, projectTable.id))
+    .where(eq(task.id, taskId));
+  return row ?? null;
+}
+
+async function getWorkspaceId(projectId: string) {
+  const [p] = await db
+    .select({ workspaceId: projectTable.workspaceId })
+    .from(projectTable)
+    .where(eq(projectTable.id, projectId));
+  return p?.workspaceId ?? null;
+}
 
 export async function createTask(values: z.infer<typeof createTaskSchema>) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -32,6 +50,18 @@ export async function createTask(values: z.infer<typeof createTaskSchema>) {
       .returning();
 
     revalidatePath(`/projects/${values.projectId}`);
+
+    const workspaceId = await getWorkspaceId(values.projectId);
+    if (workspaceId) {
+      await insertActivity({
+        workspaceId,
+        actorId: session.user.id,
+        action: 'task.created',
+        projectId: values.projectId,
+        taskId: newTask.id,
+        metadata: { taskTitle: newTask.title },
+      });
+    }
 
     return { task: newTask };
   } catch (error) {
@@ -53,6 +83,18 @@ export async function updateTaskStatus(
       .where(eq(task.id, values.taskId));
 
     revalidatePath(`/projects/${values.projectId}`, 'page');
+
+    const ctx = await getTaskContext(values.taskId);
+    if (ctx) {
+      await insertActivity({
+        workspaceId: ctx.workspaceId,
+        actorId: session.user.id,
+        action: 'task.status_changed',
+        projectId: ctx.projectId,
+        taskId: values.taskId,
+        metadata: { taskTitle: ctx.taskTitle },
+      });
+    }
 
     return { success: true };
   } catch (error) {
@@ -88,8 +130,28 @@ export async function bulkDeleteTasks(
   if (!session?.user) throw new Error('Unauthorized');
 
   try {
+    const deletedTasks = await db
+      .select({ id: task.id, title: task.title, projectId: task.projectId })
+      .from(task)
+      .where(inArray(task.id, values.taskIds));
+
     await db.delete(task).where(inArray(task.id, values.taskIds));
     revalidatePath(`/projects/${values.projectId}`, 'page');
+
+    const workspaceId = await getWorkspaceId(values.projectId);
+    if (workspaceId) {
+      for (const t of deletedTasks) {
+        await insertActivity({
+          workspaceId,
+          actorId: session.user.id,
+          action: 'task.deleted',
+          projectId: values.projectId,
+          taskId: null,
+          metadata: { taskTitle: t.title },
+        });
+      }
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error bulk deleting tasks:', error);
@@ -131,6 +193,19 @@ export async function updateTaskTitle(
   try {
     await db.update(task).set({ title }).where(eq(task.id, taskId));
     revalidatePath(`/projects/${projectId}`, 'page');
+
+    const workspaceId = await getWorkspaceId(projectId);
+    if (workspaceId) {
+      await insertActivity({
+        workspaceId,
+        actorId: session.user.id,
+        action: 'task.title_changed',
+        projectId,
+        taskId,
+        metadata: { taskTitle: title },
+      });
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error updating task title:', error);
@@ -149,6 +224,19 @@ export async function updateTaskPriority(
   try {
     await db.update(task).set({ priority }).where(eq(task.id, taskId));
     revalidatePath(`/projects/${projectId}`, 'page');
+
+    const ctx = await getTaskContext(taskId);
+    if (ctx) {
+      await insertActivity({
+        workspaceId: ctx.workspaceId,
+        actorId: session.user.id,
+        action: 'task.priority_changed',
+        projectId,
+        taskId,
+        metadata: { taskTitle: ctx.taskTitle, priority },
+      });
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error updating task priority:', error);
@@ -167,6 +255,19 @@ export async function updateTaskDueDate(
   try {
     await db.update(task).set({ dueDate }).where(eq(task.id, taskId));
     revalidatePath(`/projects/${projectId}`, 'page');
+
+    const ctx = await getTaskContext(taskId);
+    if (ctx) {
+      await insertActivity({
+        workspaceId: ctx.workspaceId,
+        actorId: session.user.id,
+        action: 'task.due_date_changed',
+        projectId,
+        taskId,
+        metadata: { taskTitle: ctx.taskTitle, dueDate: dueDate?.toISOString() ?? '' },
+      });
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error updating task due date:', error);
@@ -225,6 +326,40 @@ export async function updateTaskAssignees(
     }
 
     revalidatePath(`/projects/${projectId}`, 'page');
+
+    const ctx = await getTaskContext(taskId);
+    if (ctx) {
+      const addedIds = assigneeIds.filter((uid) => !existingIds.has(uid));
+      const removedIds = [...existingIds].filter((uid) => !assigneeIds.includes(uid));
+
+      const involvedUserIds = [...addedIds, ...removedIds];
+      const involvedUsers = involvedUserIds.length > 0
+        ? await db.select({ id: userTable.id, name: userTable.name }).from(userTable).where(inArray(userTable.id, involvedUserIds))
+        : [];
+      const userNameMap = Object.fromEntries(involvedUsers.map((u) => [u.id, u.name]));
+
+      for (const uid of addedIds) {
+        await insertActivity({
+          workspaceId: ctx.workspaceId,
+          actorId: session.user.id,
+          action: 'task.assigned',
+          projectId,
+          taskId,
+          metadata: { taskTitle: ctx.taskTitle, assigneeName: userNameMap[uid] ?? uid },
+        });
+      }
+      for (const uid of removedIds) {
+        await insertActivity({
+          workspaceId: ctx.workspaceId,
+          actorId: session.user.id,
+          action: 'task.unassigned',
+          projectId,
+          taskId,
+          metadata: { taskTitle: ctx.taskTitle, assigneeName: userNameMap[uid] ?? uid },
+        });
+      }
+    }
+
     return { success: true };
   } catch (error) {
     console.error('Error updating task assignees:', error);
@@ -328,6 +463,18 @@ export async function addComment(
       .from(comment)
       .innerJoin(userTable, eq(comment.authorId, userTable.id))
       .where(eq(comment.id, newComment.id));
+
+    const ctx = await getTaskContext(taskId);
+    if (ctx) {
+      await insertActivity({
+        workspaceId: ctx.workspaceId,
+        actorId: session.user.id,
+        action: 'task.comment_added',
+        projectId: ctx.projectId,
+        taskId,
+        metadata: { taskTitle: ctx.taskTitle },
+      });
+    }
 
     return { comment: withAuthor };
   } catch (error) {

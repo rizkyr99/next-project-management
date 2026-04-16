@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { CheckSquare, CreditCard, Home, List, Settings } from 'lucide-react';
+import { Activity, CheckSquare, CreditCard, Home, List, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
@@ -45,6 +45,11 @@ export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
       title: 'My tasks',
       url: `/workspaces/${workspaceSlug}/my-tasks`,
       icon: CheckSquare,
+    },
+    {
+      title: 'Activity',
+      url: `/workspaces/${workspaceSlug}/activity`,
+      icon: Activity,
     },
     {
       title: 'Settings',

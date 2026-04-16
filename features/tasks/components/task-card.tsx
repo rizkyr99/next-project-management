@@ -47,6 +47,7 @@ import {
   updateTaskStatus,
   updateTaskTitle,
 } from '../actions';
+import { TaskActivity } from '@/features/activity/components/task-activity';
 import { TaskComments } from './task-comments';
 
 type Priority = 'low' | 'medium' | 'high';
@@ -553,6 +554,10 @@ export function TaskCard({
             currentUserId={currentUserId}
             workspaceMembers={availableAssignees}
           />
+
+          <Separator />
+
+          <TaskActivity taskId={id} />
         </div>
       </DialogContent>
     </Dialog>

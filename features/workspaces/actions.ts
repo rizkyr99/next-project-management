@@ -2,6 +2,7 @@
 
 import { db } from '@/db/drizzle';
 import { member, notification, user as userTable, workspace, workspaceInvite } from '@/db/schema';
+import { insertActivity } from '@/lib/activity';
 import { auth } from '@/lib/auth';
 import { sendWorkspaceInviteEmail } from '@/lib/email';
 import { checkWorkspaceLimit } from '@/lib/subscription';
@@ -155,6 +156,13 @@ export async function inviteUserToWorkspace(
     workspaceSlug: targetWorkspace.slug,
   });
 
+  await insertActivity({
+    workspaceId: targetWorkspace.id,
+    actorId: inviterId,
+    action: 'member.invited',
+    metadata: { inviteEmail: validated.email, role: validated.role },
+  });
+
   revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');
 
   return { success: true, name: invitedUser.name || invitedUser.email };
@@ -240,7 +248,19 @@ export async function removeMember(workspaceSlug: string, memberId: string) {
     return { error: 'Admins cannot remove other admins' };
   }
 
+  const [removedUser] = await db
+    .select({ name: userTable.name })
+    .from(userTable)
+    .where(eq(userTable.id, targetMember.userId));
+
   await db.delete(member).where(eq(member.id, memberId));
+
+  await insertActivity({
+    workspaceId: targetWorkspace.id,
+    actorId: session.user.id,
+    action: 'member.removed',
+    metadata: { memberName: removedUser?.name ?? 'Unknown' },
+  });
 
   revalidatePath(`/workspaces/${workspaceSlug}/settings`);
   return { success: true };
@@ -283,7 +303,19 @@ export async function changeMemberRole(
   if (!targetMember) return { error: 'Member not found' };
   if (targetMember.role === 'owner') return { error: 'Cannot change the owner\'s role' };
 
+  const [changedUser] = await db
+    .select({ name: userTable.name })
+    .from(userTable)
+    .where(eq(userTable.id, targetMember.userId));
+
   await db.update(member).set({ role: newRole }).where(eq(member.id, memberId));
+
+  await insertActivity({
+    workspaceId: targetWorkspace.id,
+    actorId: session.user.id,
+    action: 'member.role_changed',
+    metadata: { memberName: changedUser?.name ?? 'Unknown', from: targetMember.role, to: newRole },
+  });
 
   revalidatePath(`/workspaces/${workspaceSlug}/settings`);
   return { success: true };

@@ -1,6 +1,6 @@
 import { db } from '@/db/drizzle';
-import { member, project, user, workspace } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { comment, member, project, user, workspace } from '@/db/schema';
+import { count, eq, inArray } from 'drizzle-orm';
 import BoardView from '@/features/projects/components/board-view-client';
 import { ListView } from '@/features/projects/components/list-view';
 import { TableView } from '@/features/projects/components/table-view';
@@ -46,11 +46,7 @@ export default async function ProjectIdPage({
           })
           .from(member)
           .innerJoin(user, eq(member.userId, user.id))
-          .where(
-            and(
-              eq(member.workspaceId, currentWorkspace.id),
-            ),
-          )
+          .where(eq(member.workspaceId, currentWorkspace.id))
       : Promise.resolve([]),
 
     db.query.project.findFirst({
@@ -60,7 +56,7 @@ export default async function ProjectIdPage({
           orderBy: (taskStatus, { asc }) => [asc(taskStatus.order)],
           with: {
             tasks: {
-              orderBy: (task, { asc }) => [asc(task.order)],
+              orderBy: (t, { asc }) => [asc(t.order)],
               with: {
                 assignees: {
                   with: { user: true },
@@ -73,6 +69,18 @@ export default async function ProjectIdPage({
     }),
   ]);
 
+  // Fetch comment counts for all tasks in this project in one query
+  const allTaskIds = data?.statuses.flatMap((s) => s.tasks.map((t) => t.id)) ?? [];
+  const commentCounts =
+    allTaskIds.length > 0
+      ? await db
+          .select({ taskId: comment.taskId, count: count() })
+          .from(comment)
+          .where(inArray(comment.taskId, allTaskIds))
+          .groupBy(comment.taskId)
+      : [];
+  const commentCountMap = Object.fromEntries(commentCounts.map((r) => [r.taskId, r.count]));
+
   return (
     <div className='h-full flex flex-col'>
       <div className='px-4 py-2 space-y-2 border-b'>
@@ -84,7 +92,12 @@ export default async function ProjectIdPage({
         </Suspense>
       </div>
       {currentView === 'board' && (
-        <BoardView project={data} workspaceMembers={workspaceMembers} />
+        <BoardView
+          project={data}
+          workspaceMembers={workspaceMembers}
+          currentUserId={session.user.id}
+          commentCountMap={commentCountMap}
+        />
       )}
       {currentView === 'list' && (
         <ListView project={data} workspaceMembers={workspaceMembers} />

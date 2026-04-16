@@ -2,6 +2,7 @@
 
 import { db } from '@/db/drizzle';
 import { member, project, task, taskStatus, workspace } from '@/db/schema';
+import { insertActivity } from '@/lib/activity';
 import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
@@ -76,6 +77,14 @@ export async function createProject(
         order: 1,
       });
     }
+
+    await insertActivity({
+      workspaceId: membership.workspaceId,
+      actorId: userId,
+      action: 'project.created',
+      projectId: newProject.id,
+      metadata: { projectName: name },
+    });
 
     revalidatePath(
       `/workspaces/${workspaceSlug}/projects/${newProject.id}`,

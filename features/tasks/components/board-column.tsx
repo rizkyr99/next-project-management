@@ -11,11 +11,13 @@ interface BoardColumnProps {
   title: string;
   projectId: string;
   statuses: { id: string; name: string }[];
+  currentUserId: string;
   tasks?: {
     id: string;
     title: string;
     priority: 'low' | 'medium' | 'high';
     dueDate?: Date | null;
+    commentCount?: number;
     assignees: {
       user: {
         id: string;
@@ -38,6 +40,7 @@ export function BoardColumn({
   title,
   projectId,
   statuses,
+  currentUserId,
   tasks = [],
   availableAssignees = [],
 }: Readonly<BoardColumnProps>) {
@@ -64,6 +67,8 @@ export function BoardColumn({
               statuses={statuses}
               assignees={task.assignees}
               availableAssignees={availableAssignees}
+              currentUserId={currentUserId}
+              commentCount={task.commentCount}
             />
           ))}
           <AddTaskInline statusId={id} />

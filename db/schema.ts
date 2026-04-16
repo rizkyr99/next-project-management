@@ -9,6 +9,7 @@ import {
   integer,
   pgEnum,
   primaryKey,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 
 export const subscriptionStatusEnum = pgEnum('subscription_status', [
@@ -342,6 +343,45 @@ export const comment = pgTable(
 export const commentRelations = relations(comment, ({ one }) => ({
   task: one(task, { fields: [comment.taskId], references: [task.id] }),
   author: one(user, { fields: [comment.authorId], references: [user.id] }),
+}));
+
+export const activityLog = pgTable(
+  'activity_log',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => project.id, {
+      onDelete: 'set null',
+    }),
+    taskId: text('task_id').references(() => task.id, { onDelete: 'set null' }),
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, string>>(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('activity_log_workspaceId_idx').on(table.workspaceId),
+    index('activity_log_taskId_idx').on(table.taskId),
+  ],
+);
+
+export const activityLogRelations = relations(activityLog, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [activityLog.workspaceId],
+    references: [workspace.id],
+  }),
+  actor: one(user, { fields: [activityLog.actorId], references: [user.id] }),
+  project: one(project, {
+    fields: [activityLog.projectId],
+    references: [project.id],
+  }),
+  task: one(task, { fields: [activityLog.taskId], references: [task.id] }),
 }));
 
 export const notification = pgTable(

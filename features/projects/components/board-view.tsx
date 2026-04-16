@@ -28,6 +28,8 @@ interface WorkspaceMember {
 
 interface BoardViewProps {
   workspaceMembers?: WorkspaceMember[];
+  currentUserId?: string;
+  commentCountMap?: Record<string, number>;
   project?: {
     id: string;
     statuses: {
@@ -51,7 +53,7 @@ interface BoardViewProps {
   };
 }
 
-export function BoardView({ project, workspaceMembers = [] }: BoardViewProps) {
+export function BoardView({ project, workspaceMembers = [], currentUserId = '', commentCountMap = {} }: BoardViewProps) {
   const [statuses, setStatuses] = useState(project?.statuses ?? []);
   const [activeId, setActiveId] = useState<string | null>(null);
   const previousStatusesRef = useRef<typeof statuses | null>(null);
@@ -223,8 +225,9 @@ export function BoardView({ project, workspaceMembers = [] }: BoardViewProps) {
             title={status.name}
             projectId={project!.id}
             statuses={statuses.map((s) => ({ id: s.id, name: s.name }))}
-            tasks={status.tasks}
+            tasks={status.tasks.map((t) => ({ ...t, commentCount: commentCountMap[t.id] ?? 0 }))}
             availableAssignees={workspaceMembers}
+            currentUserId={currentUserId}
           />
         ))}
       </div>
@@ -240,6 +243,7 @@ export function BoardView({ project, workspaceMembers = [] }: BoardViewProps) {
             statuses={statuses.map((s) => ({ id: s.id, name: s.name }))}
             assignees={activeTask.assignees}
             availableAssignees={workspaceMembers}
+            currentUserId={currentUserId}
           />
         ) : null}
       </DragOverlay>
