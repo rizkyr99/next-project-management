@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -32,6 +33,7 @@ import {
   ArrowRight,
   ArrowUp,
   CalendarIcon,
+  MessageSquare,
   Target,
   Users,
   X,
@@ -45,6 +47,7 @@ import {
   updateTaskStatus,
   updateTaskTitle,
 } from '../actions';
+import { TaskComments } from './task-comments';
 
 type Priority = 'low' | 'medium' | 'high';
 
@@ -65,6 +68,8 @@ interface TaskCardProps {
   statuses: { id: string; name: string }[];
   assignees?: { user: AssigneeOption }[];
   availableAssignees?: AssigneeOption[];
+  currentUserId: string;
+  commentCount?: number;
 }
 
 const priorityConfig: Record<
@@ -243,6 +248,8 @@ export function TaskCard({
   statuses,
   assignees = [],
   availableAssignees = [],
+  currentUserId,
+  commentCount = 0,
 }: Readonly<TaskCardProps>) {
   const [currentTitle, setCurrentTitle] = useState(title);
   const [draftTitle, setDraftTitle] = useState(title);
@@ -370,35 +377,43 @@ export function TaskCard({
               </span>
             )}
 
-            {selectedAssignees.length > 0 && (
-              <div className='flex items-center -space-x-2 ml-auto'>
-                {selectedAssignees.slice(0, 3).map((a) => {
-                  const label = a.name || a.email || 'U';
-                  return (
-                    <Avatar
-                      key={a.id}
-                      className='size-5 border-2 border-background'>
-                      {a.image ? (
-                        <AvatarImage src={a.image} alt={label} />
-                      ) : null}
-                      <AvatarFallback className='text-[9px]'>
-                        {getInitials(label) || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  );
-                })}
-                {selectedAssignees.length > 3 && (
-                  <span className='text-xs text-muted-foreground pl-3'>
-                    +{selectedAssignees.length - 3}
-                  </span>
-                )}
-              </div>
-            )}
+            <div className='flex items-center gap-2 ml-auto'>
+              {commentCount > 0 && (
+                <span className='flex items-center gap-0.5 text-xs text-muted-foreground'>
+                  <MessageSquare className='size-3' />
+                  {commentCount}
+                </span>
+              )}
+              {selectedAssignees.length > 0 && (
+                <div className='flex items-center -space-x-2'>
+                  {selectedAssignees.slice(0, 3).map((a) => {
+                    const label = a.name || a.email || 'U';
+                    return (
+                      <Avatar
+                        key={a.id}
+                        className='size-5 border-2 border-background'>
+                        {a.image ? (
+                          <AvatarImage src={a.image} alt={label} />
+                        ) : null}
+                        <AvatarFallback className='text-[9px]'>
+                          {getInitials(label) || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                    );
+                  })}
+                  {selectedAssignees.length > 3 && (
+                    <span className='text-xs text-muted-foreground pl-3'>
+                      +{selectedAssignees.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </DialogTrigger>
 
-      <DialogContent className='max-w-lg'>
+      <DialogContent className='max-w-2xl max-h-[85vh] overflow-y-auto'>
         <DialogHeader>
           {isEditingTitle ? (
             <input
@@ -530,6 +545,14 @@ export function TaskCard({
               />
             </div>
           </div>
+
+          <Separator />
+
+          <TaskComments
+            taskId={id}
+            currentUserId={currentUserId}
+            workspaceMembers={availableAssignees}
+          />
         </div>
       </DialogContent>
     </Dialog>

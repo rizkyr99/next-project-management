@@ -11,9 +11,9 @@ import {
   updateTaskStatusSchema,
 } from './schema';
 import { db } from '@/db/drizzle';
-import { notification, task, taskAssignee, user as userTable } from '@/db/schema';
+import { comment, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { revalidatePath } from 'next/cache';
-import { eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 export async function createTask(values: z.infer<typeof createTaskSchema>) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -229,5 +229,165 @@ export async function updateTaskAssignees(
   } catch (error) {
     console.error('Error updating task assignees:', error);
     return { error: 'Failed to update assignees.' };
+  }
+}
+
+export async function getComments(taskId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  try {
+    const rows = await db
+      .select({
+        id: comment.id,
+        body: comment.body,
+        createdAt: comment.createdAt,
+        updatedAt: comment.updatedAt,
+        author: {
+          id: userTable.id,
+          name: userTable.name,
+          image: userTable.image,
+        },
+      })
+      .from(comment)
+      .innerJoin(userTable, eq(comment.authorId, userTable.id))
+      .where(eq(comment.taskId, taskId))
+      .orderBy(asc(comment.createdAt));
+
+    return { comments: rows };
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    return { error: 'Failed to load comments.' };
+  }
+}
+
+export async function addComment(
+  taskId: string,
+  body: string,
+  workspaceMembers: { id: string; name: string }[],
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const trimmed = body.trim();
+  if (!trimmed || trimmed.length > 2000) {
+    return { error: 'Comment must be between 1 and 2000 characters.' };
+  }
+
+  try {
+    const [newComment] = await db
+      .insert(comment)
+      .values({ taskId, authorId: session.user.id, body: trimmed })
+      .returning();
+
+    // Parse @Name mentions and notify matched members (excluding self)
+    const mentionPattern = /@(\w[\w\s]*)/g;
+    const matches = [...trimmed.matchAll(mentionPattern)].map((m) =>
+      m[1].trim().toLowerCase(),
+    );
+
+    if (matches.length > 0) {
+      const mentionedUsers = workspaceMembers.filter(
+        (m) =>
+          matches.includes(m.name.toLowerCase()) &&
+          m.id !== session.user.id,
+      );
+
+      if (mentionedUsers.length > 0) {
+        const [mentionedTask] = await db
+          .select({ title: task.title })
+          .from(task)
+          .where(eq(task.id, taskId));
+
+        if (mentionedTask) {
+          await db.insert(notification).values(
+            mentionedUsers.map((u) => ({
+              userId: u.id,
+              type: 'comment_mention' as const,
+              actorName: session.user.name,
+              taskTitle: mentionedTask.title,
+            })),
+          );
+        }
+      }
+    }
+
+    // Return with author info
+    const [withAuthor] = await db
+      .select({
+        id: comment.id,
+        body: comment.body,
+        createdAt: comment.createdAt,
+        updatedAt: comment.updatedAt,
+        author: {
+          id: userTable.id,
+          name: userTable.name,
+          image: userTable.image,
+        },
+      })
+      .from(comment)
+      .innerJoin(userTable, eq(comment.authorId, userTable.id))
+      .where(eq(comment.id, newComment.id));
+
+    return { comment: withAuthor };
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    return { error: 'Failed to add comment.' };
+  }
+}
+
+export async function updateComment(commentId: string, body: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  const trimmed = body.trim();
+  if (!trimmed || trimmed.length > 2000) {
+    return { error: 'Comment must be between 1 and 2000 characters.' };
+  }
+
+  try {
+    const [existing] = await db
+      .select({ authorId: comment.authorId })
+      .from(comment)
+      .where(eq(comment.id, commentId));
+
+    if (existing?.authorId !== session.user.id) {
+      return { error: 'Not authorized to edit this comment.' };
+    }
+
+    await db
+      .update(comment)
+      .set({ body: trimmed })
+      .where(and(eq(comment.id, commentId), eq(comment.authorId, session.user.id)));
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating comment:', error);
+    return { error: 'Failed to update comment.' };
+  }
+}
+
+export async function deleteComment(commentId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) throw new Error('Unauthorized');
+
+  try {
+    const [existing] = await db
+      .select({ authorId: comment.authorId })
+      .from(comment)
+      .where(eq(comment.id, commentId));
+
+    if (existing?.authorId !== session.user.id) {
+      return { error: 'Not authorized to delete this comment.' };
+    }
+
+    await db
+      .delete(comment)
+      .where(and(eq(comment.id, commentId), eq(comment.authorId, session.user.id)));
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    return { error: 'Failed to delete comment.' };
   }
 }

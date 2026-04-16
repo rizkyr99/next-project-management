@@ -312,11 +312,36 @@ export const taskRelations = relations(task, ({ one, many }) => ({
     references: [taskStatus.id],
   }),
   assignees: many(taskAssignee),
+  comments: many(comment),
 }));
 
 export const taskAssigneeRelations = relations(taskAssignee, ({ one }) => ({
   task: one(task, { fields: [taskAssignee.taskId], references: [task.id] }),
   user: one(user, { fields: [taskAssignee.userId], references: [user.id] }),
+}));
+
+export const comment = pgTable(
+  'comment',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id, { onDelete: 'cascade' }),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    body: text('body').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').$onUpdate(() => new Date()),
+  },
+  (table) => [index('comment_taskId_idx').on(table.taskId)],
+);
+
+export const commentRelations = relations(comment, ({ one }) => ({
+  task: one(task, { fields: [comment.taskId], references: [task.id] }),
+  author: one(user, { fields: [comment.authorId], references: [user.id] }),
 }));
 
 export const notification = pgTable(
