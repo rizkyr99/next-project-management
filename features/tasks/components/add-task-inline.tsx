@@ -16,9 +16,16 @@ import { toast } from 'sonner';
 
 interface AddTaskInlineProps {
   statusId: string;
+  onTaskCreated?: (task: {
+    id: string;
+    title: string;
+    priority: 'low' | 'medium' | 'high';
+    dueDate: Date | null;
+    assignees: [];
+  }) => void;
 }
 
-export function AddTaskInline({ statusId }: AddTaskInlineProps) {
+export function AddTaskInline({ statusId, onTaskCreated }: AddTaskInlineProps) {
   const [showInput, setShowInput] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const params = useParams<{ projectId: string }>();
@@ -41,9 +48,20 @@ export function AddTaskInline({ statusId }: AddTaskInlineProps) {
     const result = await createTask(values);
     if (result?.error) {
       toast.error(result.error, { position: 'top-center' });
+      return;
     }
 
-    toast.success('Project created successfully', { position: 'top-center' });
+    if (result.task) {
+      onTaskCreated?.({
+        id: result.task.id,
+        title: result.task.title,
+        priority: result.task.priority,
+        dueDate: result.task.dueDate ?? null,
+        assignees: [],
+      });
+    }
+
+    toast.success('Task created successfully', { position: 'top-center' });
     form.reset();
   };
 

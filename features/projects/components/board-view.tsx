@@ -55,6 +55,14 @@ interface BoardViewProps {
 
 export function BoardView({ project, workspaceMembers = [], currentUserId = '', commentCountMap = {} }: BoardViewProps) {
   const [statuses, setStatuses] = useState(project?.statuses ?? []);
+
+  const handleTaskCreated = (statusId: string, newTask: { id: string; title: string; priority: 'low' | 'medium' | 'high'; dueDate: Date | null; assignees: [] }) => {
+    setStatuses((prev) =>
+      prev.map((s) =>
+        s.id === statusId ? { ...s, tasks: [...s.tasks, { ...newTask, statusId }] } : s,
+      ),
+    );
+  };
   const [activeId, setActiveId] = useState<string | null>(null);
   const previousStatusesRef = useRef<typeof statuses | null>(null);
 
@@ -228,6 +236,7 @@ export function BoardView({ project, workspaceMembers = [], currentUserId = '', 
             tasks={status.tasks.map((t) => ({ ...t, commentCount: commentCountMap[t.id] ?? 0 }))}
             availableAssignees={workspaceMembers}
             currentUserId={currentUserId}
+            onTaskCreated={(newTask) => handleTaskCreated(status.id, newTask)}
           />
         ))}
       </div>

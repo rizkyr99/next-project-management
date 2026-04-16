@@ -6,12 +6,21 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 
+type NewTask = {
+  id: string;
+  title: string;
+  priority: 'low' | 'medium' | 'high';
+  dueDate: Date | null;
+  assignees: [];
+};
+
 interface BoardColumnProps {
   id: string;
   title: string;
   projectId: string;
   statuses: { id: string; name: string }[];
   currentUserId: string;
+  onTaskCreated?: (task: NewTask) => void;
   tasks?: {
     id: string;
     title: string;
@@ -41,6 +50,7 @@ export function BoardColumn({
   projectId,
   statuses,
   currentUserId,
+  onTaskCreated,
   tasks = [],
   availableAssignees = [],
 }: Readonly<BoardColumnProps>) {
@@ -71,7 +81,7 @@ export function BoardColumn({
               commentCount={task.commentCount}
             />
           ))}
-          <AddTaskInline statusId={id} />
+          <AddTaskInline statusId={id} onTaskCreated={onTaskCreated} />
         </div>
       </SortableContext>
     </div>
