@@ -4,6 +4,7 @@ import { db } from '@/db/drizzle';
 import { member, notification, user as userTable, workspace, workspaceInvite } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { sendWorkspaceInviteEmail } from '@/lib/email';
+import { checkWorkspaceLimit } from '@/lib/subscription';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
@@ -30,6 +31,13 @@ export async function createWorkspace(
   const userId = session.user.id;
 
   const validated = createWorkspaceSchema.parse(values);
+
+  const limitCheck = await checkWorkspaceLimit(userId);
+  if (!limitCheck.allowed) {
+    return {
+      error: `Workspace limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more workspaces.`,
+    };
+  }
 
   try {
     const [newWorkspace] = await db

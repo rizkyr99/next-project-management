@@ -12,7 +12,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { CheckSquare, Home, List, Settings } from 'lucide-react';
+import { CheckSquare, CreditCard, Home, List, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
@@ -50,6 +50,11 @@ export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
       title: 'Settings',
       url: `/workspaces/${workspaceSlug}/settings`,
       icon: Settings,
+    },
+    {
+      title: 'Billing',
+      url: `/settings/billing`,
+      icon: CreditCard,
     },
   ];
 

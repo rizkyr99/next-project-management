@@ -8,6 +8,13 @@
       "when": 1776218174343,
       "tag": "0000_open_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776331283379,
+      "tag": "0001_watery_wendell_vaughn",
+      "breakpoints": true
     }
   ]
 }

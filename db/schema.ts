@@ -11,6 +11,15 @@ import {
   primaryKey,
 } from 'drizzle-orm/pg-core';
 
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+  'active',
+  'trialing',
+  'past_due',
+  'canceled',
+  'incomplete',
+  'unpaid',
+]);
+
 export const roleEnum = pgEnum('role', ['owner', 'admin', 'member']);
 export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
 export const notificationTypeEnum = pgEnum('notification_type', [
@@ -98,9 +107,13 @@ export const verification = pgTable(
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 );
 
-export const userRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
+  subscription: one(subscription, {
+    fields: [user.id],
+    references: [subscription.userId],
+  }),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -328,4 +341,32 @@ export const notification = pgTable(
 
 export const notificationRelations = relations(notification, ({ one }) => ({
   user: one(user, { fields: [notification.userId], references: [user.id] }),
+}));
+
+export const subscription = pgTable(
+  'subscription',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id')
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    stripeCustomerId: text('stripe_customer_id').notNull().unique(),
+    stripeSubscriptionId: text('stripe_subscription_id').unique(),
+    stripePriceId: text('stripe_price_id'),
+    stripeCurrentPeriodEnd: timestamp('stripe_current_period_end'),
+    status: subscriptionStatusEnum('status'),
+    plan: text('plan').notNull().default('free'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at')
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index('subscription_userId_idx').on(table.userId)],
+);
+
+export const subscriptionRelations = relations(subscription, ({ one }) => ({
+  user: one(user, { fields: [subscription.userId], references: [user.id] }),
 }));
