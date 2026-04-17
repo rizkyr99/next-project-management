@@ -10,6 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
 import { Activity, CheckSquare, CreditCard, Home, List, Settings } from 'lucide-react';
@@ -34,6 +35,11 @@ interface AppSidebarProps {
 export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
   const params = useParams<{ workspaceSlug: string; projectId: string }>();
   const { workspaceSlug, projectId } = params;
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const closeSidebarOnMobile = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   const items = [
     {
@@ -76,7 +82,7 @@ export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <Link href={item.url}>
+                    <Link href={item.url} onClick={closeSidebarOnMobile}>
                       <item.icon />
                       <span>{item.title}</span>
                     </Link>
@@ -101,6 +107,7 @@ export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
                   <SidebarMenuButton asChild>
                     <Link
                       href={`/workspaces/${workspaceSlug}/projects/${project.id}`}
+                      onClick={closeSidebarOnMobile}
                       className={cn(
                         projectId === project.id && 'bg-muted font-medium'
                       )}>

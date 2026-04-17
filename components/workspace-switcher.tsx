@@ -31,7 +31,7 @@ interface WorkspaceSwitcherProps {
 export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [optimisticSlug, setOptimisticSlug] = useState<string | null>(null);
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const router = useRouter();
   const params = useParams<{ workspaceSlug: string }>();
@@ -47,6 +47,7 @@ export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
     setOptimisticSlug(workspace.slug);
     router.push(`/workspaces/${workspace.slug}`);
     setOpen(false);
+    if (isMobile) setOpenMobile(false);
   };
 
   if (!activeWorkspace) return null;
