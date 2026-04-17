@@ -1,7 +1,7 @@
 import z from 'zod';
 
 export const createTaskSchema = z.object({
-  title: z.string().min(1, 'Task title is required'),
+  title: z.string().min(1, 'Task title is required').max(255, 'Title must be 255 characters or fewer'),
   dueDate: z.date().optional(),
   order: z.number(),
   projectId: z.uuid(),
