@@ -190,8 +190,13 @@ export async function updateTaskTitle(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) throw new Error('Unauthorized');
 
+  const trimmed = title.trim();
+  if (!trimmed || trimmed.length > 255) {
+    return { error: 'Title must be between 1 and 255 characters.' };
+  }
+
   try {
-    await db.update(task).set({ title }).where(eq(task.id, taskId));
+    await db.update(task).set({ title: trimmed }).where(eq(task.id, taskId));
     revalidatePath(`/projects/${projectId}`, 'page');
 
     const workspaceId = await getWorkspaceId(projectId);
