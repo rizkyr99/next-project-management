@@ -3,6 +3,7 @@
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -13,7 +14,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { Activity, CheckSquare, CreditCard, Home, List, Settings } from 'lucide-react';
+import { Activity, CheckSquare, CreditCard, Home, List, Settings, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
@@ -30,9 +31,10 @@ interface AppSidebarProps {
     id: string;
     name: string;
   }[];
+  atWorkspaceLimit?: boolean;
 }
 
-export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
+export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSidebarProps) {
   const params = useParams<{ workspaceSlug: string; projectId: string }>();
   const { workspaceSlug, projectId } = params;
   const { isMobile, setOpenMobile } = useSidebar();
@@ -72,7 +74,7 @@ export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader>
-        <WorkspaceSwitcher workspaces={workspaces} />
+        <WorkspaceSwitcher workspaces={workspaces} atWorkspaceLimit={atWorkspaceLimit} />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -121,6 +123,19 @@ export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {atWorkspaceLimit && (
+        <SidebarFooter>
+          <Link
+            href='/settings/billing'
+            className='flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm hover:bg-primary/10 transition-colors'>
+            <Sparkles className='size-4 text-primary mt-0.5 shrink-0' />
+            <div>
+              <p className='font-medium text-primary leading-tight'>Workspace limit reached</p>
+              <p className='text-xs text-muted-foreground mt-0.5'>Upgrade your plan to create more workspaces.</p>
+            </div>
+          </Link>
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }
