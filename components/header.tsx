@@ -14,6 +14,7 @@ import { SidebarTrigger } from './ui/sidebar';
 import { authClient } from '@/lib/auth-client';
 import { useParams, useRouter } from 'next/navigation';
 import { NotificationsPopover } from './notifications-popover';
+import { ThemeToggle } from './theme-toggle';
 import { Input } from './ui/input';
 import {
   Dialog,
@@ -176,6 +177,7 @@ export function Header() {
           </DialogContent>
         </Dialog>
 
+        <ThemeToggle />
         <NotificationsPopover />
         <DropdownMenu>
           <DropdownMenuTrigger>
