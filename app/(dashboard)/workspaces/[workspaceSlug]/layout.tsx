@@ -3,6 +3,7 @@ import { Header } from '@/components/header';
 import { db } from '@/db/drizzle';
 import { member, project, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
+import { checkWorkspaceLimit } from '@/lib/subscription';
 import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -40,16 +41,16 @@ export default async function WorkspaceLayout({
 
   const activeWorkspace = userWorkspaces.find((w) => w.slug === workspaceSlug);
 
-  const workspaceProjects = activeWorkspace
-    ? await db
-        .select()
-        .from(project)
-        .where(eq(project.workspaceId, activeWorkspace.id))
-    : [];
+  const [workspaceProjects, limitCheck] = await Promise.all([
+    activeWorkspace
+      ? db.select().from(project).where(eq(project.workspaceId, activeWorkspace.id))
+      : Promise.resolve([]),
+    checkWorkspaceLimit(session.user.id),
+  ]);
 
   return (
     <>
-      <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} />
+      <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} atWorkspaceLimit={!limitCheck.allowed} />
       <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
         <Header />
         <main className='flex-1'>{children}</main>
