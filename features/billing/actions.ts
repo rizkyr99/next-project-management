@@ -8,13 +8,21 @@ import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+function getAppUrl(requestHeaders: Headers): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  const host = requestHeaders.get('host') ?? 'localhost:3000';
+  const proto = requestHeaders.get('x-forwarded-proto') ?? 'http';
+  return `${proto}://${host}`;
+}
+
 export async function createCheckoutSession(plan: 'pro' | 'business') {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session?.user) throw new Error('Unauthorized');
 
   const userId = session.user.id;
   const priceId = PLANS[plan].priceId;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = getAppUrl(requestHeaders);
 
   // Get or create Stripe customer
   const sub = await db.query.subscription.findFirst({
@@ -64,10 +72,11 @@ export async function createCheckoutSession(plan: 'pro' | 'business') {
 }
 
 export async function createPortalSession() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session?.user) throw new Error('Unauthorized');
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = getAppUrl(requestHeaders);
 
   const sub = await db.query.subscription.findFirst({
     where: eq(subscription.userId, session.user.id),
