@@ -83,10 +83,21 @@ export function GlobalSearch() {
 
   return (
     <>
+      {/* Mobile: icon-only button */}
+      <Button
+        variant='outline'
+        size='icon'
+        className='sm:hidden'
+        onClick={() => setOpen(true)}
+        aria-label='Search'>
+        <Search className='w-4 h-4' />
+      </Button>
+
+      {/* Desktop: full search button */}
       <Button
         variant='outline'
         size='sm'
-        className='gap-2 text-muted-foreground w-40 justify-between'
+        className='hidden sm:flex gap-2 text-muted-foreground w-40 justify-between'
         onClick={() => setOpen(true)}>
         <span className='flex items-center gap-2'>
           <Search className='w-3.5 h-3.5' />
@@ -105,7 +116,7 @@ export function GlobalSearch() {
           />
 
           <Command
-            className='relative z-10 w-full max-w-lg bg-background border rounded-xl shadow-2xl overflow-hidden'
+            className='relative z-10 w-full max-w-lg mx-4 bg-background border rounded-xl shadow-2xl overflow-hidden'
             shouldFilter={false}>
             <div className='flex items-center border-b px-3'>
               <Search className='w-4 h-4 mr-2 shrink-0 text-muted-foreground' />
