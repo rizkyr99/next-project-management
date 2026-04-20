@@ -23,13 +23,11 @@ export async function checkWorkspaceLimit(userId: string): Promise<{
   current: number;
   limit: number | null;
 }> {
-  const plan = await getUserPlan(userId);
+  const [plan, [result]] = await Promise.all([
+    getUserPlan(userId),
+    db.select({ count: count() }).from(workspace).where(eq(workspace.userId, userId)),
+  ]);
   const limit = PLANS[plan].maxWorkspaces;
-
-  const [result] = await db
-    .select({ count: count() })
-    .from(workspace)
-    .where(eq(workspace.userId, userId));
 
   const current = result?.count ?? 0;
 

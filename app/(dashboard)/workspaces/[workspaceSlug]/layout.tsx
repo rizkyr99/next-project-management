@@ -24,16 +24,19 @@ export default async function WorkspaceLayout({
     redirect('/login');
   }
 
-  const userWorkspaces = await db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      slug: workspace.slug,
-      role: member.role,
-    })
-    .from(member)
-    .innerJoin(workspace, eq(member.workspaceId, workspace.id))
-    .where(eq(member.userId, session.user.id));
+  const [userWorkspaces, limitCheck] = await Promise.all([
+    db
+      .select({
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        role: member.role,
+      })
+      .from(member)
+      .innerJoin(workspace, eq(member.workspaceId, workspace.id))
+      .where(eq(member.userId, session.user.id)),
+    checkWorkspaceLimit(session.user.id),
+  ]);
 
   if (userWorkspaces.length === 0) {
     redirect('/create-workspace');
@@ -41,12 +44,9 @@ export default async function WorkspaceLayout({
 
   const activeWorkspace = userWorkspaces.find((w) => w.slug === workspaceSlug);
 
-  const [workspaceProjects, limitCheck] = await Promise.all([
-    activeWorkspace
-      ? db.select().from(project).where(eq(project.workspaceId, activeWorkspace.id))
-      : Promise.resolve([]),
-    checkWorkspaceLimit(session.user.id),
-  ]);
+  const workspaceProjects = activeWorkspace
+    ? await db.select().from(project).where(eq(project.workspaceId, activeWorkspace.id))
+    : [];
 
   return (
     <>
