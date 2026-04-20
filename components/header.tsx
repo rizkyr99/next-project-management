@@ -104,15 +104,15 @@ export function Header() {
   };
 
   return (
-    <header className='h-16 border-b flex justify-between items-center px-4 shrink-0'>
+    <header className='h-16 border-b flex justify-between items-center px-4 shrink-0 w-full min-w-0'>
       <SidebarTrigger />
-      <div className='flex items-center gap-4'>
+      <div className='flex items-center gap-2 sm:gap-4 min-w-0'>
         {workspaceSlug && <GlobalSearch />}
         <Dialog>
           <DialogTrigger asChild>
-            <Button>
+            <Button size='sm' className='sm:size-auto'>
               <UserPlus2 />
-              Invite
+              <span className='hidden sm:inline'>Invite</span>
             </Button>
           </DialogTrigger>
           <DialogContent>
