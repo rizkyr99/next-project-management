@@ -3,6 +3,7 @@
 import { reorderTasks } from '@/features/tasks/actions';
 import { BoardColumn } from '@/features/tasks/components/board-column';
 import { TaskCard } from '@/features/tasks/components/task-card';
+import { useTaskStream } from '@/features/tasks/hooks/use-task-stream';
 import {
   DndContext,
   DragEndEvent,
@@ -54,6 +55,7 @@ interface BoardViewProps {
 }
 
 export function BoardView({ project, workspaceMembers = [], currentUserId = '', commentCountMap = {} }: BoardViewProps) {
+  useTaskStream(project?.id ?? '');
   const [statuses, setStatuses] = useState(project?.statuses ?? []);
 
   const handleTaskCreated = (statusId: string, newTask: { id: string; title: string; priority: 'low' | 'medium' | 'high'; dueDate: Date | null; assignees: [] }) => {

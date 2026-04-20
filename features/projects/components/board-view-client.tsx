@@ -2,8 +2,10 @@
 
 import { Skeleton } from '@/components/ui/skeleton';
 import dynamic from 'next/dynamic';
+import { ComponentProps } from 'react';
+import { BoardView } from './board-view';
 
-const BoardView = dynamic(
+const BoardViewLazy = dynamic(
   () => import('./board-view').then((mod) => mod.BoardView),
   {
     ssr: false,
@@ -17,4 +19,8 @@ const BoardView = dynamic(
   },
 );
 
-export default BoardView;
+type Props = ComponentProps<typeof BoardView> & { boardKey?: string };
+
+export default function BoardViewClient({ boardKey, ...props }: Props) {
+  return <BoardViewLazy key={boardKey} {...props} />;
+}
