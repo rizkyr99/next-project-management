@@ -14,6 +14,7 @@ import { SidebarTrigger } from './ui/sidebar';
 import { authClient } from '@/lib/auth-client';
 import { useParams, useRouter } from 'next/navigation';
 import { NotificationsPopover } from './notifications-popover';
+import { GlobalSearch } from '@/features/search/components/global-search';
 import { ThemeToggle } from './theme-toggle';
 import { Input } from './ui/input';
 import {
@@ -106,6 +107,7 @@ export function Header() {
     <header className='h-16 border-b flex justify-between items-center px-4 shrink-0'>
       <SidebarTrigger />
       <div className='flex items-center gap-4'>
+        {workspaceSlug && <GlobalSearch />}
         <Dialog>
           <DialogTrigger asChild>
             <Button>
