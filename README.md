@@ -15,6 +15,9 @@ A full-featured project management app built with Next.js 15 App Router. Manage 
 - **Projects & task boards** — Kanban, table, and list views with drag-and-drop reordering via `@dnd-kit`
 - **Task management** — Assignees, priority levels, due dates, bulk actions, and inline editing
 - **Comments & mentions** — Thread comments on tasks with `@mention` support
+- **Real-time board** — Task creation and updates broadcast to all connected clients via SSE; the board refreshes automatically without manual reload
+- **Live video/audio calls** — Per-project WebRTC call rooms using a P2P mesh topology; join directly from the project board with mute and camera controls
+- **Global search** — Command palette (⌘K) that searches tasks, projects, and comments across the current workspace
 - **Real-time notifications** — Server-Sent Events stream new notifications without polling overhead
 - **Activity log** — Full audit trail of workspace events (task changes, member activity, status updates)
 - **Subscription billing** — Free / Pro / Business tiers via Stripe with enforced workspace limits
@@ -36,6 +39,8 @@ A full-featured project management app built with Next.js 15 App Router. Manage 
 | UI | Radix UI + Tailwind CSS v4 | Accessible headless components with utility styling |
 | Forms | React Hook Form + Zod | Performant form state with end-to-end type-safe validation |
 | Drag & drop | @dnd-kit | Accessible, modular DnD without heavy dependencies |
+| WebRTC | simple-peer | Lightweight P2P abstraction over the native WebRTC API |
+| Search | cmdk | Accessible command palette primitive |
 | Testing | Vitest | Fast unit/integration tests with first-class ESM support |
 
 ---
@@ -47,6 +52,8 @@ app/                    # Next.js App Router pages and API routes
   api/
     auth/               # Better Auth handler
     notifications/stream/  # SSE endpoint for real-time notifications
+    tasks/stream/       # SSE endpoint for real-time board updates
+    call/               # WebRTC signaling endpoints (join, leave, signal, stream)
     stripe/webhook/     # Stripe webhook handler
   workspaces/[slug]/    # Workspace-scoped pages (projects, tasks, activity)
   settings/             # Profile and billing pages
@@ -57,6 +64,8 @@ features/               # Feature modules (co-locate actions, schemas, component
   workspaces/
   notifications/
   activity/
+  call/                 # WebRTC call room (hooks + components)
+  search/               # Global search action + command palette
 
 lib/                    # Shared utilities (auth, stripe, email, subscription)
 db/
