@@ -3,9 +3,10 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Pencil, Send, Trash2, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { addComment, deleteComment, getComments, updateComment } from '../actions';
 
@@ -48,21 +49,61 @@ function renderBody(body: string) {
 }
 
 export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCommentsProps) {
-  const [comments, setComments] = useState<Comment[]>([]);
+  const queryClient = useQueryClient();
+  const queryKey = ['comments', taskId];
+
+  const { data: comments = [] } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await getComments(taskId);
+      return ('comments' in res ? res.comments : []) as Comment[];
+    },
+  });
+
   const [body, setBody] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    getComments(taskId).then((res) => {
-      if ('comments' in res) setComments(res.comments as Comment[]);
-    });
-  }, [taskId]);
+  const addMutation = useMutation({
+    mutationFn: (text: string) => addComment(taskId, text, workspaceMembers),
+    onSuccess: (res) => {
+      if ('error' in res) {
+        toast.error(res.error, { position: 'top-center' });
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey });
+      setBody('');
+      setMentionSearch(null);
+    },
+  });
 
-  // Detect @mention as user types
+  const updateMutation = useMutation({
+    mutationFn: ({ commentId, text }: { commentId: string; text: string }) =>
+      updateComment(commentId, text),
+    onSuccess: (res) => {
+      if ('error' in res) {
+        toast.error(res.error, { position: 'top-center' });
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey });
+      setEditingId(null);
+      setEditBody('');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (commentId: string) => deleteComment(commentId),
+    onSuccess: (res) => {
+      if ('error' in res) {
+        toast.error(res.error, { position: 'top-center' });
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
   const handleBodyChange = (value: string) => {
     setBody(value);
     const textarea = textareaRef.current;
@@ -96,50 +137,12 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
     }, 0);
   };
 
-  const handleSubmit = async () => {
-    if (!body.trim()) return;
-    setSubmitting(true);
-    const res = await addComment(taskId, body, workspaceMembers);
-    setSubmitting(false);
-    if ('error' in res) {
-      toast.error(res.error, { position: 'top-center' });
-      return;
-    }
-    setComments((prev) => [...prev, res.comment as Comment]);
-    setBody('');
-    setMentionSearch(null);
-  };
-
-  const handleEditSave = async (commentId: string) => {
-    if (!editBody.trim()) return;
-    const res = await updateComment(commentId, editBody);
-    if ('error' in res) {
-      toast.error(res.error, { position: 'top-center' });
-      return;
-    }
-    setComments((prev) =>
-      prev.map((c) => (c.id === commentId ? { ...c, body: editBody } : c)),
-    );
-    setEditingId(null);
-    setEditBody('');
-  };
-
-  const handleDelete = async (commentId: string) => {
-    const res = await deleteComment(commentId);
-    if ('error' in res) {
-      toast.error(res.error, { position: 'top-center' });
-      return;
-    }
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
-  };
-
   return (
     <div className='space-y-4'>
       <p className='text-sm font-medium text-muted-foreground'>
         Comments {comments.length > 0 && `(${comments.length})`}
       </p>
 
-      {/* Comment list */}
       {comments.length > 0 && (
         <div className='space-y-3'>
           {comments.map((c) => (
@@ -173,7 +176,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          handleEditSave(c.id);
+                          updateMutation.mutate({ commentId: c.id, text: editBody });
                         }
                         if (e.key === 'Escape') {
                           setEditingId(null);
@@ -182,7 +185,11 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                       }}
                     />
                     <div className='flex gap-1.5'>
-                      <Button size='sm' className='h-6 text-xs' onClick={() => handleEditSave(c.id)}>
+                      <Button
+                        size='sm'
+                        className='h-6 text-xs'
+                        disabled={updateMutation.isPending}
+                        onClick={() => updateMutation.mutate({ commentId: c.id, text: editBody })}>
                         Save
                       </Button>
                       <Button
@@ -212,7 +219,8 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     variant='ghost'
                     size='icon'
                     className='size-6 text-destructive hover:text-destructive'
-                    onClick={() => handleDelete(c.id)}>
+                    disabled={deleteMutation.isPending}
+                    onClick={() => deleteMutation.mutate(c.id)}>
                     <Trash2 className='size-3' />
                   </Button>
                 </div>
@@ -222,7 +230,6 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
         </div>
       )}
 
-      {/* New comment input */}
       <div className='relative'>
         {mentionSearch !== null && filteredMembers.length > 0 && (
           <div className='absolute bottom-full mb-1 left-0 z-50 w-56 rounded-md border bg-popover shadow-md overflow-hidden'>
@@ -254,7 +261,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
             if (mentionSearch !== null && filteredMembers.length > 0) return;
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              handleSubmit();
+              if (body.trim()) addMutation.mutate(body);
             }
           }}
           className='min-h-[72px] resize-none text-sm pr-10'
@@ -262,8 +269,8 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
         <Button
           size='icon'
           className='absolute bottom-2 right-2 size-6'
-          disabled={!body.trim() || submitting}
-          onClick={handleSubmit}>
+          disabled={!body.trim() || addMutation.isPending}
+          onClick={() => { if (body.trim()) addMutation.mutate(body); }}>
           <Send className='size-3' />
         </Button>
       </div>
