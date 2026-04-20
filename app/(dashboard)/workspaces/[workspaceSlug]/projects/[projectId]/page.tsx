@@ -2,6 +2,7 @@ import { db } from '@/db/drizzle';
 import { comment, member, project, user, workspace } from '@/db/schema';
 import { count, eq, inArray } from 'drizzle-orm';
 import BoardView from '@/features/projects/components/board-view-client';
+import { CallButton } from '@/features/call/components/call-button';
 import { ListView } from '@/features/projects/components/list-view';
 import { TableView } from '@/features/projects/components/table-view';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
@@ -86,6 +87,11 @@ export default async function ProjectIdPage({
       <div className='px-4 py-2 space-y-2 border-b'>
         <div className='text-lg font-semibold flex items-center justify-between'>
           {data?.name}
+          <CallButton
+            projectId={projectId}
+            currentUserId={session.user.id}
+            currentUserName={session.user.name ?? 'User'}
+          />
         </div>
         <Suspense>
           <ViewSwitcher currentView={currentView} />
