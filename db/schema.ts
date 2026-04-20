@@ -435,3 +435,49 @@ export const subscription = pgTable(
 export const subscriptionRelations = relations(subscription, ({ one }) => ({
   user: one(user, { fields: [subscription.userId], references: [user.id] }),
 }));
+
+export const signalTypeEnum = pgEnum('signal_type', ['offer', 'answer', 'ice-candidate']);
+
+export const callParticipant = pgTable(
+  'call_participant',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    joinedAt: timestamp('joined_at').defaultNow().notNull(),
+    lastSeen: timestamp('last_seen').defaultNow().notNull(),
+  },
+  (table) => [
+    index('call_participant_projectId_idx').on(table.projectId),
+  ],
+);
+
+export const callParticipantRelations = relations(callParticipant, ({ one }) => ({
+  project: one(project, { fields: [callParticipant.projectId], references: [project.id] }),
+  user: one(user, { fields: [callParticipant.userId], references: [user.id] }),
+}));
+
+export const webrtcSignal = pgTable(
+  'webrtc_signal',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    projectId: text('project_id').notNull(),
+    fromUserId: text('from_user_id').notNull(),
+    toUserId: text('to_user_id').notNull(),
+    type: signalTypeEnum('type').notNull(),
+    payload: text('payload').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('webrtc_signal_toUserId_idx').on(table.toUserId),
+    index('webrtc_signal_projectId_idx').on(table.projectId),
+  ],
+);
