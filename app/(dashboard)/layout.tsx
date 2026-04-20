@@ -1,6 +1,5 @@
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { getSession } from '@/lib/auth-session';
 import { redirect } from 'next/navigation';
 
 export default async function DashboardLayout({
@@ -8,9 +7,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSession();
 
   if (!session) {
     redirect('/login');
