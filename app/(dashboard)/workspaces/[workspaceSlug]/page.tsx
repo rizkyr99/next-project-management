@@ -5,11 +5,10 @@ import {
   task,
   taskStatus,
   user,
-  workspace,
 } from '@/db/schema';
-import { auth } from '@/lib/auth';
-import { and, count, eq } from 'drizzle-orm';
-import { headers } from 'next/headers';
+import { getSession } from '@/lib/auth-session';
+import { getActiveWorkspace } from '@/lib/workspace-context';
+import { count, eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -30,61 +29,48 @@ export default async function WorkspaceHomePage({
 }) {
   const { workspaceSlug } = await params;
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session) redirect('/login');
 
-  const [currentWorkspace] = await db
-    .select()
-    .from(workspace)
-    .where(eq(workspace.slug, workspaceSlug));
-
+  const currentWorkspace = await getActiveWorkspace(
+    workspaceSlug,
+    session.user.id,
+  );
   if (!currentWorkspace) redirect('/create-workspace');
 
-  const [currentMember] = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(
-      and(
-        eq(member.workspaceId, currentWorkspace.id),
-        eq(member.userId, session.user.id),
-      ),
-    );
-
-  if (!currentMember) redirect('/create-workspace');
-
-  const projects = await db
-    .select({
-      id: project.id,
-      name: project.name,
-      description: project.description,
-      createdAt: project.createdAt,
-    })
-    .from(project)
-    .where(eq(project.workspaceId, currentWorkspace.id));
-
-  const taskCountsRaw = await db
-    .select({ projectId: task.projectId, count: count() })
-    .from(task)
-    .innerJoin(taskStatus, eq(task.statusId, taskStatus.id))
-    .innerJoin(project, eq(taskStatus.projectId, project.id))
-    .where(eq(project.workspaceId, currentWorkspace.id))
-    .groupBy(task.projectId);
+  const [projects, taskCountsRaw, members] = await Promise.all([
+    db
+      .select({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        createdAt: project.createdAt,
+      })
+      .from(project)
+      .where(eq(project.workspaceId, currentWorkspace.id)),
+    db
+      .select({ projectId: task.projectId, count: count() })
+      .from(task)
+      .innerJoin(taskStatus, eq(task.statusId, taskStatus.id))
+      .innerJoin(project, eq(taskStatus.projectId, project.id))
+      .where(eq(project.workspaceId, currentWorkspace.id))
+      .groupBy(task.projectId),
+    db
+      .select({
+        id: member.id,
+        name: user.name,
+        role: member.role,
+      })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(eq(member.workspaceId, currentWorkspace.id)),
+  ]);
 
   const taskCountMap = Object.fromEntries(
     taskCountsRaw.map((r) => [r.projectId, r.count]),
   );
 
   const totalTasks = taskCountsRaw.reduce((sum, r) => sum + r.count, 0);
-
-  const members = await db
-    .select({
-      id: member.id,
-      name: user.name,
-      role: member.role,
-    })
-    .from(member)
-    .innerJoin(user, eq(member.userId, user.id))
-    .where(eq(member.workspaceId, currentWorkspace.id));
 
   const firstName = session.user.name?.split(' ')[0] ?? 'there';
 
