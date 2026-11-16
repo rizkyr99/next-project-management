@@ -136,11 +136,13 @@
 2. If a flow needs read-then-write inside a transaction, add a second client using `drizzle-orm/neon-serverless` (WebSocket `Pool`) and export it as `dbTx`. Only use it where it's needed, because it's slower on cold start.
 
 **Done when**
-- [ ] A forced failure in the second statement leaves no orphan rows (unit test with mocked driver, or a manual test on a Neon branch).
+- [x] A forced failure in the second statement leaves no orphan rows. `createWorkspace` and `createProject` generate IDs up front and write through `db.batch()`, which `neon-http` runs as a single `client.transaction()`. The second `dbTx` client wasn't needed. Also added along the way: server-side slug/name validation, a "URL already taken" message (via `lib/db-errors.ts`), persisting project descriptions, and fixing the create-project dialog, which navigated to `/projects/undefined` on error.
 
 ### P0.6 Fix the README's security claim
 
 The README says "enforced permission boundaries in every Server Action". Once P0.1–P0.4 have landed, that will be true. Add a short **Security model** section explaining the `require*Access` helpers.
+
+- [x] Done: README now has a **Security Model** section, and the Next.js version is corrected to 16.
 
 **Phase 0 exit criteria:** every server action and route handler that takes an ID goes through a `require*` helper (verify with `grep -L "require" features/*/actions.ts app/api/**/route.ts`), and the cross-tenant E2E test passes.
 
