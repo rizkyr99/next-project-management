@@ -239,6 +239,12 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 3. Delete `app/api/sentry-example-api/route.ts`.
 4. Confirm `.env` and `.env.sentry-build-plugin` are in `.gitignore` (they currently exist locally).
 
+**Done when**
+- [x] `lib/env.ts` validates required server vars (presence and format). A production build on Vercel fails (`next.config.ts`), and a production server refuses to start (`instrumentation.ts`). Development only warns. Verified: a simulated `VERCEL_ENV=production` build with a blank `RESEND_API_KEY` exits 1 with `RESEND_API_KEY: missing`. `SKIP_ENV_VALIDATION=1` is the escape hatch.
+- [x] `.env.example` added. It didn't exist before; `.gitignore`'s `.env*` blocked it, so it's now whitelisted. It has no `ABLY_API_KEY`, and the future vars are listed as commented placeholders.
+- [x] `app/api/sentry-example-api` deleted.
+- [x] `.env` and `.env.sentry-build-plugin` confirmed ignored.
+
 ### P1.6 Real app metadata
 
 **Files:** `app/layout.tsx`
