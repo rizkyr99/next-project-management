@@ -10,8 +10,6 @@ import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { MoreHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { ProjectActionsMenu } from '@/features/projects/components/project-actions-menu';
 import type { Metadata } from 'next';
 
@@ -123,11 +121,7 @@ export default async function ProjectIdPage({
             <ProjectActionsMenu
               project={{ id: data.id, name: data.name, description: data.description }}
               canDelete={currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin'}
-              trigger={
-                <Button variant='ghost' size='icon' aria-label='Project options'>
-                  <MoreHorizontal />
-                </Button>
-              }
+              variant='header'
             />
           </div>
         </div>

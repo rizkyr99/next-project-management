@@ -9,13 +9,12 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { Activity, CheckSquare, CreditCard, Home, List, MoreHorizontal, Settings, Sparkles } from 'lucide-react';
+import { Activity, CheckSquare, CreditCard, Home, List, Settings, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
@@ -122,16 +121,7 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
                       <span>{project.name}</span>
                     </Link>
                   </SidebarMenuButton>
-                  <ProjectActionsMenu
-                    project={project}
-                    canDelete={canDeleteProjects}
-                    align='start'
-                    trigger={
-                      <SidebarMenuAction showOnHover aria-label={`${project.name} options`}>
-                        <MoreHorizontal />
-                      </SidebarMenuAction>
-                    }
-                  />
+                  <ProjectActionsMenu project={project} canDelete={canDeleteProjects} variant='sidebar' />
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

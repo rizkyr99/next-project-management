@@ -19,7 +19,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Pencil, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { SidebarMenuAction } from '@/components/ui/sidebar';
 import { unstable_rethrow } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
@@ -33,21 +34,31 @@ export interface ProjectSummary {
 
 /**
  * The "⋯" menu for a project, used in the project header and on sidebar
- * rows. `trigger` is the element that opens it. Delete only appears for
- * owners and admins; the server enforces this too.
+ * rows. The trigger is rendered here (not passed in as an element from a
+ * Server Component) so server HTML and client hydration always agree.
+ * Delete only appears for owners and admins; the server enforces this too.
  */
 export function ProjectActionsMenu({
   project,
   canDelete,
-  trigger,
-  align = 'end',
+  variant,
 }: {
   project: ProjectSummary;
   canDelete: boolean;
-  trigger: ReactNode;
-  align?: 'start' | 'end';
+  variant: 'header' | 'sidebar';
 }) {
   const [dialog, setDialog] = useState<'edit' | 'delete' | null>(null);
+  const align = variant === 'sidebar' ? 'start' : 'end';
+  const trigger: ReactNode =
+    variant === 'sidebar' ? (
+      <SidebarMenuAction showOnHover aria-label={`${project.name} options`}>
+        <MoreHorizontal />
+      </SidebarMenuAction>
+    ) : (
+      <Button variant='ghost' size='icon' aria-label='Project options'>
+        <MoreHorizontal />
+      </Button>
+    );
 
   return (
     <>
