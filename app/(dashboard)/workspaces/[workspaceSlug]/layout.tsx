@@ -7,6 +7,24 @@ import { checkWorkspaceLimit } from '@/lib/subscription';
 import { getActiveWorkspace } from '@/lib/workspace-context';
 import { and, eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
+import type { Metadata } from 'next';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string }>;
+}): Promise<Metadata> {
+  const { workspaceSlug } = await params;
+  const session = await getSession();
+  // Resolved through the viewer's membership (React-cached with the layout's
+  // own lookup), so a foreign slug never leaks a workspace name via <title>.
+  const ws = session ? await getActiveWorkspace(workspaceSlug, session.user.id) : null;
+  if (!ws) return {};
+  return {
+    title: { default: ws.name, template: `%s · ${ws.name} · Tide` },
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function WorkspaceLayout({
   children,

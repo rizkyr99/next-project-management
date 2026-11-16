@@ -12,6 +12,9 @@ import { and, asc, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { MyTasksView } from '@/features/tasks/components/my-tasks-view';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'My tasks' };
 
 export default async function MyTasksPage({
   params,

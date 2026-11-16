@@ -16,6 +16,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { UpdateProfileForm } from '@/features/account/components/update-profile-form';
 import { ChangePasswordForm } from '@/features/account/components/change-password-form';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'Account' };
 
 export default async function AccountPage() {
   const session = await auth.api.getSession({ headers: await headers() });
