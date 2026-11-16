@@ -148,12 +148,42 @@ test.describe('Workspace invites', () => {
     await stranger.context.close();
   });
 
-  test('an existing user is notified in-app and can accept from /invites', async ({ browser }) => {
+  test('an unverified account cannot claim invites by email alone', async ({ browser }) => {
+    const owner = await ownerWithWorkspace(browser);
+    const victimEmail = `inv-victim+${stamp()}@example.com`;
+    await invite(owner.page, owner.slug, victimEmail);
+
+    // Someone registers the invited address without owning the mailbox
+    // (email/password sign-ups aren't verified).
+    const squatter = await newContextPage(browser);
+    await registerAndLogin(squatter.page, victimEmail, 'Squatter');
+
+    // Not routed to /invites, and /invites lists nothing for an unverified account.
+    await squatter.page.goto('/');
+    await expect(squatter.page).toHaveURL(/\/create-workspace$/, { timeout: 15000 });
+    await squatter.page.goto('/invites');
+    await expect(squatter.page.getByText('No pending invites')).toBeVisible();
+    await expect(squatter.page.getByText(owner.workspaceName)).toHaveCount(0);
+
+    const sql = await testDb();
+    const [membership] = await sql`
+      select 1 from member m join "user" u on u.id = m.user_id join workspace w on w.id = m.workspace_id
+      where lower(u.email) = ${victimEmail} and w.slug = ${owner.slug}`;
+    expect(membership).toBeUndefined();
+
+    await owner.context.close();
+    await squatter.context.close();
+  });
+
+  test('a verified existing user is notified in-app and can accept from /invites', async ({ browser }) => {
     const owner = await ownerWithWorkspace(browser);
 
     const existing = await newContextPage(browser);
     const existingEmail = `inv-existing+${stamp()}@example.com`;
     await registerAndLogin(existing.page, existingEmail, 'Existing User');
+    // Stand-in for a verified account (Google sign-in, or email verification in P3).
+    const sql = await testDb();
+    await sql`update "user" set email_verified = true where lower(email) = ${existingEmail}`;
 
     await invite(owner.page, owner.slug, existingEmail);
 

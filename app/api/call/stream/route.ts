@@ -1,5 +1,5 @@
 import { db } from '@/db/drizzle';
-import { callParticipant, user, webrtcSignal } from '@/db/schema';
+import { callParticipant, member, project, user, webrtcSignal } from '@/db/schema';
 import { and, eq, gt, lt } from 'drizzle-orm';
 import { callRoomSchema } from '@/features/call/schema';
 import { requireProjectAccess, toErrorResponse } from '@/lib/authz';
@@ -24,18 +24,60 @@ export async function GET(request: Request) {
   const stream = new ReadableStream({
     start(controller) {
       let lastSignalCheck = new Date();
+      let ticks = 0;
+      let closed = false;
+
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(intervalId);
+        try {
+          controller.close();
+        } catch {
+          // already closed by the client
+        }
+      };
 
       controller.enqueue(': keepalive\n\n');
 
       const tick = async () => {
         try {
+          if (closed) return;
           const now = new Date();
 
-          // Heartbeat: update lastSeen so we know the user is still in the call
-          await db
+          // Access is checked when the stream opens. Re-check about every 30s
+          // so a member removed from the workspace stops receiving the call.
+          if (++ticks % 15 === 0) {
+            const [stillMember] = await db
+              .select({ id: member.id })
+              .from(project)
+              .innerJoin(
+                member,
+                and(eq(member.workspaceId, project.workspaceId), eq(member.userId, userId)),
+              )
+              .where(eq(project.id, projectId))
+              .limit(1);
+            if (!stillMember) {
+              await db
+                .delete(callParticipant)
+                .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId)));
+              close();
+              return;
+            }
+          }
+
+          // Heartbeat: update lastSeen so we know the user is still in the call.
+          // If another participant's cleanup removed our row (e.g. after a
+          // stalled tick), re-create it. Otherwise /api/call/signal would
+          // reject this still-connected participant.
+          const touched = await db
             .update(callParticipant)
             .set({ lastSeen: now })
-            .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId)));
+            .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId)))
+            .returning({ id: callParticipant.id });
+          if (touched.length === 0) {
+            await db.insert(callParticipant).values({ projectId, userId, lastSeen: now });
+          }
 
           // Clean up stale participants (no heartbeat for > 8 seconds)
           const staleThreshold = new Date(now.getTime() - 8_000);

@@ -14,14 +14,18 @@ export const updateTaskStatusSchema = z.object({
   projectId: z.uuid(),
 });
 
+// Bounds keep payloads sane while allowing large projects: the board and list
+// send whole columns / all selected tasks in one call.
+const MAX_TASKS_PER_CALL = 5000;
+
 export const bulkUpdateStatusSchema = z.object({
-  taskIds: z.array(z.uuid()).min(1).max(500),
+  taskIds: z.array(z.uuid()).min(1).max(MAX_TASKS_PER_CALL),
   statusId: z.uuid(),
   projectId: z.uuid(),
 });
 
 export const bulkDeleteTasksSchema = z.object({
-  taskIds: z.array(z.uuid()).min(1).max(500),
+  taskIds: z.array(z.uuid()).min(1).max(MAX_TASKS_PER_CALL),
   projectId: z.uuid(),
 });
 
@@ -35,7 +39,7 @@ export const reorderTasksSchema = z.object({
         order: z.number().int(),
       }),
     )
-    .max(1000),
+    .max(MAX_TASKS_PER_CALL),
 });
 
 export const idSchema = z.uuid();

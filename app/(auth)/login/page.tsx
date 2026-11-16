@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Log in' };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackURL?: string }>;
+  searchParams: Promise<{ callbackURL?: string | string[] }>;
 }) {
   const { callbackURL: raw } = await searchParams;
   const callbackURL = safeCallbackPath(raw);

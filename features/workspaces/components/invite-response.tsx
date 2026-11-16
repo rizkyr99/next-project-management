@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { authClient } from '@/lib/auth-client';
-import { useRouter } from 'next/navigation';
+import { unstable_rethrow, useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { acceptInvite, declineInvite, type InviteRef } from '../invite-actions';
@@ -23,14 +23,30 @@ export function InviteResponse({
 
   const accept = () =>
     startTransition(async () => {
-      // On success the action redirects, so a result only comes back on failure.
-      const result = await acceptInvite(inviteRef);
-      if (result?.error !== undefined) toast.error(result.error, { position: 'top-center' });
+      try {
+        // On success the action redirects, so a result only comes back on failure.
+        const result = await acceptInvite(inviteRef);
+        if (result?.error !== undefined) toast.error(result.error, { position: 'top-center' });
+      } catch (error) {
+        // Let Next's own control-flow errors (redirects) through.
+        unstable_rethrow(error);
+        toast.error('Something went wrong. Check your connection and try again.', {
+          position: 'top-center',
+        });
+      }
     });
 
   const decline = () =>
     startTransition(async () => {
-      const result = await declineInvite(inviteRef);
+      let result: Awaited<ReturnType<typeof declineInvite>>;
+      try {
+        result = await declineInvite(inviteRef);
+      } catch {
+        toast.error('Something went wrong. Check your connection and try again.', {
+          position: 'top-center',
+        });
+        return;
+      }
       if (result.error !== undefined) {
         toast.error(result.error, { position: 'top-center' });
         return;

@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { getSession } from '@/lib/auth-session';
-import { listPendingInvitesForEmail } from '@/lib/invites';
+import { listPendingInvitesForUser } from '@/lib/invites';
 import { InviteResponse } from '@/features/workspaces/components/invite-response';
 
 export const metadata: Metadata = { title: 'Invites' };
@@ -20,7 +20,7 @@ export default async function InvitesPage() {
   const session = await getSession();
   if (!session) redirect('/login?callbackURL=%2Finvites');
 
-  const invites = await listPendingInvitesForEmail(session.user.email);
+  const invites = await listPendingInvitesForUser(session.user);
 
   if (invites.length === 0) {
     return (
@@ -28,7 +28,9 @@ export default async function InvitesPage() {
         <CardHeader>
           <CardTitle>No pending invites</CardTitle>
           <CardDescription>
-            When someone invites {session.user.email} to a workspace, it shows up here.
+            {session.user.emailVerified
+              ? `When someone invites ${session.user.email} to a workspace, it shows up here.`
+              : 'Got an invite? Open the link in the invite email to join.'}
           </CardDescription>
         </CardHeader>
         <CardFooter>

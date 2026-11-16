@@ -52,6 +52,8 @@ So "baselining" a database whose tables already exist means inserting a ledger r
    VALUES ('3d3363a08cc4dd2d2eace08b58c66a0ae516e1e16daa78f89b0eb9133779aa31', 1794837097833);
    ```
    The hash is `sha256` of `db/migrations/0002_sync_missing_tables.sql` (`shasum -a 256 <file>`), and `created_at` is its journal `when`.
-4. **Verify:** `DATABASE_URL=<that db> npm run db:migrate` should report success and make no changes.
+4. **Verify:** `DATABASE_URL=<that db> npm run db:migrate` reports success. It makes no changes *for 0002*, but it **applies any newer migration**, such as `0003_token_invites` (which expires legacy pending invites and adds three unique indexes). Review newer migrations before running this, and take the snapshot first.
+
+**Production history:** baselined `0002` on 2026-11-16, then applied `0003` the same day after the Neon snapshot `pre-migration-0003`. Pre-checks: no duplicate memberships or invite tokens, and 2 legacy pending invites, which were expired.
 
 If a database has **no** `drizzle` schema at all, it was built only with `push`. Restore a copy of it locally (`pg_dump --schema-only`), then work out which rows to insert using the same method before you touch it.

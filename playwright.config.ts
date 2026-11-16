@@ -22,6 +22,8 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    // Never reuse an already-running server: it may point at a different
+    // (e.g. production) database than the one global-setup verified.
+    reuseExistingServer: false,
   },
 });

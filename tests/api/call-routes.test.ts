@@ -106,6 +106,12 @@ describe('POST /api/call/signal', () => {
     expect((await signal(post({ ...validSignal, payload: huge }))).status).toBe(400);
   });
 
+  it('measures the payload limit in UTF-8 bytes, not characters', async () => {
+    // 30k euro signs: 30k UTF-16 code units, but 90k UTF-8 bytes (> 64 KiB).
+    const multibyte = '€'.repeat(30_000);
+    expect((await signal(post({ ...validSignal, payload: multibyte }))).status).toBe(400);
+  });
+
   it('refuses to signal a user who is not in the call', async () => {
     db.select.mockReturnValue(chain([{ userId: 'user-1' }]));
     expect((await signal(post(validSignal))).status).toBe(404);

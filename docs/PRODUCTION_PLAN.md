@@ -144,7 +144,7 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 
 - [x] Done: README now has a **Security Model** section, and the Next.js version is corrected to 16.
 
-**Phase 0 exit criteria:** every server action and route handler that takes an ID goes through a `require*` helper (verify with `grep -L "require" features/*/actions.ts app/api/**/route.ts`), and the cross-tenant E2E test passes.
+**Phase 0 exit criteria:** every server action and route handler that takes an ID goes through a `require*` helper (verify recursively with `find features -name '*actions.ts' -o -path 'app/api/*' -name route.ts | xargs grep -L require`, because a plain `**` glob in bash only matches one level), and the cross-tenant E2E test passes.
 
 ---
 

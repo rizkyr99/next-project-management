@@ -62,7 +62,7 @@ export function Header() {
         {typeof workspaceSlug === 'string' && (
           <Dialog>
             <DialogTrigger asChild>
-              <Button size='sm' className='sm:size-auto'>
+              <Button size='sm' className='sm:size-auto' aria-label='Invite to workspace'>
                 <UserPlus2 />
                 <span className='hidden sm:inline'>Invite</span>
               </Button>

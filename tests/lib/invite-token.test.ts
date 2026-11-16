@@ -86,12 +86,30 @@ describe('maskEmail', () => {
 });
 
 describe('safeCallbackPath', () => {
+  it('uses the first value of a repeated param', () => {
+    expect(safeCallbackPath(['/invite/abc', '/invites'])).toBe('/invite/abc');
+    expect(safeCallbackPath(['//evil.com', '/invites'])).toBe('/');
+    expect(safeCallbackPath([])).toBe('/');
+  });
+
   it('allows same-origin relative paths', () => {
     expect(safeCallbackPath('/invite/abc')).toBe('/invite/abc');
     expect(safeCallbackPath('/invites?x=1')).toBe('/invites?x=1');
   });
 
-  it.each(['https://evil.com', '//evil.com', '/\\evil.com', 'javascript:alert(1)', 'evil.com', '', null, undefined])(
+  it.each([
+    'https://evil.com',
+    '//evil.com',
+    '/\\evil.com',
+    '/\t/evil.com',
+    '/\n/evil.com',
+    '/%09/evil.com'.replace('%09', '\t'),
+    'javascript:alert(1)',
+    'evil.com',
+    '',
+    null,
+    undefined,
+  ])(
     'falls back for %s',
     (value) => {
       expect(safeCallbackPath(value)).toBe('/');

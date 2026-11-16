@@ -50,8 +50,17 @@ export async function findInviteById(inviteId: string): Promise<InviteRow | null
   return row ?? null;
 }
 
-/** Pending, unexpired invites addressed to this email (for the /invites page). */
-export async function listPendingInvitesForEmail(email: string): Promise<InviteRow[]> {
+/**
+ * Pending, unexpired invites addressed to this account's email (for the
+ * /invites page). Unverified accounts get nothing: anyone can register any
+ * address, so only the emailed token link proves mailbox ownership for them.
+ */
+export async function listPendingInvitesForUser(user: {
+  email: string;
+  emailVerified: boolean;
+}): Promise<InviteRow[]> {
+  if (!user.emailVerified) return [];
+  const email = user.email;
   return baseQuery()
     .where(
       and(

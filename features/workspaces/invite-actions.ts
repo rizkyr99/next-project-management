@@ -119,10 +119,12 @@ export async function inviteUserToWorkspace(
 
     // People who already have an account also get an in-app notification. It
     // links to /invites rather than carrying the token.
+    // Only verified accounts: an unverified account could have been registered
+    // by someone who doesn't own the mailbox.
     const [existingUser] = await db
       .select({ id: user.id })
       .from(user)
-      .where(sql`lower(${user.email}) = ${email}`)
+      .where(and(sql`lower(${user.email}) = ${email}`, eq(user.emailVerified, true)))
       .limit(1);
     if (existingUser) {
       await db.insert(notification).values({
@@ -238,8 +240,22 @@ function stateMessage(state: Exclude<InviteState, { kind: 'valid' }>): string {
   }
 }
 
-async function loadInvite(ref: InviteRef): Promise<InviteRow | null> {
-  return 'token' in ref ? findInviteByToken(ref.token) : findInviteById(ref.inviteId);
+const VERIFY_FIRST =
+  'To accept from here, your email must be verified. Open the invite link from your email instead.';
+
+/**
+ * The token proves the caller can read the invited mailbox. The invite ID
+ * doesn't, so the ID path (used by /invites) also requires a verified email.
+ * Email/password sign-ups aren't verified yet (P3), and anyone could register
+ * someone else's address.
+ */
+async function loadInvite(
+  ref: InviteRef,
+  session: { user: { emailVerified: boolean } },
+): Promise<InviteRow | { error: string } | null> {
+  if ('token' in ref) return findInviteByToken(ref.token);
+  if (!session.user.emailVerified) return { error: VERIFY_FIRST };
+  return findInviteById(ref.inviteId);
 }
 
 /**
@@ -253,8 +269,9 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
 
   try {
     const ref = inviteRefSchema.parse(rawRef);
-    const invite = await loadInvite(ref);
+    const invite = await loadInvite(ref, session);
     if (!invite) return { error: 'This invite link is invalid.' };
+    if ('error' in invite) return { error: invite.error };
 
     const state = evaluateInvite(invite, session.user.email);
     if (state.kind !== 'valid') {
@@ -268,31 +285,28 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
       if (!already) return { error: stateMessage(state) };
       slug = invite.workspaceSlug;
     } else {
-      // One transaction. The invite is claimed only while still pending and
-      // unexpired, and the membership is inserted only if that claim
-      // succeeded. A revoke racing with accept can't leave a half-joined user.
-      const [claimed] = await db.batch([
-        db
-          .update(workspaceInvite)
-          .set({ status: 'accepted' })
-          .where(
-            and(
-              eq(workspaceInvite.id, invite.id),
-              eq(workspaceInvite.status, 'pending'),
-              sql`${workspaceInvite.expiresAt} > now()`,
-            ),
-          )
-          .returning({ id: workspaceInvite.id }),
-        db.execute(sql`
+      // A single statement, so the membership is inserted only from the row
+      // *this* request claimed (pending and unexpired). A revoke, an expiry or
+      // a concurrent accept leaves `claimed` empty and inserts nothing, even
+      // if the member was removed in the meantime.
+      const result = await db.execute<{ claimed: number }>(sql`
+        with claimed as (
+          update ${workspaceInvite}
+          set "status" = 'accepted'
+          where ${workspaceInvite.id} = ${invite.id}
+            and ${workspaceInvite.status} = 'pending'
+            and ${workspaceInvite.expiresAt} > now()
+          returning "workspace_id", "role"
+        ), joined as (
           insert into ${member} ("id", "workspace_id", "user_id", "role")
-          select ${crypto.randomUUID()}, ${workspaceInvite.workspaceId}, ${session.user.id}, ${workspaceInvite.role}
-          from ${workspaceInvite}
-          where ${workspaceInvite.id} = ${invite.id} and ${workspaceInvite.status} = 'accepted'
+          select ${crypto.randomUUID()}, "workspace_id", ${session.user.id}, "role" from claimed
           on conflict ("workspace_id", "user_id") do nothing
-        `),
-      ]);
+        )
+        select count(*)::int as claimed from claimed
+      `);
+      const claimed = Number(result.rows[0]?.claimed ?? 0);
 
-      if (claimed.length === 0) {
+      if (claimed === 0) {
         // Lost a race (revoked, expired or accepted in the meantime): re-read for the right message.
         const fresh = await findInviteById(invite.id);
         const freshState = fresh ? evaluateInvite(fresh, session.user.email) : null;
@@ -324,8 +338,9 @@ export async function declineInvite(rawRef: InviteRef): Promise<ActionResult> {
   try {
     const session = await requireSession();
     const ref = inviteRefSchema.parse(rawRef);
-    const invite = await loadInvite(ref);
+    const invite = await loadInvite(ref, session);
     if (!invite) return { error: 'This invite link is invalid.' };
+    if ('error' in invite) return { error: invite.error };
 
     const state = evaluateInvite(invite, session.user.email);
     if (state.kind !== 'valid') return { error: stateMessage(state) };
