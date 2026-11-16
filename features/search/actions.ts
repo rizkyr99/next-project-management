@@ -3,7 +3,7 @@
 import { db } from '@/db/drizzle';
 import { comment, member, project, task, taskStatus, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { and, eq, ilike, or } from 'drizzle-orm';
+import { and, eq, ilike, inArray, or } from 'drizzle-orm';
 import { headers } from 'next/headers';
 
 export interface SearchResult {
@@ -53,7 +53,7 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
       })
       .from(task)
       .innerJoin(taskStatus, eq(task.statusId, taskStatus.id))
-      .where(and(eq(task.projectId, task.projectId), or(ilike(task.title, term), ilike(task.description, term))))
+      .where(and(inArray(task.projectId, projectIds), or(ilike(task.title, term), ilike(task.description, term))))
       .limit(8),
 
     db
@@ -63,26 +63,28 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
       .limit(5),
 
     db
-      .select({ id: comment.id, body: comment.body, taskId: comment.taskId })
+      .select({
+        id: comment.id,
+        body: comment.body,
+        taskId: comment.taskId,
+        taskTitle: task.title,
+        projectId: task.projectId,
+      })
       .from(comment)
       .innerJoin(task, eq(comment.taskId, task.id))
-      .where(and(eq(task.projectId, task.projectId), ilike(comment.body, term)))
+      .where(and(inArray(task.projectId, projectIds), ilike(comment.body, term)))
       .limit(5),
   ]);
 
-  // Filter tasks/comments to this workspace's projects
-  const projectIdSet = new Set(projectIds);
-
-  const taskResults: SearchResult[] = tasks
-    .filter((t) => projectIdSet.has(t.projectId))
-    .map((t) => ({
-      type: 'task',
-      id: t.id,
-      title: t.title,
-      subtitle: `${projectMap[t.projectId] ?? 'Unknown project'} · ${t.statusName}`,
-      projectId: t.projectId,
-      workspaceSlug,
-    }));
+  // Both queries are scoped to this workspace's projects in SQL.
+  const taskResults: SearchResult[] = tasks.map((t) => ({
+    type: 'task',
+    id: t.id,
+    title: t.title,
+    subtitle: `${projectMap[t.projectId] ?? 'Unknown project'} · ${t.statusName}`,
+    projectId: t.projectId,
+    workspaceSlug,
+  }));
 
   const projectResults: SearchResult[] = projects.map((p) => ({
     type: 'project',
@@ -93,22 +95,14 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
     workspaceSlug,
   }));
 
-  const commentResults: SearchResult[] = comments
-    .filter((c) => {
-      const t = tasks.find((t) => t.id === c.taskId);
-      return t ? projectIdSet.has(t.projectId) : false;
-    })
-    .map((c) => {
-      const t = tasks.find((t) => t.id === c.taskId);
-      return {
-        type: 'comment',
-        id: c.id,
-        title: c.body.length > 60 ? c.body.slice(0, 60) + '…' : c.body,
-        subtitle: t ? `Comment on: ${t.title}` : 'Comment',
-        projectId: t?.projectId ?? '',
-        workspaceSlug,
-      };
-    });
+  const commentResults: SearchResult[] = comments.map((c) => ({
+    type: 'comment',
+    id: c.id,
+    title: c.body.length > 60 ? c.body.slice(0, 60) + '…' : c.body,
+    subtitle: `Comment on: ${c.taskTitle}`,
+    projectId: c.projectId,
+    workspaceSlug,
+  }));
 
   return [...taskResults, ...projectResults, ...commentResults];
 }
