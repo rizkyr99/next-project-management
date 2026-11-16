@@ -6,7 +6,7 @@ import { DeleteWorkspaceButton } from '@/features/workspaces/components/delete-w
 import { db } from '@/db/drizzle';
 import { member, user, workspace, workspaceInvite } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
@@ -78,6 +78,7 @@ export default async function WorkspaceSettingsPage({
       email: workspaceInvite.email,
       role: workspaceInvite.role,
       expiresAt: workspaceInvite.expiresAt,
+      expired: sql<boolean>`${workspaceInvite.expiresAt} <= now()`,
       createdAt: workspaceInvite.createdAt,
     })
     .from(workspaceInvite)
@@ -245,6 +246,7 @@ export default async function WorkspaceSettingsPage({
                     email: i.email,
                     role: i.role as 'owner' | 'admin' | 'member',
                     expiresAt: i.expiresAt,
+                    expired: i.expired,
                   }))}
                   workspaceSlug={workspaceSlug}
                   canRevoke={canManage}

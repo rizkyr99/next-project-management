@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from './lib/auth';
 import { headers } from 'next/headers';
 import { rateLimit } from '@/lib/rate-limit';
+import { safeCallbackPath } from '@/lib/safe-redirect';
 
 // 20 requests per minute per IP on auth endpoints — prevents credential stuffing
 const AUTH_LIMIT = { limit: 20, windowMs: 60_000 };
@@ -45,12 +46,21 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/register');
 
+  // Invite links must open for logged-out people too: the page itself offers
+  // sign-in / sign-up and carries them back via ?callbackURL.
+  const isPublicPage = pathname.startsWith('/invite/');
+
   if (isAuthPage && session) {
-    return NextResponse.redirect(new URL('/', request.url));
+    const target = safeCallbackPath(request.nextUrl.searchParams.get('callbackURL'));
+    return NextResponse.redirect(new URL(target, request.url));
   }
 
-  if (!isAuthPage && !session) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  if (!isAuthPage && !isPublicPage && !session) {
+    const login = new URL('/login', request.url);
+    if (pathname !== '/') {
+      login.searchParams.set('callbackURL', `${pathname}${request.nextUrl.search}`);
+    }
+    return NextResponse.redirect(login);
   }
 
   return NextResponse.next();

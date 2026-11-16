@@ -1,10 +1,9 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { member, notification, user as userTable, workspace, workspaceInvite } from '@/db/schema';
+import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { auth } from '@/lib/auth';
-import { sendWorkspaceInviteEmail } from '@/lib/email';
 import { checkWorkspaceLimit } from '@/lib/subscription';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -70,108 +69,6 @@ export async function createWorkspace(
 
   revalidatePath(`/workspaces/${validated.url}`, 'layout');
   return { slug: validated.url };
-}
-
-const inviteUserSchema = z.object({
-  email: z.email('Invalid email address'),
-  role: z.enum(['member', 'admin']),
-});
-
-export async function inviteUserToWorkspace(
-  workspaceSlug: string,
-  values: z.infer<typeof inviteUserSchema>,
-) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session || !session.user) {
-    throw new Error('Unauthorized');
-  }
-
-  const inviterId = session.user.id;
-  const validated = inviteUserSchema.parse(values);
-
-  const [targetWorkspace] = await db
-    .select()
-    .from(workspace)
-    .where(eq(workspace.slug, workspaceSlug));
-
-  if (!targetWorkspace) {
-    return { error: 'Workspace not found' };
-  }
-
-  const [inviterMember] = await db
-    .select()
-    .from(member)
-    .where(
-      and(
-        eq(member.workspaceId, targetWorkspace.id),
-        eq(member.userId, inviterId),
-      ),
-    );
-
-  if (!inviterMember || !['owner', 'admin'].includes(inviterMember.role)) {
-    return { error: 'You do not have permission to invite members' };
-  }
-
-  const [invitedUser] = await db
-    .select()
-    .from(userTable)
-    .where(eq(userTable.email, validated.email));
-
-  if (!invitedUser) {
-    return { error: 'No account found with that email address' };
-  }
-
-  if (invitedUser.id === inviterId) {
-    return { error: 'You cannot invite yourself' };
-  }
-
-  const [alreadyMember] = await db
-    .select()
-    .from(member)
-    .where(
-      and(
-        eq(member.workspaceId, targetWorkspace.id),
-        eq(member.userId, invitedUser.id),
-      ),
-    );
-
-  if (alreadyMember) {
-    return { error: 'User is already a member of this workspace' };
-  }
-
-  await db.insert(member).values({
-    workspaceId: targetWorkspace.id,
-    userId: invitedUser.id,
-    role: validated.role,
-  });
-
-  await db.insert(notification).values({
-    userId: invitedUser.id,
-    type: 'workspace_invite',
-    actorName: session.user.name,
-    workspaceName: targetWorkspace.name,
-  });
-
-  await sendWorkspaceInviteEmail({
-    to: invitedUser.email,
-    inviterName: session.user.name,
-    workspaceName: targetWorkspace.name,
-    workspaceSlug: targetWorkspace.slug,
-  });
-
-  await insertActivity({
-    workspaceId: targetWorkspace.id,
-    actorId: inviterId,
-    action: 'member.invited',
-    metadata: { inviteEmail: validated.email, role: validated.role },
-  });
-
-  revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');
-
-  return { success: true, name: invitedUser.name || invitedUser.email };
 }
 
 const updateWorkspaceSchema = z.object({
@@ -322,45 +219,6 @@ export async function changeMemberRole(
     action: 'member.role_changed',
     metadata: { memberName: changedUser?.name ?? 'Unknown', from: targetMember.role, to: newRole },
   });
-
-  revalidatePath(`/workspaces/${workspaceSlug}/settings`);
-  return { success: true };
-}
-
-export async function revokeInvite(workspaceSlug: string, inviteId: string) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) throw new Error('Unauthorized');
-
-  const [targetWorkspace] = await db
-    .select()
-    .from(workspace)
-    .where(eq(workspace.slug, workspaceSlug));
-
-  if (!targetWorkspace) return { error: 'Workspace not found' };
-
-  const [actorMembership] = await db
-    .select()
-    .from(member)
-    .where(
-      and(
-        eq(member.workspaceId, targetWorkspace.id),
-        eq(member.userId, session.user.id),
-      ),
-    );
-
-  if (!actorMembership || !['owner', 'admin'].includes(actorMembership.role)) {
-    return { error: 'You do not have permission to revoke invites' };
-  }
-
-  await db
-    .update(workspaceInvite)
-    .set({ status: 'revoked' })
-    .where(
-      and(
-        eq(workspaceInvite.id, inviteId),
-        eq(workspaceInvite.workspaceId, targetWorkspace.id),
-      ),
-    );
 
   revalidatePath(`/workspaces/${workspaceSlug}/settings`);
   return { success: true };

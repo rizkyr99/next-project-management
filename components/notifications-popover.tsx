@@ -3,6 +3,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import { Bell, Clock3, MessageSquare, UserPlus, Users } from 'lucide-react';
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   getNotifications,
   markAllAsRead,
@@ -31,7 +32,14 @@ function parseSSEData(raw: string): NotificationRow[] | null {
   }
 }
 
-function renderNotificationContent(item: NotificationRow) {
+interface NotificationContent {
+  icon: React.ReactNode;
+  title: string;
+  description: React.ReactNode;
+  href?: string;
+}
+
+function renderNotificationContent(item: NotificationRow): NotificationContent {
   switch (item.type) {
     case 'task_assigned':
       return {
@@ -48,11 +56,12 @@ function renderNotificationContent(item: NotificationRow) {
     case 'workspace_invite':
       return {
         icon: <Users className='size-5 text-muted-foreground' />,
-        title: 'Added to workspace',
+        title: 'Workspace invite',
+        href: '/invites',
         description: (
           <>
             <span className='text-foreground font-medium'>{item.actorName}</span>{' '}
-            added you to{' '}
+            invited you to{' '}
             <span className='text-foreground font-medium'>{item.workspaceName}</span>
           </>
         ),
@@ -84,6 +93,7 @@ function renderNotificationContent(item: NotificationRow) {
 }
 
 export function NotificationsPopover() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -181,7 +191,13 @@ export function NotificationsPopover() {
                 className={`w-full text-left p-4 flex items-start gap-2 border-t transition-colors hover:bg-muted/50 ${
                   unread ? 'bg-muted/30' : ''
                 }`}
-                onClick={() => unread && handleMarkAsRead(item.id)}>
+                onClick={() => {
+                  if (unread) handleMarkAsRead(item.id);
+                  if (content.href) {
+                    setOpen(false);
+                    router.push(content.href);
+                  }
+                }}>
                 <div className='size-10 bg-muted flex items-center justify-center rounded-full shrink-0'>
                   {content.icon}
                 </div>
