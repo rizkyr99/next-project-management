@@ -63,3 +63,38 @@ describe('checkServerEnv', () => {
     expect(result.problems.join('\n')).not.toContain('SUPERSECRET');
   });
 });
+
+describe('EMAIL_FROM', () => {
+  it('is optional outside production', () => {
+    expect(checkServerEnv(valid).ok).toBe(true);
+    expect(checkServerEnv({ ...valid, VERCEL_ENV: 'preview' }).ok).toBe(true);
+  });
+
+  it('is required in production', () => {
+    const result = checkServerEnv({ ...valid, VERCEL_ENV: 'production' });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems.join('\n')).toContain('EMAIL_FROM');
+    expect(
+      checkServerEnv({
+        ...valid,
+        VERCEL_ENV: 'production',
+        EMAIL_FROM: 'Tide <notifications@tide.ramarizdev.web.id>',
+      }).ok,
+    ).toBe(true);
+  });
+
+  it.each(['Tide <notifications@tide.example.com>', 'notifications@tide.example.com'])(
+    'accepts %s',
+    (from) => {
+      expect(checkServerEnv({ ...valid, EMAIL_FROM: from }).ok).toBe(true);
+    },
+  );
+
+  it.each(['Tide', 'Tide <notifications>', 'Tide <onboarding@resend.dev>', 'a@b'])(
+    'rejects %s',
+    (from) => {
+      expect(checkServerEnv({ ...valid, EMAIL_FROM: from }).ok).toBe(false);
+    },
+  );
+});

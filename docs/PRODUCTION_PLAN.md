@@ -184,6 +184,8 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 **Done when**
 - [ ] An invite sent to an outside Gmail address arrives in the inbox (not spam), with working links.
 
+*Progress:* sending domain `tide.ramarizdev.web.id` verified in Resend (SPF/DKIM). `EMAIL_FROM` is required in production by `lib/env.ts`. Templates live in `emails/` (React Email, shared `EmailLayout`, auto-escaped), with a plain-text part. Email failures never fail the action (since P1.3). `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` are unified behind `siteUrl()` (since P1.6). The `password-reset`, `verify-email` and `due-soon-digest` templates will come with their features (P3 and the due-soon cron).
+
 ### P1.3 Token-based invites (F6)
 
 **Files:** `features/workspaces/actions.ts`, new `app/invite/[token]/page.tsx`, `features/workspaces/components/invite-member-form.tsx`, `components/header.tsx`, `db/schema.ts`
