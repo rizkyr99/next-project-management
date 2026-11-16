@@ -166,8 +166,9 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 6. Add a CI job: spin up Postgres (service container), run `db:migrate` from zero, then `drizzle-kit check`. This catches future drift.
 
 **Done when**
-- [ ] A fresh database built purely from migrations matches prod's schema.
-- [ ] CI fails if `schema.ts` changes without a migration.
+- [x] A fresh database built purely from migrations matches prod's schema. (Diffed `pg_dump --schema-only` of the `.env` Neon DB against a fresh Postgres 17 built from migrations: identical apart from six legacy PK constraint names, which are cosmetic. See `docs/runbooks/migrations.md`.)
+- [x] CI fails if `schema.ts` changes without a migration. (`Migrations` job: migrate from zero, then `db:check`, then `db:generate` must produce nothing. CI now also runs on `develop`.)
+- [ ] Production ledger baselined (insert the `0002` row; exact SQL in the runbook). Needs the Neon snapshot first.
 
 ### P1.2 Production email (F5)
 

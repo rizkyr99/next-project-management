@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   typecheck:
@@ -30,6 +30,44 @@ jobs:
           cache: npm
       - run: npm install
       - run: npm run lint
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          # Throwaway CI container: password-less auth, nothing to leak.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      # A fresh database must be buildable purely from migration history.
+      - run: npm run db:migrate
+      - run: npm run db:check
+      # Fail if schema.ts has changes that no migration captures.
+      - name: Schema drift check
+        run: |
+          npm run db:generate -- --name ci_drift_check
+          if [ -n "$(git status --porcelain db/migrations)" ]; then
+            echo "::error::db/schema.ts has changes without a migration. Run 'npm run db:generate' and commit the result."
+            git status --porcelain db/migrations
+            exit 1
+          fi
 
   test:
     name: Unit Tests
