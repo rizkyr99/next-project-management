@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { limitMock, ctorArgs } = vi.hoisted(() => ({
+const { limitMock, ctorArgs, redisCtor } = vi.hoisted(() => ({
   limitMock: vi.fn(),
   ctorArgs: [] as Record<string, unknown>[],
+  redisCtor: vi.fn(),
 }));
 
-vi.mock('@upstash/redis', () => ({ Redis: class {} }));
+vi.mock('@upstash/redis', () => ({
+  Redis: class {
+    constructor(config: unknown) {
+      redisCtor(config);
+    }
+  },
+}));
 vi.mock('@upstash/ratelimit', () => {
   class Ratelimit {
     static slidingWindow(limit: number, window: string) {
@@ -32,6 +39,7 @@ import {
 beforeEach(() => {
   __resetRateLimitForTests();
   limitMock.mockReset();
+  redisCtor.mockReset();
   ctorArgs.length = 0;
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -103,6 +111,25 @@ describe('Upstash backend', () => {
     await rateLimit('b', LIMITS.comments);
     await rateLimit('c', LIMITS.invites);
     expect(ctorArgs).toHaveLength(2);
+  });
+
+  it('uses a "local" namespace outside Vercel, even with NODE_ENV=production', async () => {
+    vi.stubEnv('VERCEL_ENV', '');
+    vi.stubEnv('NODE_ENV', 'production');
+    limitMock.mockResolvedValue({ success: true, remaining: 1, reset: 1 });
+    await rateLimit('k', LIMITS.comments);
+    expect(ctorArgs[0]).toMatchObject({ prefix: 'tide:local:rl' });
+  });
+
+  it('falls back to in-memory instead of throwing when the Redis client cannot be built', async () => {
+    redisCtor.mockImplementation(() => {
+      throw new Error('UrlError: redis:// is not a REST URL');
+    });
+    const opts = { limit: 1, windowMs: 60_000 };
+    await expect(rateLimit('bad-config', opts)).resolves.toMatchObject({ success: true });
+    await expect(rateLimit('bad-config', opts)).resolves.toMatchObject({ success: false });
+    expect(limitMock).not.toHaveBeenCalled();
+    expect(redisCtor).toHaveBeenCalledTimes(1); // not retried on every request
   });
 
   it('fails open when Redis errors', async () => {
