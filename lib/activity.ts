@@ -12,6 +12,8 @@ export type ActivityAction =
   | 'task.comment_added'
   | 'task.deleted'
   | 'project.created'
+  | 'project.updated'
+  | 'project.deleted'
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'

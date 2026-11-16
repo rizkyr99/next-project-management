@@ -7,8 +7,10 @@ import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import z from 'zod';
-import { createProjectSchema } from './schema';
+import { createProjectSchema, deleteProjectSchema, updateProjectSchema } from './schema';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { requireProjectAccess, toActionError, type ActionResult } from '@/lib/authz';
 
 export async function createProject(
   values: z.infer<typeof createProjectSchema>,
@@ -85,4 +87,68 @@ export async function createProject(
     console.error('Project Creation Error:', error);
     return { error: 'Failed to create project.' };
   }
+}
+
+/** Rename or re-describe a project. Any member of its workspace may do this. */
+export async function updateProject(
+  values: z.infer<typeof updateProjectSchema>,
+): Promise<ActionResult<{ project: { id: string; name: string; description: string | null } }>> {
+  try {
+    const input = updateProjectSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId);
+
+    const description = input.description ? input.description : null;
+    const [updated] = await db
+      .update(project)
+      .set({ name: input.name, description })
+      .where(eq(project.id, ctx.project.id))
+      .returning({ id: project.id, name: project.name, description: project.description });
+
+    if (input.name !== ctx.project.name) {
+      await insertActivity({
+        workspaceId: ctx.workspace.id,
+        actorId: ctx.session.user.id,
+        action: 'project.updated',
+        projectId: ctx.project.id,
+        metadata: { from: ctx.project.name, to: input.name },
+      });
+    }
+
+    // The layout renders the sidebar and the page renders the header, so
+    // refresh both.
+    revalidatePath(`/workspaces/${ctx.workspace.slug}`, 'layout');
+    return { project: updated };
+  } catch (error) {
+    return toActionError(error, 'Failed to update project.');
+  }
+}
+
+/**
+ * Permanently deletes a project and, by cascade, its columns, tasks,
+ * comments and call state. Activity entries stay (project_id is set to
+ * null) so the workspace history survives. Owners and admins only.
+ */
+export async function deleteProject(
+  values: z.infer<typeof deleteProjectSchema>,
+): Promise<ActionResult> {
+  let slug: string;
+  try {
+    const input = deleteProjectSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId, { roles: ['owner', 'admin'] });
+    slug = ctx.workspace.slug;
+
+    await db.delete(project).where(eq(project.id, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'project.deleted',
+      metadata: { projectName: ctx.project.name },
+    });
+  } catch (error) {
+    return toActionError(error, 'Failed to delete project.');
+  }
+
+  revalidatePath(`/workspaces/${slug}`, 'layout');
+  redirect(`/workspaces/${slug}`);
 }

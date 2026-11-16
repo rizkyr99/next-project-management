@@ -10,6 +10,9 @@ import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
+import { MoreHorizontal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ProjectActionsMenu } from '@/features/projects/components/project-actions-menu';
 import type { Metadata } from 'next';
 
 type View = 'board' | 'list' | 'table';
@@ -104,13 +107,29 @@ export default async function ProjectIdPage({
   return (
     <div className='h-full flex flex-col'>
       <div className='px-4 py-2 space-y-2 border-b'>
-        <div className='text-lg font-semibold flex items-center justify-between'>
-          {data.name}
-          <CallButton
-            projectId={projectId}
-            currentUserId={session.user.id}
-            currentUserName={session.user.name ?? 'User'}
-          />
+        <div className='flex items-start justify-between gap-4'>
+          <div className='min-w-0'>
+            <h1 className='text-lg font-semibold truncate'>{data.name}</h1>
+            {data.description && (
+              <p className='text-sm text-muted-foreground line-clamp-2'>{data.description}</p>
+            )}
+          </div>
+          <div className='flex items-center gap-2 shrink-0'>
+            <CallButton
+              projectId={projectId}
+              currentUserId={session.user.id}
+              currentUserName={session.user.name ?? 'User'}
+            />
+            <ProjectActionsMenu
+              project={{ id: data.id, name: data.name, description: data.description }}
+              canDelete={currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin'}
+              trigger={
+                <Button variant='ghost' size='icon' aria-label='Project options'>
+                  <MoreHorizontal />
+                </Button>
+              }
+            />
+          </div>
         </div>
         <Suspense>
           <ViewSwitcher currentView={currentView} />
