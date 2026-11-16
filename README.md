@@ -168,6 +168,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) |
 | `STRIPE_PRO_PRICE_ID` | Stripe Price ID for the Pro plan |
 | `STRIPE_BUSINESS_PRICE_ID` | Stripe Price ID for the Business plan |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis (Vercel Marketplace, prefix `KV`) for rate limiting shared across instances. Optional locally, where it falls back to in-memory counters. `UPSTASH_REDIS_REST_*` names also work |
 | `NEXT_PUBLIC_APP_URL` | *Optional.* Publicly accessible base URL used in email links (defaults to `BETTER_AUTH_URL`) |
 
 Required variables are validated by [`lib/env.ts`](lib/env.ts). A production build on Vercel **fails** if one is missing or malformed, and a production server refuses to start. In development you get a warning listing what's wrong. `SKIP_ENV_VALIDATION=1` bypasses the check for unusual builds.

@@ -221,3 +221,13 @@ describe('projectPath', () => {
     expect(projectPath('acme', 'p-1')).toBe('/workspaces/acme/projects/p-1');
   });
 });
+
+describe('toActionError with rate limits', () => {
+  it('passes the retry message through', async () => {
+    const { RateLimitError } = await import('@/lib/rate-limit');
+    const { toActionError } = await import('@/lib/authz');
+    expect(toActionError(new RateLimitError(12), 'fallback')).toEqual({
+      error: 'Too many requests. Please try again in 12 seconds.',
+    });
+  });
+});
