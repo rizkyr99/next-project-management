@@ -163,6 +163,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `RESEND_API_KEY` | Resend API key for sending invite emails |
+| `EMAIL_FROM` | Sender on a domain verified in Resend, e.g. `Tide <notifications@tide.example.com>`. Required in production; locally it falls back to Resend's test sender, which only reaches the account owner |
 | `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_...` for development) |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) |
 | `STRIPE_PRO_PRICE_ID` | Stripe Price ID for the Pro plan |
