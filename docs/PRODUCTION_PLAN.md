@@ -79,11 +79,11 @@
    requireCommentAccess(commentId): Promise<...>
    ```
    Each helper resolves the chain with **one joined query**, e.g. `task → project → member where member.userId = session.user.id`. It should not take several round-trips.
-2. Define a small result convention for actions so the UI handles failures uniformly: `{ ok: true, data } | { ok: false, error: string }`. Map `AuthzError` to `{ ok: false, error: 'Not found' }`. Return "not found" rather than "forbidden" so the response doesn't reveal whether the resource exists.
+2. Keep the result shape the UI already uses, `{ success | data } | { error }`, typed as `ActionResult<T>` in `lib/authz.ts`. `toActionError()` maps `AuthzError` to `{ error: 'Not found.' }` and Zod errors to their first message, and hides unexpected errors behind a fallback. Missing sessions still throw. Return "not found" rather than "forbidden" so the response doesn't reveal whether the resource exists. *(Decided during implementation: switching to `{ ok }` would have meant rewriting every caller with no security benefit.)*
 3. Wrap helpers in React `cache()` where they're called from RSC, the same way `lib/workspace-context.ts` already does.
 
 **Done when**
-- [ ] Unit tests cover member / non-member / wrong-role / nonexistent cases for each helper.
+- [x] Unit tests cover member / non-member / wrong-role / nonexistent cases for each helper. (`tests/lib/authz.test.ts`)
 
 ### P0.2 Lock down task, comment and activity actions
 
@@ -100,9 +100,9 @@
 3. Fix revalidation paths (F11): revalidate `/workspaces/${slug}/projects/${projectId}`. The helper context already has the slug.
 
 **Done when**
-- [ ] Unit tests for each action include a "user from another workspace gets `Not found` and the DB is untouched" case.
-- [ ] `bulkDeleteTasks` with a task ID from another project deletes nothing.
-- [ ] Mentioning a non-member in a comment creates no notification.
+- [x] Unit tests for each action include a "user from another workspace gets `Not found` and the DB is untouched" case.
+- [x] `bulkDeleteTasks` with a task ID from another project deletes nothing.
+- [x] Mentioning a non-member in a comment creates no notification. (Also fixed a mention-parsing bug: `@Name` followed by more text never matched.)
 
 ### P0.3 Lock down the project page and other RSC data loaders
 
