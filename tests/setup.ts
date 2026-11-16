@@ -14,3 +14,9 @@ vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
 }));
+
+// Unit tests must never reach the real Upstash database: force the in-memory
+// rate-limit backend even if something loaded .env.
+for (const key of ['KV_REST_API_URL', 'KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) {
+  delete process.env[key];
+}

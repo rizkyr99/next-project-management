@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { db } from '@/db/drizzle';
 import { comment, member, project, task, taskStatus, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
+import { RateLimitError } from '@/lib/rate-limit';
 
 /**
  * Authorization helpers for Server Actions and Route Handlers.
@@ -234,6 +235,7 @@ export type ActionResult<T extends object = { success: true }> =
 export function toActionError(error: unknown, fallback: string): { error: string } {
   if (error instanceof UnauthenticatedError) throw error;
   if (error instanceof AuthzError) return { error: 'Not found.' };
+  if (error instanceof RateLimitError) return { error: error.message };
   if (error instanceof ZodError) {
     return { error: error.issues[0]?.message ?? 'Invalid input.' };
   }

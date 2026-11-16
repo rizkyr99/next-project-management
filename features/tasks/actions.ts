@@ -1,5 +1,6 @@
 'use server';
 
+import { enforceRateLimit } from '@/lib/rate-limit';
 import z from 'zod';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -53,6 +54,7 @@ export async function createTask(values: z.infer<typeof createTaskSchema>): Prom
   try {
     const input = createTaskSchema.parse(values);
     const ctx = await requireProjectAccess(input.projectId);
+    await enforceRateLimit('taskCreate', ctx.session.user.id);
     await assertStatusInProject(input.statusId, ctx.project.id);
 
     const [newTask] = await db
@@ -384,6 +386,7 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
     const ctx = await requireTaskAccess(idSchema.parse(taskId));
     const text = commentBodySchema.parse(body);
     const actorId = ctx.session.user.id;
+    await enforceRateLimit('comments', actorId);
 
     const [newComment] = await db
       .insert(comment)
