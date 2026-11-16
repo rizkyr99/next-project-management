@@ -1,24 +1,41 @@
+import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db/drizzle';
-import { webrtcSignal } from '@/db/schema';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
+import { callParticipant, webrtcSignal } from '@/db/schema';
+import { signalSchema } from '@/features/call/schema';
+import { AuthzError, requireProjectAccess, toErrorResponse } from '@/lib/authz';
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  try {
+    const input = signalSchema.parse(await request.json());
+    const { session, project } = await requireProjectAccess(input.projectId);
+    const fromUserId = session.user.id;
 
-  const { projectId, toUserId, type, payload } = await request.json();
-  if (!projectId || !toUserId || !type || !payload) {
-    return new Response('Missing fields', { status: 400 });
+    // Both ends must currently be in this project's call. Otherwise anyone
+    // could push signaling messages at arbitrary users.
+    const participants = await db
+      .select({ userId: callParticipant.userId })
+      .from(callParticipant)
+      .where(
+        and(
+          eq(callParticipant.projectId, project.id),
+          inArray(callParticipant.userId, [fromUserId, input.toUserId]),
+        ),
+      );
+    const present = new Set(participants.map((p) => p.userId));
+    if (!present.has(fromUserId) || !present.has(input.toUserId)) {
+      throw new AuthzError();
+    }
+
+    await db.insert(webrtcSignal).values({
+      projectId: project.id,
+      fromUserId,
+      toUserId: input.toUserId,
+      type: input.type,
+      payload: input.payload,
+    });
+
+    return Response.json({ ok: true });
+  } catch (error) {
+    return toErrorResponse(error);
   }
-
-  await db.insert(webrtcSignal).values({
-    projectId,
-    fromUserId: session.user.id,
-    toUserId,
-    type,
-    payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
-  });
-
-  return Response.json({ ok: true });
 }

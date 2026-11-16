@@ -1,21 +1,19 @@
 import { db } from '@/db/drizzle';
 import { task } from '@/db/schema';
-import { auth } from '@/lib/auth';
 import { and, count, eq, max } from 'drizzle-orm';
-import { headers } from 'next/headers';
+import { z } from 'zod';
+import { requireProjectAccess, toErrorResponse } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get('projectId');
-  if (!projectId) {
-    return new Response('projectId required', { status: 400 });
+  let projectId: string;
+  try {
+    const { searchParams } = new URL(request.url);
+    const requested = z.uuid().parse(searchParams.get('projectId'));
+    projectId = (await requireProjectAccess(requested)).project.id;
+  } catch (error) {
+    return toErrorResponse(error);
   }
 
   let intervalId: NodeJS.Timeout;

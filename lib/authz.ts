@@ -240,3 +240,21 @@ export function toActionError(error: unknown, fallback: string): { error: string
   console.error(fallback, error);
   return { error: fallback };
 }
+
+/**
+ * Converts an error thrown inside a Route Handler into an HTTP response:
+ * 401 without a session, 400 for invalid input, 404 for anything the caller
+ * may not access. Unexpected errors are re-thrown so Sentry captures them.
+ */
+export function toErrorResponse(error: unknown): Response {
+  if (error instanceof UnauthenticatedError) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+  if (error instanceof ZodError || error instanceof SyntaxError) {
+    return new Response('Invalid request', { status: 400 });
+  }
+  if (error instanceof AuthzError) {
+    return new Response('Not found', { status: 404 });
+  }
+  throw error;
+}

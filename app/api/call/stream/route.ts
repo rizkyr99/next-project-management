@@ -1,20 +1,24 @@
 import { db } from '@/db/drizzle';
 import { callParticipant, user, webrtcSignal } from '@/db/schema';
-import { auth } from '@/lib/auth';
 import { and, eq, gt, lt } from 'drizzle-orm';
-import { headers } from 'next/headers';
+import { callRoomSchema } from '@/features/call/schema';
+import { requireProjectAccess, toErrorResponse } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  let projectId: string;
+  let userId: string;
+  try {
+    const { searchParams } = new URL(request.url);
+    const input = callRoomSchema.parse({ projectId: searchParams.get('projectId') });
+    const ctx = await requireProjectAccess(input.projectId);
+    projectId = ctx.project.id;
+    userId = ctx.session.user.id;
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 
-  const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get('projectId');
-  if (!projectId) return new Response('projectId required', { status: 400 });
-
-  const userId = session.user.id;
   let intervalId: NodeJS.Timeout;
 
   const stream = new ReadableStream({

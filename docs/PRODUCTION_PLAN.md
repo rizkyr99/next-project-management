@@ -113,7 +113,7 @@
 2. Audit every page under `[workspaceSlug]` to confirm the data it loads is scoped through `getActiveWorkspace` (which joins `member`).
 
 **Done when**
-- [ ] An E2E test logs in as user B, opens user A's project URL, and sees a 404.
+- [ ] An E2E test logs in as user B, opens user A's project URL, and sees a 404. (Written: `e2e/tenant-isolation.spec.ts`; not yet run.) The workspace layout had the same leak: its sidebar listed projects for any slug. That's fixed too.
 
 ### P0.4 Lock down API route handlers
 
@@ -125,7 +125,7 @@
 3. Return `404` on access failure.
 
 **Done when**
-- [ ] A non-member gets `404` from each route (integration test or manual `curl` checklist recorded in the PR).
+- [x] A non-member gets `404` from each route. (`tests/api/call-routes.test.ts`, plus API checks in `e2e/tenant-isolation.spec.ts`.) `/api/call/leave` only needs a session, because it deletes only the caller's own rows.
 
 ### P0.5 Atomic multi-step writes
 
