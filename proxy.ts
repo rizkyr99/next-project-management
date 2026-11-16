@@ -47,8 +47,10 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/register');
 
   // Invite links must open for logged-out people too: the page itself offers
-  // sign-in / sign-up and carries them back via ?callbackURL.
-  const isPublicPage = pathname.startsWith('/invite/');
+  // sign-in / sign-up and carries them back via ?callbackURL. The share image
+  // must be reachable by link-preview crawlers, which are never logged in.
+  const isPublicPage =
+    pathname.startsWith('/invite/') || pathname.startsWith('/opengraph-image');
 
   if (isAuthPage && session) {
     const target = safeCallbackPath(request.nextUrl.searchParams.get('callbackURL'));

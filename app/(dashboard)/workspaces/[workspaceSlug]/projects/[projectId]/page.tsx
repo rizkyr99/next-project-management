@@ -10,8 +10,27 @@ import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
+import type { Metadata } from 'next';
 
 type View = 'board' | 'list' | 'table';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string; projectId: string }>;
+}): Promise<Metadata> {
+  const { workspaceSlug, projectId } = await params;
+  const session = await getSession();
+  const ws = session ? await getActiveWorkspace(workspaceSlug, session.user.id) : null;
+  if (!ws) return {};
+  // Same scoping as the page: a project from another workspace gets no title.
+  const [row] = await db
+    .select({ name: project.name })
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, ws.id)))
+    .limit(1);
+  return row ? { title: row.name } : {};
+}
 
 export default async function ProjectIdPage({
   params,

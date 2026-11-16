@@ -251,6 +251,8 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 
 Set `metadata` with `title: { default: 'Tide', template: '%s · Tide' }`, a real description, `metadataBase`, `openGraph` and `twitter`. Add per-page `generateMetadata` for workspace and project pages (e.g. "Website Redesign · Acme · Tide").
 
+- [x] Done. The root has a title template, description, `metadataBase` (`lib/site.ts`), OpenGraph/Twitter, and a generated `app/opengraph-image.tsx`, which the proxy makes reachable while logged out, for link-preview crawlers. The workspace layout and project page use `generateMetadata` resolved through membership, so a foreign slug or project ID leaks no names via `<title>`. Workspace pages are `noindex`. Every page now has a title (`e2e/metadata.spec.ts`). Found along the way: `/settings/profile` is a placeholder that renders "TEst" and nothing links to it (candidate for P2/P4).
+
 **Phase 1 exit criteria:** a stranger can be invited by email, receive it, sign up and land in the workspace. A fresh database can be built from migrations. Rate limits hold across instances.
 
 ---

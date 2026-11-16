@@ -1,6 +1,7 @@
 import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import { Resend } from 'resend';
+import { siteUrl } from '@/lib/site';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -8,11 +9,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // The resend.dev sandbox sender only delivers to the Resend account owner.
 const FROM = 'Tide <onboarding@resend.dev>';
 
-export const APP_URL = (
-  process.env.NEXT_PUBLIC_APP_URL ??
-  process.env.BETTER_AUTH_URL ??
-  'http://localhost:3000'
-).replace(/\/$/, '');
+export const APP_URL = siteUrl();
 
 /** Names and workspace titles are user input: never interpolate them raw into HTML. */
 export function escapeHtml(value: string): string {

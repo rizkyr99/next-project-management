@@ -4,6 +4,9 @@ import { AuthPageHeader } from '../components/auth-page-header';
 import { SocialLoginDivider } from '../components/social-login-divider';
 import { SocialLoginButtons } from '../login/components/social-login-buttons';
 import { RegisterForm } from './components/register-form';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'Create account' };
 
 export default async function RegisterPage({
   searchParams,

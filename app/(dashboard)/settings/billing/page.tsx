@@ -8,6 +8,9 @@ import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { BillingContent } from './billing-content';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'Billing' };
 
 export default async function BillingPage() {
   const session = await auth.api.getSession({ headers: await headers() });
