@@ -234,6 +234,8 @@ export const taskStatus = pgTable('task_status', {
   name: varchar('name', { length: 64 }).notNull(),
   order: integer('order').notNull(),
   isDefault: boolean('is_default').default(false),
+  // One of STATUS_COLORS (features/projects/status-colors.ts); null = neutral.
+  color: varchar('color', { length: 16 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -251,9 +253,14 @@ export const task = pgTable(
     projectId: text('project_id')
       .notNull()
       .references(() => project.id, { onDelete: 'cascade' }),
+    // NO ACTION (not cascade): deleting a column that still holds tasks fails,
+    // so tasks can never vanish with a column; deleteStatus moves them first.
+    // Unlike RESTRICT, NO ACTION is checked at the end of the statement, so
+    // deleting a whole project (which cascades to both tasks and columns)
+    // still works.
     statusId: text('status_id')
       .notNull()
-      .references(() => taskStatus.id, { onDelete: 'cascade' }),
+      .references(() => taskStatus.id, { onDelete: 'no action' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').$onUpdate(() => new Date()),
   },
