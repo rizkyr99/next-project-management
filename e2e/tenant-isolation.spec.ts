@@ -55,11 +55,12 @@ test.describe('Tenant isolation', () => {
     expect(projectResponse?.status()).toBe(404);
     await expect(outsider.page.getByText(secretName)).toHaveCount(0);
 
-    // Project ID pasted under the outsider's own slug: still 404.
-    const crossResponse = await outsider.page.goto(
-      `/workspaces/iso-b-${outsider.stamp}/projects/${projectId}`,
-    );
-    expect(crossResponse?.status()).toBe(404);
+    // Project ID pasted under the outsider's own slug: the not-found UI.
+    // The workspace layout is valid here, so the response has already started
+    // streaming (through [workspaceSlug]/loading.tsx) when the page calls
+    // notFound(). The HTTP status stays 200, so we assert on what's rendered.
+    await outsider.page.goto(`/workspaces/iso-b-${outsider.stamp}/projects/${projectId}`);
+    await expect(outsider.page.getByText(/could not be found/i)).toBeVisible();
     await expect(outsider.page.getByText(secretName)).toHaveCount(0);
 
     // API routes keyed by projectId.

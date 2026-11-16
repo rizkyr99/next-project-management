@@ -113,7 +113,7 @@
 2. Audit every page under `[workspaceSlug]` to confirm the data it loads is scoped through `getActiveWorkspace` (which joins `member`).
 
 **Done when**
-- [ ] An E2E test logs in as user B, opens user A's project URL, and sees a 404. (Written: `e2e/tenant-isolation.spec.ts`; not yet run.) The workspace layout had the same leak: its sidebar listed projects for any slug. That's fixed too.
+- [x] An E2E test logs in as user B, opens user A's project URL, and sees a 404. (`e2e/tenant-isolation.spec.ts`, passing. A project ID pasted under B's *own* slug renders the not-found UI with HTTP 200, because `[workspaceSlug]/loading.tsx` has already started streaming; the test asserts on the rendered page.) The workspace layout had the same leak: its sidebar listed projects for any slug. That's fixed too.
 
 ### P0.4 Lock down API route handlers
 
