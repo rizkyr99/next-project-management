@@ -391,27 +391,33 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
       .returning({ id: comment.id });
 
     // Resolve @Name mentions against the workspace's real members, never
-    // against a list supplied by the client.
+    // against a list supplied by the client. The comment is already saved, so
+    // a notification failure must not turn into an error (a retry would post
+    // a duplicate comment).
     if (text.includes('@')) {
-      const members = await db
-        .select({ id: userTable.id, name: userTable.name })
-        .from(member)
-        .innerJoin(userTable, eq(member.userId, userTable.id))
-        .where(eq(member.workspaceId, ctx.workspace.id));
+      try {
+        const members = await db
+          .select({ id: userTable.id, name: userTable.name })
+          .from(member)
+          .innerJoin(userTable, eq(member.userId, userTable.id))
+          .where(eq(member.workspaceId, ctx.workspace.id));
 
-      const mentioned = members.filter(
-        (m) => m.id !== actorId && mentionsName(text, m.name),
-      );
-
-      if (mentioned.length > 0) {
-        await db.insert(notification).values(
-          mentioned.map((u) => ({
-            userId: u.id,
-            type: 'comment_mention' as const,
-            actorName: ctx.session.user.name,
-            taskTitle: ctx.task.title,
-          })),
+        const mentioned = members.filter(
+          (m) => m.id !== actorId && mentionsName(text, m.name),
         );
+
+        if (mentioned.length > 0) {
+          await db.insert(notification).values(
+            mentioned.map((u) => ({
+              userId: u.id,
+              type: 'comment_mention' as const,
+              actorName: ctx.session.user.name,
+              taskTitle: ctx.task.title,
+            })),
+          );
+        }
+      } catch (notifyError) {
+        console.error('[comments] mention notifications failed:', notifyError);
       }
     }
 

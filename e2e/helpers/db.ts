@@ -15,7 +15,12 @@ export async function testDb() {
   const sql = neon(url);
   if (!checked) {
     const [row] = await sql`select current_setting('neon.branch_id', true) as branch`;
-    if (row?.branch === PRODUCTION_BRANCH_ID) {
+    const branch: unknown = row?.branch;
+    // Fail closed: an unidentifiable database is treated like production.
+    if (typeof branch !== 'string' || branch === '') {
+      throw new Error('Refusing to run E2E: cannot identify the Neon branch behind DATABASE_URL.');
+    }
+    if (branch === PRODUCTION_BRANCH_ID) {
       throw new Error('Refusing to run E2E against the production database. Point .env at a dev branch.');
     }
     checked = true;

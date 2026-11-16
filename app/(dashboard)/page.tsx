@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { listPendingInvitesForEmail } from '@/lib/invites';
+import { listPendingInvitesForUser } from '@/lib/invites';
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   if (userWorkspaces.length === 0) {
     // Someone who signed up without going through an invite link still
     // shouldn't end up creating a workspace when a team is waiting for them.
-    const pending = await listPendingInvitesForEmail(session!.user.email);
+    const pending = await listPendingInvitesForUser(session!.user);
     redirect(pending.length > 0 ? '/invites' : '/create-workspace');
   }
 

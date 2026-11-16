@@ -14,7 +14,9 @@ export const signalSchema = z.object({
   payload: z
     .union([z.string(), z.record(z.string(), z.unknown())])
     .transform((p) => (typeof p === 'string' ? p : JSON.stringify(p)))
-    .refine((p) => p.length > 0 && p.length <= MAX_SIGNAL_PAYLOAD_BYTES, {
+    // Measured in UTF-8 bytes, not UTF-16 code units: multi-byte characters
+    // would otherwise let a payload exceed the limit up to 3x.
+    .refine((p) => p.length > 0 && new TextEncoder().encode(p).length <= MAX_SIGNAL_PAYLOAD_BYTES, {
       message: 'Signal payload is empty or too large',
     }),
 });
