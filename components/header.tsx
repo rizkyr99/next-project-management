@@ -16,52 +16,22 @@ import { useParams, useRouter } from 'next/navigation';
 import { NotificationsPopover } from './notifications-popover';
 import { GlobalSearch } from '@/features/search/components/global-search';
 import { ThemeToggle } from './theme-toggle';
-import { Input } from './ui/input';
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from './ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from './ui/form';
-import { useForm } from 'react-hook-form';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
-import z from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { inviteUserToWorkspace } from '@/features/workspaces/actions';
-import { toast } from 'sonner';
+import { InviteMemberForm } from '@/features/workspaces/components/invite-member-form';
 import { Button } from './ui/button';
-
-const inviteUserFormSchema = z.object({
-  email: z.email('Invalid email address'),
-  role: z.enum(['member', 'admin']),
-});
 
 export function Header() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const params = useParams();
   const workspaceSlug = params.workspaceSlug;
-
-  console.log(workspaceSlug);
 
   const user = session?.user;
   const userName = user?.name || user?.email || 'User';
@@ -74,14 +44,6 @@ export function Header() {
     .map((part) => part[0]?.toUpperCase())
     .join('');
 
-  const form = useForm<z.infer<typeof inviteUserFormSchema>>({
-    resolver: zodResolver(inviteUserFormSchema),
-    defaultValues: {
-      email: '',
-      role: 'member',
-    },
-  });
-
   const handleLogout = async () => {
     await authClient.signOut({
       fetchOptions: {
@@ -92,92 +54,30 @@ export function Header() {
     });
   };
 
-  const onSubmit = async (values: z.infer<typeof inviteUserFormSchema>) => {
-    if (!workspaceSlug) return;
-    const result = await inviteUserToWorkspace(workspaceSlug as string, values);
-    if (result?.error) {
-      toast.error(result.error);
-    } else {
-      toast.success(`${result?.name} has been added to the workspace`);
-      form.reset();
-    }
-  };
-
   return (
     <header className='h-16 border-b flex justify-between items-center px-4 shrink-0 w-full min-w-0'>
       <SidebarTrigger />
       <div className='flex items-center gap-2 sm:gap-4 min-w-0'>
         {workspaceSlug && <GlobalSearch />}
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button size='sm' className='sm:size-auto'>
-              <UserPlus2 />
-              <span className='hidden sm:inline'>Invite</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite new user</DialogTitle>
-              <DialogDescription>
-                Add new user to your workspace to collaborate with them.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className='space-y-4'>
-                <FormField
-                  control={form.control}
-                  name='email'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='email'
-                          placeholder='e.g. john.doe@example.com'
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name='role'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Role</FormLabel>
-                      <FormControl>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}>
-                          <SelectTrigger className='w-full'>
-                            <SelectValue placeholder='Select role' />
-                          </SelectTrigger>
-                          <SelectContent side='bottom'>
-                            <SelectGroup>
-                              <SelectItem value='member'>Member</SelectItem>
-                              <SelectItem value='admin'>Admin</SelectItem>
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant='ghost'>Cancel</Button>
-                  </DialogClose>
-                  <Button type='submit'>Invite</Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        {typeof workspaceSlug === 'string' && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button size='sm' className='sm:size-auto'>
+                <UserPlus2 />
+                <span className='hidden sm:inline'>Invite</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Invite to workspace</DialogTitle>
+                <DialogDescription>
+                  They&apos;ll get an email with a link to join. Only owners and admins can invite.
+                </DialogDescription>
+              </DialogHeader>
+              <InviteMemberForm workspaceSlug={workspaceSlug} canInvite compact />
+            </DialogContent>
+          </Dialog>
+        )}
 
         <ThemeToggle />
         <NotificationsPopover />

@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   pgTable,
   text,
@@ -10,6 +10,7 @@ import {
   pgEnum,
   primaryKey,
   jsonb,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export const subscriptionStatusEnum = pgEnum('subscription_status', [
@@ -34,6 +35,7 @@ export const inviteStatusEnum = pgEnum('invite_status', [
   'accepted',
   'revoked',
   'expired',
+  'declined',
 ]);
 
 export const user = pgTable('user', {
@@ -165,7 +167,10 @@ export const member = pgTable(
     role: roleEnum('role').default('member').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('member_workspaceId_idx').on(table.workspaceId)],
+  (table) => [
+    index('member_workspaceId_idx').on(table.workspaceId),
+    uniqueIndex('member_workspace_user_unique').on(table.workspaceId, table.userId),
+  ],
 );
 
 export const workspaceInvite = pgTable(
@@ -180,6 +185,8 @@ export const workspaceInvite = pgTable(
     email: text('email').notNull(),
     role: roleEnum('role').default('member').notNull(),
     status: inviteStatusEnum('status').default('pending').notNull(),
+    // SHA-256 (hex) of the raw invite token. The raw token only ever appears
+    // in the invite link, never in the database. See lib/invite-token.ts.
     token: text('token').notNull(),
     invitedByUserId: text('invited_by_user_id')
       .notNull()
@@ -187,7 +194,15 @@ export const workspaceInvite = pgTable(
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('workspace_invite_workspaceId_idx').on(table.workspaceId)],
+  (table) => [
+    index('workspace_invite_workspaceId_idx').on(table.workspaceId),
+    uniqueIndex('workspace_invite_token_unique').on(table.token),
+    // At most one pending invite per email per workspace. Emails are stored
+    // lowercased; re-inviting refreshes the existing row.
+    uniqueIndex('workspace_invite_pending_email_unique')
+      .on(table.workspaceId, table.email)
+      .where(sql`status = 'pending'`),
+  ],
 );
 
 export const project = pgTable(

@@ -18,10 +18,6 @@ vi.mock('@/lib/activity', () => ({
   insertActivity: vi.fn(),
 }));
 
-vi.mock('@/lib/email', () => ({
-  sendWorkspaceInviteEmail: vi.fn(),
-}));
-
 vi.mock('@/lib/subscription', () => ({
   checkWorkspaceLimit: vi.fn(),
 }));

@@ -207,9 +207,11 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 7. Count pending invites + members toward a member cap if plans gain one later. Leave a `// TODO(plan-limits)` note, nothing more.
 
 **Done when**
-- [ ] E2E: owner invites a brand-new email → that person registers via the link → lands in the workspace as the invited role.
-- [ ] Expired, revoked and wrong-account tokens all show the right message.
-- [ ] The raw token never appears in the database.
+- [x] E2E: owner invites a brand-new email → that person registers via the link → lands in the workspace as the invited role. (`e2e/invites.spec.ts`)
+- [x] Expired, revoked and wrong-account tokens all show the right message. Malformed tokens do too, and re-inviting invalidates the old link.
+- [x] The raw token never appears in the database. (The E2E test asserts the stored value is the SHA-256 hash and that no row matches the raw token.)
+
+*Implementation notes:* in-app notifications link to `/invites`, which lists pending invites for the signed-in email, so the raw token is never stored anywhere. After sending, the inviter sees a copyable link (the only time it can be shown), which also covers email failure until P1.2. A user with no workspace who has pending invites is routed to `/invites` instead of "create workspace". Migration `0003_token_invites` adds `declined` status, a unique `(workspace_id, user_id)` on `member`, a unique token index and a partial unique pending-email index, and expires legacy pending invites that hold raw tokens. E2E refuses to run against the production Neon branch (`e2e/global-setup.ts`).
 
 ### P1.4 Distributed rate limiting (F7)
 

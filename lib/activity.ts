@@ -13,6 +13,7 @@ export type ActivityAction =
   | 'task.deleted'
   | 'project.created'
   | 'member.invited'
+  | 'member.joined'
   | 'member.removed'
   | 'member.role_changed';
 
