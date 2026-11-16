@@ -167,7 +167,9 @@ Open [http://localhost:3000](http://localhost:3000).
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) |
 | `STRIPE_PRO_PRICE_ID` | Stripe Price ID for the Pro plan |
 | `STRIPE_BUSINESS_PRICE_ID` | Stripe Price ID for the Business plan |
-| `NEXT_PUBLIC_APP_URL` | Publicly accessible base URL (used in emails and OAuth redirects) |
+| `NEXT_PUBLIC_APP_URL` | *Optional.* Publicly accessible base URL used in email links (defaults to `BETTER_AUTH_URL`) |
+
+Required variables are validated by [`lib/env.ts`](lib/env.ts). A production build on Vercel **fails** if one is missing or malformed, and a production server refuses to start. In development you get a warning listing what's wrong. `SKIP_ENV_VALIDATION=1` bypasses the check for unusual builds.
 
 > **Stripe webhooks in development:** Use the [Stripe CLI](https://stripe.com/docs/stripe-cli) to forward events locally:
 > ```bash

@@ -1,5 +1,19 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
+import { checkServerEnv, formatEnvProblems } from './lib/env';
+
+// Fail a production build on Vercel when the environment is incomplete, so a
+// broken config never goes live (Vercel keeps serving the previous deployment).
+// Elsewhere (local, preview, CI without secrets) only warn.
+// SKIP_ENV_VALIDATION=1 is an escape hatch for unusual builds.
+if (!process.env.SKIP_ENV_VALIDATION) {
+  const envCheck = checkServerEnv();
+  if (!envCheck.ok) {
+    const message = formatEnvProblems(envCheck.problems);
+    if (process.env.VERCEL_ENV === 'production') throw new Error(message);
+    if (process.env.NODE_ENV === 'production') console.warn(`\n⚠️  ${message}\n`);
+  }
+}
 
 const securityHeaders = [
   {
