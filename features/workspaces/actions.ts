@@ -11,11 +11,12 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { isUniqueViolation } from '@/lib/db-errors';
+import { workspaceFormSchema } from './schema';
 
-const createWorkspaceSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  url: z.string().min(1, 'URL is required'),
-  description: z.string().nullable().optional(),
+// Same rules as the client form, enforced again on the server.
+const createWorkspaceSchema = workspaceFormSchema.extend({
+  description: workspaceFormSchema.shape.description.nullable(),
 });
 
 export async function createWorkspace(
@@ -31,7 +32,11 @@ export async function createWorkspace(
 
   const userId = session.user.id;
 
-  const validated = createWorkspaceSchema.parse(values);
+  const parsed = createWorkspaceSchema.safeParse(values);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Invalid workspace details' };
+  }
+  const validated = parsed.data;
 
   const limitCheck = await checkWorkspaceLimit(userId);
   if (!limitCheck.allowed) {
@@ -40,30 +45,31 @@ export async function createWorkspace(
     };
   }
 
+  // The workspace and its owner membership are written in one batch (a single
+  // transaction), so a failure can never leave a workspace without an owner.
+  const workspaceId = crypto.randomUUID();
+
   try {
-    const [newWorkspace] = await db
-      .insert(workspace)
-      .values({
+    await db.batch([
+      db.insert(workspace).values({
+        id: workspaceId,
         name: validated.name,
         slug: validated.url,
         description: validated.description,
         userId,
-      })
-      .returning({ id: workspace.id, slug: workspace.slug });
-
-    await db.insert(member).values({
-      workspaceId: newWorkspace.id,
-      userId,
-      role: 'owner',
-    });
-
-    revalidatePath(`/workspaces/${newWorkspace.slug}`, 'layout');
-
-    return { slug: newWorkspace.slug };
+      }),
+      db.insert(member).values({ workspaceId, userId, role: 'owner' }),
+    ]);
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { error: 'That workspace URL is already taken' };
+    }
     console.error('Workspace Creation Error:', error);
-    return { error: 'URL already taken or database error' };
+    return { error: 'Failed to create workspace. Please try again.' };
   }
+
+  revalidatePath(`/workspaces/${validated.url}`, 'layout');
+  return { slug: validated.url };
 }
 
 const inviteUserSchema = z.object({

@@ -1,28 +1,29 @@
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/db/drizzle';
 import { callParticipant, webrtcSignal } from '@/db/schema';
-import { auth } from '@/lib/auth';
-import { and, eq } from 'drizzle-orm';
-import { headers } from 'next/headers';
+import { callRoomSchema } from '@/features/call/schema';
+import { requireSession, toErrorResponse } from '@/lib/authz';
 
+// Leaving only ever deletes the caller's own rows, so it needs a session but
+// not project access. That way a user removed from a workspace mid-call can
+// still clean up after themselves.
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) return new Response('Unauthorized', { status: 401 });
+  try {
+    const { projectId } = callRoomSchema.parse(await request.json());
+    const session = await requireSession();
+    const userId = session.user.id;
 
-  const { projectId } = await request.json();
-  if (!projectId) return new Response('projectId required', { status: 400 });
+    await Promise.all([
+      db
+        .delete(callParticipant)
+        .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId))),
+      db
+        .delete(webrtcSignal)
+        .where(and(eq(webrtcSignal.projectId, projectId), eq(webrtcSignal.fromUserId, userId))),
+    ]);
 
-  await Promise.all([
-    db
-      .delete(callParticipant)
-      .where(
-        and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, session.user.id)),
-      ),
-    db
-      .delete(webrtcSignal)
-      .where(
-        and(eq(webrtcSignal.projectId, projectId), eq(webrtcSignal.fromUserId, session.user.id)),
-      ),
-  ]);
-
-  return Response.json({ ok: true });
+    return Response.json({ ok: true });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }

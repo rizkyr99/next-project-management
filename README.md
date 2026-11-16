@@ -1,6 +1,6 @@
 # Tide
 
-A full-featured project management app built with Next.js 15 App Router. Manage workspaces, projects, and tasks with your team — with real-time notifications, role-based access control, and subscription billing.
+A full-featured project management app built with the Next.js 16 App Router. Manage workspaces, projects, and tasks with your team — with real-time notifications, role-based access control, and subscription billing.
 
 **Live demo:** https://next-project-management-three.vercel.app/
 
@@ -30,7 +30,7 @@ A full-featured project management app built with Next.js 15 App Router. Manage 
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Framework | Next.js 15 (App Router) | Server Actions eliminate a dedicated API layer for mutations |
+| Framework | Next.js 16 (App Router) | Server Actions eliminate a dedicated API layer for mutations |
 | Database | PostgreSQL via [Neon](https://neon.tech) | Serverless-compatible, branching for preview envs |
 | ORM | Drizzle ORM | Type-safe queries with zero-overhead SQL; schema-as-code |
 | Auth | Better Auth | Modern session management, built-in OAuth adapters |
@@ -78,6 +78,33 @@ db/
 - **Feature-based modules** — Each feature owns its actions, schemas, and components to keep related code co-located and avoid cross-feature coupling
 - **Subscription enforcement at the action layer** — Plan limits are checked in Server Actions before any DB write, not just in UI, so they cannot be bypassed
 
+
+---
+
+## Security Model
+
+Tide is multi-tenant: every project, task, comment and activity entry belongs to exactly one workspace, and users may only touch workspaces they are members of.
+
+**Every server entry point that takes an ID goes through [`lib/authz.ts`](lib/authz.ts).**
+
+| Helper | Resolves | Used by |
+|---|---|---|
+| `requireSession()` | the signed-in user | `/api/call/leave` |
+| `requireWorkspaceMember(workspaceId, { roles? })` | workspace + caller's role | activity feed |
+| `requireProjectAccess(projectId, { roles? })` | project → workspace → membership | task creation, bulk actions, reorder, call and board streams |
+| `requireTaskAccess(taskId, { roles? })` | task → project → workspace → membership | single-task updates, comments, task activity |
+| `requireCommentAccess(commentId)` | comment → task → project → membership | comment edit and delete |
+
+The rules these helpers enforce:
+
+- **One query, through membership.** Each helper joins from the resource to the caller's `member` row in a single query, so there is no gap between "does it exist?" and "may I see it?".
+- **Not found, never forbidden.** A resource in someone else's workspace is indistinguishable from one that doesn't exist (`{ error: 'Not found.' }` from actions, `404` from routes and pages). This stops other tenants' IDs being probed.
+- **Never trust client context.** Client-supplied relations are re-checked on the server. Target columns must belong to the task's project, assignees and @mentions are resolved against the workspace's real members, and bulk operations are rejected outright if any ID falls outside the project.
+- **Validate first.** Every Server Action and Route Handler parses its input with Zod before touching the database.
+- **Pages too.** The workspace layout and project page call `notFound()` for non-members, and the sidebar's project list is fetched through the caller's membership.
+- **Atomic multi-row writes.** Rows that must exist together (a workspace and its owner; a project, its columns and its first task) are written with `db.batch()`, which runs as a single transaction on Neon.
+
+Workspace management actions (`features/workspaces/actions.ts`) additionally enforce roles: only owners and admins can invite, change roles or remove members, and only owners can delete a workspace. Cross-tenant tests live in `tests/lib/authz.test.ts`, `tests/features/**/actions.test.ts`, `tests/api/` and `e2e/tenant-isolation.spec.ts`.
 ---
 
 ## Local Setup

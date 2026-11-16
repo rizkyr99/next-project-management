@@ -5,8 +5,8 @@ import { member, project, workspace } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
 import { checkWorkspaceLimit } from '@/lib/subscription';
 import { getActiveWorkspace } from '@/lib/workspace-context';
-import { eq } from 'drizzle-orm';
-import { redirect } from 'next/navigation';
+import { and, eq } from 'drizzle-orm';
+import { notFound, redirect } from 'next/navigation';
 
 export default async function WorkspaceLayout({
   children,
@@ -22,7 +22,7 @@ export default async function WorkspaceLayout({
     redirect('/login');
   }
 
-  const [userWorkspaces, limitCheck, workspaceProjects] = await Promise.all([
+  const [userWorkspaces, limitCheck, activeWorkspace, workspaceProjects] = await Promise.all([
     db
       .select({
         id: workspace.id,
@@ -34,6 +34,8 @@ export default async function WorkspaceLayout({
       .innerJoin(workspace, eq(member.workspaceId, workspace.id))
       .where(eq(member.userId, session.user.id)),
     checkWorkspaceLimit(session.user.id),
+    getActiveWorkspace(workspaceSlug, session.user.id),
+    // Joined through the caller's membership so a foreign slug yields nothing.
     db
       .select({
         id: project.id,
@@ -44,12 +46,20 @@ export default async function WorkspaceLayout({
       })
       .from(project)
       .innerJoin(workspace, eq(project.workspaceId, workspace.id))
+      .innerJoin(
+        member,
+        and(eq(member.workspaceId, workspace.id), eq(member.userId, session.user.id)),
+      )
       .where(eq(workspace.slug, workspaceSlug)),
-    getActiveWorkspace(workspaceSlug, session.user.id),
   ]);
 
   if (userWorkspaces.length === 0) {
     redirect('/create-workspace');
+  }
+
+  // Not a member (or no such workspace): render nothing from this workspace.
+  if (!activeWorkspace) {
+    notFound();
   }
 
   return (

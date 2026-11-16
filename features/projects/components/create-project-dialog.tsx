@@ -48,13 +48,14 @@ export function CreateProjectDialog() {
 
   const onSubmit = async (values: z.infer<typeof createProjectSchema>) => {
     const result = await createProject(values);
-    if (result?.error) {
-      toast.error(result.error, { position: 'top-center' });
+    if (result?.error || !result.project) {
+      toast.error(result?.error ?? 'Failed to create project.', { position: 'top-center' });
+      return;
     }
 
     toast.success('Project created successfully', { position: 'top-center' });
     setOpen(false);
-    router.push(`/workspaces/${workspaceSlug}/projects/${result.project?.id}`);
+    router.push(`/workspaces/${workspaceSlug}/projects/${result.project.id}`);
     form.reset();
   };
 
