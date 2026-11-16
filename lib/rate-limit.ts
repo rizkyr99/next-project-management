@@ -63,7 +63,10 @@ function redisCredentials() {
 }
 
 function keyPrefix() {
-  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || 'development';
+  // Only Vercel sets VERCEL_ENV (production | preview | development). Don't
+  // fall back to NODE_ENV: a local `next start` runs with NODE_ENV=production
+  // and must not spend production's quotas.
+  const env = process.env.VERCEL_ENV?.trim() || 'local';
   return `tide:${env}:rl`;
 }
 
@@ -71,7 +74,14 @@ let redis: Redis | null | undefined;
 function getRedis(): Redis | null {
   if (redis === undefined) {
     const creds = redisCredentials();
-    redis = creds ? new Redis(creds) : null;
+    try {
+      redis = creds ? new Redis(creds) : null;
+    } catch (error) {
+      // e.g. a redis:// URL where the REST URL belongs. Misconfiguration must
+      // degrade to per-instance limits, not break every auth request.
+      console.error('[rate-limit] invalid Upstash config; using in-memory limits:', error);
+      redis = null;
+    }
   }
   return redis;
 }
