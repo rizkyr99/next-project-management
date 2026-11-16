@@ -30,9 +30,34 @@ export const serverEnvSchema = z.object({
   STRIPE_BUSINESS_PRICE_ID: z.string().trim().startsWith('price_', 'must be a Stripe price ID (price_…)'),
 
   RESEND_API_KEY: z.string().trim().startsWith('re_', 'must be a Resend API key (re_…)'),
+  // Sender on a domain verified in Resend, e.g. "Tide <notifications@tide.example.com>".
+  // Optional locally (falls back to Resend's test sender, which only reaches
+  // the account owner) but required in production; see the refinement below.
+  EMAIL_FROM: z
+    .string()
+    .trim()
+    .regex(
+      /^(?:[^<>]+<[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>|[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)$/,
+      'must be "Name <address@domain>" or "address@domain"',
+    )
+    .refine((v) => !/@resend\.dev>?$/i.test(v), {
+      message: "must be on your verified domain, not Resend's resend.dev test sender",
+    })
+    .optional(),
+
+  // Set by Vercel: "production" | "preview" | "development".
+  VERCEL_ENV: z.string().optional(),
 
   // Optional. Public base URL used in emails. Falls back to BETTER_AUTH_URL.
   NEXT_PUBLIC_APP_URL: z.url().optional(),
+}).superRefine((env, ctx) => {
+  if (env.VERCEL_ENV === 'production' && !env.EMAIL_FROM) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['EMAIL_FROM'],
+      message: 'required in production (sender on your verified Resend domain)',
+    });
+  }
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
