@@ -19,7 +19,11 @@ export async function createProject(
     throw new Error('Unauthorized');
   }
 
-  const { name, workspaceSlug } = values;
+  const parsed = createProjectSchema.safeParse(values);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'Invalid project details.' };
+  }
+  const { name, description, workspaceSlug } = parsed.data;
   const userId = session.user.id;
 
   try {
@@ -33,63 +37,48 @@ export async function createProject(
       .limit(1);
 
     if (!membership) {
-      throw new Error('Workspace not found or access denied');
+      return { error: 'Workspace not found.' };
     }
 
-    const [newProject] = await db
-      .insert(project)
-      .values({
-        name,
-        workspaceId: membership.workspaceId,
-      })
-      .returning();
+    // IDs are generated up front so the project, its default columns and the
+    // welcome task can be written in one batch (a single transaction). A
+    // failure can never leave a project without columns.
+    const projectId = crypto.randomUUID();
+    const todoId = crypto.randomUUID();
 
-    const createdStatuses = await db
-      .insert(taskStatus)
-      .values([
-        {
-          name: 'To Do',
-          order: 1,
-          projectId: newProject.id,
-          isDefault: true,
-        },
-        {
-          name: 'In Progress',
-          order: 2,
-          projectId: newProject.id,
-        },
-        {
-          name: 'Done',
-          order: 3,
-          projectId: newProject.id,
-        },
-      ])
-      .returning({ id: taskStatus.id, name: taskStatus.name });
-
-    const todoStatus = createdStatuses.find((s) => s.name === 'To Do');
-
-    if (todoStatus) {
-      await db.insert(task).values({
+    const [[newProject]] = await db.batch([
+      db
+        .insert(project)
+        .values({
+          id: projectId,
+          name,
+          description: description?.trim() || null,
+          workspaceId: membership.workspaceId,
+        })
+        .returning(),
+      db.insert(taskStatus).values([
+        { id: todoId, name: 'To Do', order: 1, projectId, isDefault: true },
+        { name: 'In Progress', order: 2, projectId },
+        { name: 'Done', order: 3, projectId },
+      ]),
+      db.insert(task).values({
         title: 'Welcome to your new project!',
         description: 'This is a default task to help you get started.',
-        projectId: newProject.id,
-        statusId: todoStatus.id,
+        projectId,
+        statusId: todoId,
         order: 1,
-      });
-    }
+      }),
+    ]);
 
     await insertActivity({
       workspaceId: membership.workspaceId,
       actorId: userId,
       action: 'project.created',
-      projectId: newProject.id,
+      projectId,
       metadata: { projectName: name },
     });
 
-    revalidatePath(
-      `/workspaces/${workspaceSlug}/projects/${newProject.id}`,
-      'layout',
-    );
+    revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');
 
     return { project: newProject };
   } catch (error) {

@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
 
-export const SocialLoginButtons = () => {
+export const SocialLoginButtons = ({ callbackURL = '/' }: { callbackURL?: string }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleLogin = async () => {
@@ -17,7 +17,7 @@ export const SocialLoginButtons = () => {
       await authClient.signIn.social(
         {
           provider: 'google',
-          callbackURL: '/',
+          callbackURL,
         },
         {
           onSuccess: (ctx) => {

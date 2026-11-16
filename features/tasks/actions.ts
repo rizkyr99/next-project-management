@@ -1,545 +1,481 @@
 'use server';
 
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
 import z from 'zod';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import { revalidatePath } from 'next/cache';
+import { db } from '@/db/drizzle';
+import { comment, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
+import { insertActivity } from '@/lib/activity';
+import {
+  type ActionResult,
+  AuthzError,
+  assertStatusInProject,
+  assertTasksInProject,
+  assertWorkspaceMembers,
+  projectPath,
+  requireCommentAccess,
+  requireProjectAccess,
+  requireTaskAccess,
+  toActionError,
+} from '@/lib/authz';
 import {
   bulkDeleteTasksSchema,
   bulkUpdateStatusSchema,
+  commentBodySchema,
   createTaskSchema,
   reorderTasksSchema,
+  idSchema,
+  updateTaskAssigneesSchema,
+  updateTaskDueDateSchema,
+  updateTaskPrioritySchema,
   updateTaskStatusSchema,
+  updateTaskTitleSchema,
 } from './schema';
-import { db } from '@/db/drizzle';
-import { comment, notification, project as projectTable, task, taskAssignee, user as userTable } from '@/db/schema';
-import { insertActivity } from '@/lib/activity';
-import { revalidatePath } from 'next/cache';
-import { and, asc, eq, inArray } from 'drizzle-orm';
 
-async function getTaskContext(taskId: string) {
-  const [row] = await db
-    .select({ taskTitle: task.title, workspaceId: projectTable.workspaceId, projectId: task.projectId })
-    .from(task)
-    .innerJoin(projectTable, eq(task.projectId, projectTable.id))
-    .where(eq(task.id, taskId));
-  return row ?? null;
-}
+type Task = typeof task.$inferSelect;
 
-async function getWorkspaceId(projectId: string) {
-  const [p] = await db
-    .select({ workspaceId: projectTable.workspaceId })
-    .from(projectTable)
-    .where(eq(projectTable.id, projectId));
-  return p?.workspaceId ?? null;
-}
+export type CommentWithAuthor = {
+  id: string;
+  body: string;
+  createdAt: Date;
+  updatedAt: Date | null;
+  author: { id: string; name: string; image: string | null };
+};
 
-export async function createTask(values: z.infer<typeof createTaskSchema>) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
+// Every action below:
+//   1. validates its input with Zod,
+//   2. resolves the target through the caller's workspace membership
+//      (lib/authz.ts), and
+//   3. scopes every write to the project/task it was authorized for.
+// IDs and project context sent by the client are never trusted on their own.
 
+export async function createTask(values: z.infer<typeof createTaskSchema>): Promise<ActionResult<{ task: Task }>> {
   try {
+    const input = createTaskSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId);
+    await assertStatusInProject(input.statusId, ctx.project.id);
+
     const [newTask] = await db
       .insert(task)
       .values({
-        title: values.title,
-        dueDate: values.dueDate,
-        order: values.order,
-        projectId: values.projectId,
-        statusId: values.statusId,
+        title: input.title,
+        dueDate: input.dueDate,
+        order: input.order,
+        projectId: ctx.project.id,
+        statusId: input.statusId,
       })
       .returning();
 
-    revalidatePath(`/projects/${values.projectId}`);
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
 
-    const workspaceId = await getWorkspaceId(values.projectId);
-    if (workspaceId) {
-      await insertActivity({
-        workspaceId,
-        actorId: session.user.id,
-        action: 'task.created',
-        projectId: values.projectId,
-        taskId: newTask.id,
-        metadata: { taskTitle: newTask.title },
-      });
-    }
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.created',
+      projectId: ctx.project.id,
+      taskId: newTask.id,
+      metadata: { taskTitle: newTask.title },
+    });
 
     return { task: newTask };
   } catch (error) {
-    console.error('Error creating task:', error);
-    return { error: 'Failed to create task.' };
+    return toActionError(error, 'Failed to create task.');
   }
 }
 
-export async function updateTaskStatus(
-  values: z.infer<typeof updateTaskStatusSchema>,
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
+export async function updateTaskStatus(values: z.infer<typeof updateTaskStatusSchema>): Promise<ActionResult> {
   try {
+    const input = updateTaskStatusSchema.parse(values);
+    const ctx = await requireTaskAccess(input.taskId);
+    if (ctx.project.id !== input.projectId) throw new AuthzError();
+    await assertStatusInProject(input.statusId, ctx.project.id);
+
     await db
       .update(task)
-      .set({ statusId: values.statusId })
-      .where(eq(task.id, values.taskId));
+      .set({ statusId: input.statusId })
+      .where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)));
 
-    revalidatePath(`/projects/${values.projectId}`, 'page');
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
 
-    const ctx = await getTaskContext(values.taskId);
-    if (ctx) {
-      await insertActivity({
-        workspaceId: ctx.workspaceId,
-        actorId: session.user.id,
-        action: 'task.status_changed',
-        projectId: ctx.projectId,
-        taskId: values.taskId,
-        metadata: { taskTitle: ctx.taskTitle },
-      });
-    }
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.status_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title },
+    });
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating task status:', error);
-    return { error: 'Failed to update task status.' };
+    return toActionError(error, 'Failed to update task status.');
   }
 }
 
-export async function bulkUpdateStatus(
-  values: z.infer<typeof bulkUpdateStatusSchema>,
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
+export async function bulkUpdateStatus(values: z.infer<typeof bulkUpdateStatusSchema>): Promise<ActionResult> {
   try {
+    const input = bulkUpdateStatusSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId);
+    await assertStatusInProject(input.statusId, ctx.project.id);
+    await assertTasksInProject(input.taskIds, ctx.project.id);
+
     await db
       .update(task)
-      .set({ statusId: values.statusId })
-      .where(inArray(task.id, values.taskIds));
+      .set({ statusId: input.statusId })
+      .where(and(inArray(task.id, input.taskIds), eq(task.projectId, ctx.project.id)));
 
-    revalidatePath(`/projects/${values.projectId}`, 'page');
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
     return { success: true };
   } catch (error) {
-    console.error('Error bulk updating status:', error);
-    return { error: 'Failed to update status.' };
+    return toActionError(error, 'Failed to update status.');
   }
 }
 
-export async function bulkDeleteTasks(
-  values: z.infer<typeof bulkDeleteTasksSchema>,
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
+export async function bulkDeleteTasks(values: z.infer<typeof bulkDeleteTasksSchema>): Promise<ActionResult> {
   try {
+    const input = bulkDeleteTasksSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId);
+    await assertTasksInProject(input.taskIds, ctx.project.id);
+
     const deletedTasks = await db
-      .select({ id: task.id, title: task.title, projectId: task.projectId })
-      .from(task)
-      .where(inArray(task.id, values.taskIds));
+      .delete(task)
+      .where(and(inArray(task.id, input.taskIds), eq(task.projectId, ctx.project.id)))
+      .returning({ title: task.title });
 
-    await db.delete(task).where(inArray(task.id, values.taskIds));
-    revalidatePath(`/projects/${values.projectId}`, 'page');
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
 
-    const workspaceId = await getWorkspaceId(values.projectId);
-    if (workspaceId) {
-      for (const t of deletedTasks) {
-        await insertActivity({
-          workspaceId,
-          actorId: session.user.id,
+    await Promise.all(
+      deletedTasks.map((t) =>
+        insertActivity({
+          workspaceId: ctx.workspace.id,
+          actorId: ctx.session.user.id,
           action: 'task.deleted',
-          projectId: values.projectId,
+          projectId: ctx.project.id,
           taskId: null,
           metadata: { taskTitle: t.title },
-        });
-      }
-    }
+        }),
+      ),
+    );
 
     return { success: true };
   } catch (error) {
-    console.error('Error bulk deleting tasks:', error);
-    return { error: 'Failed to delete tasks.' };
+    return toActionError(error, 'Failed to delete tasks.');
   }
 }
 
-export async function reorderTasks(values: z.infer<typeof reorderTasksSchema>) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
-  const { projectId, statusId, tasks } = values;
-
+export async function reorderTasks(values: z.infer<typeof reorderTasksSchema>): Promise<ActionResult> {
   try {
-    for (const t of tasks) {
-      await db
+    const input = reorderTasksSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId);
+    await assertStatusInProject(input.statusId, ctx.project.id);
+    await assertTasksInProject(
+      input.tasks.map((t) => t.id),
+      ctx.project.id,
+    );
+
+    // One HTTP round-trip for all updates instead of one per task.
+    const [first, ...rest] = input.tasks.map((t) =>
+      db
         .update(task)
-        .set({ order: t.order, statusId })
-        .where(eq(task.id, t.id));
-    }
+        .set({ order: t.order, statusId: input.statusId })
+        .where(and(eq(task.id, t.id), eq(task.projectId, ctx.project.id))),
+    );
+    if (first) await db.batch([first, ...rest]);
 
-    revalidatePath(`/projects/${projectId}`, 'page');
-
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
     return { success: true };
   } catch (error) {
-    console.error('Error reordering tasks:', error);
-    return { error: 'Failed to reorder tasks.' };
+    return toActionError(error, 'Failed to reorder tasks.');
   }
 }
 
-export async function updateTaskTitle(
-  taskId: string,
-  title: string,
-  projectId: string,
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
-  const trimmed = title.trim();
-  if (!trimmed || trimmed.length > 255) {
-    return { error: 'Title must be between 1 and 255 characters.' };
-  }
-
+export async function updateTaskTitle(taskId: string, title: string): Promise<ActionResult> {
   try {
-    await db.update(task).set({ title: trimmed }).where(eq(task.id, taskId));
-    revalidatePath(`/projects/${projectId}`, 'page');
+    const input = updateTaskTitleSchema.parse({ taskId, title });
+    const ctx = await requireTaskAccess(input.taskId);
 
-    const workspaceId = await getWorkspaceId(projectId);
-    if (workspaceId) {
-      await insertActivity({
-        workspaceId,
-        actorId: session.user.id,
-        action: 'task.title_changed',
-        projectId,
-        taskId,
-        metadata: { taskTitle: title },
-      });
-    }
+    await db.update(task).set({ title: input.title }).where(eq(task.id, ctx.task.id));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.title_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: input.title },
+    });
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating task title:', error);
-    return { error: 'Failed to update title.' };
+    return toActionError(error, 'Failed to update title.');
   }
 }
 
 export async function updateTaskPriority(
   taskId: string,
   priority: 'low' | 'medium' | 'high',
-  projectId: string,
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
+): Promise<ActionResult> {
   try {
-    await db.update(task).set({ priority }).where(eq(task.id, taskId));
-    revalidatePath(`/projects/${projectId}`, 'page');
+    const input = updateTaskPrioritySchema.parse({ taskId, priority });
+    const ctx = await requireTaskAccess(input.taskId);
 
-    const ctx = await getTaskContext(taskId);
-    if (ctx) {
-      await insertActivity({
-        workspaceId: ctx.workspaceId,
-        actorId: session.user.id,
-        action: 'task.priority_changed',
-        projectId,
-        taskId,
-        metadata: { taskTitle: ctx.taskTitle, priority },
-      });
-    }
+    await db.update(task).set({ priority: input.priority }).where(eq(task.id, ctx.task.id));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.priority_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title, priority: input.priority },
+    });
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating task priority:', error);
-    return { error: 'Failed to update priority.' };
+    return toActionError(error, 'Failed to update priority.');
   }
 }
 
-export async function updateTaskDueDate(
-  taskId: string,
-  dueDate: Date | null,
-  projectId: string,
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
+export async function updateTaskDueDate(taskId: string, dueDate: Date | null): Promise<ActionResult> {
   try {
-    await db.update(task).set({ dueDate }).where(eq(task.id, taskId));
-    revalidatePath(`/projects/${projectId}`, 'page');
+    const input = updateTaskDueDateSchema.parse({ taskId, dueDate });
+    const ctx = await requireTaskAccess(input.taskId);
 
-    const ctx = await getTaskContext(taskId);
-    if (ctx) {
-      await insertActivity({
-        workspaceId: ctx.workspaceId,
-        actorId: session.user.id,
-        action: 'task.due_date_changed',
-        projectId,
-        taskId,
-        metadata: { taskTitle: ctx.taskTitle, dueDate: dueDate?.toISOString() ?? '' },
-      });
-    }
+    await db.update(task).set({ dueDate: input.dueDate }).where(eq(task.id, ctx.task.id));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.due_date_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: {
+        taskTitle: ctx.task.title,
+        dueDate: input.dueDate?.toISOString() ?? '',
+      },
+    });
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating task due date:', error);
-    return { error: 'Failed to update due date.' };
+    return toActionError(error, 'Failed to update due date.');
   }
 }
 
-export async function updateTaskAssignees(
-  taskId: string,
-  assigneeIds: string[],
-  projectId: string,
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
+export async function updateTaskAssignees(taskId: string, assigneeIds: string[]): Promise<ActionResult> {
   try {
+    const input = updateTaskAssigneesSchema.parse({ taskId, assigneeIds });
+    const ctx = await requireTaskAccess(input.taskId);
+    const nextIds = [...new Set(input.assigneeIds)];
+    await assertWorkspaceMembers(nextIds, ctx.workspace.id);
+
+    const actorId = ctx.session.user.id;
+
     const existing = await db
       .select({ userId: taskAssignee.userId })
       .from(taskAssignee)
-      .where(eq(taskAssignee.taskId, taskId));
+      .where(eq(taskAssignee.taskId, ctx.task.id));
     const existingIds = new Set(existing.map((r) => r.userId));
 
-    await db.delete(taskAssignee).where(eq(taskAssignee.taskId, taskId));
-
-    if (assigneeIds.length > 0) {
-      await db.insert(taskAssignee).values(
-        assigneeIds.map((userId) => ({ taskId, userId })),
-      );
-
-      const newlyAddedIds = assigneeIds.filter(
-        (uid) => !existingIds.has(uid) && uid !== session.user.id,
-      );
-
-      if (newlyAddedIds.length > 0) {
-        const [assignedTask] = await db
-          .select({ title: task.title })
-          .from(task)
-          .where(eq(task.id, taskId));
-
-        const [actor] = await db
-          .select({ name: userTable.name })
-          .from(userTable)
-          .where(eq(userTable.id, session.user.id));
-
-        if (assignedTask && actor) {
-          await db.insert(notification).values(
-            newlyAddedIds.map((userId) => ({
-              userId,
-              type: 'task_assigned' as const,
-              actorName: actor.name,
-              taskTitle: assignedTask.title,
-            })),
-          );
-        }
-      }
+    const clear = db.delete(taskAssignee).where(eq(taskAssignee.taskId, ctx.task.id));
+    if (nextIds.length > 0) {
+      await db.batch([
+        clear,
+        db.insert(taskAssignee).values(nextIds.map((userId) => ({ taskId: ctx.task.id, userId }))),
+      ]);
+    } else {
+      await clear;
     }
 
-    revalidatePath(`/projects/${projectId}`, 'page');
+    const addedIds = nextIds.filter((uid) => !existingIds.has(uid));
+    const removedIds = [...existingIds].filter((uid) => !nextIds.includes(uid));
 
-    const ctx = await getTaskContext(taskId);
-    if (ctx) {
-      const addedIds = assigneeIds.filter((uid) => !existingIds.has(uid));
-      const removedIds = [...existingIds].filter((uid) => !assigneeIds.includes(uid));
+    const notifyIds = addedIds.filter((uid) => uid !== actorId);
+    if (notifyIds.length > 0) {
+      await db.insert(notification).values(
+        notifyIds.map((userId) => ({
+          userId,
+          type: 'task_assigned' as const,
+          actorName: ctx.session.user.name,
+          taskTitle: ctx.task.title,
+        })),
+      );
+    }
 
-      const involvedUserIds = [...addedIds, ...removedIds];
-      const involvedUsers = involvedUserIds.length > 0
-        ? await db.select({ id: userTable.id, name: userTable.name }).from(userTable).where(inArray(userTable.id, involvedUserIds))
-        : [];
-      const userNameMap = Object.fromEntries(involvedUsers.map((u) => [u.id, u.name]));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
 
-      for (const uid of addedIds) {
-        await insertActivity({
-          workspaceId: ctx.workspaceId,
-          actorId: session.user.id,
-          action: 'task.assigned',
-          projectId,
-          taskId,
-          metadata: { taskTitle: ctx.taskTitle, assigneeName: userNameMap[uid] ?? uid },
+    const involvedIds = [...addedIds, ...removedIds];
+    if (involvedIds.length > 0) {
+      const involvedUsers = await db
+        .select({ id: userTable.id, name: userTable.name })
+        .from(userTable)
+        .where(inArray(userTable.id, involvedIds));
+      const nameById = Object.fromEntries(involvedUsers.map((u) => [u.id, u.name]));
+
+      const logChange = (uid: string, action: 'task.assigned' | 'task.unassigned') =>
+        insertActivity({
+          workspaceId: ctx.workspace.id,
+          actorId,
+          action,
+          projectId: ctx.project.id,
+          taskId: ctx.task.id,
+          metadata: { taskTitle: ctx.task.title, assigneeName: nameById[uid] ?? uid },
         });
-      }
-      for (const uid of removedIds) {
-        await insertActivity({
-          workspaceId: ctx.workspaceId,
-          actorId: session.user.id,
-          action: 'task.unassigned',
-          projectId,
-          taskId,
-          metadata: { taskTitle: ctx.taskTitle, assigneeName: userNameMap[uid] ?? uid },
-        });
-      }
+
+      await Promise.all([
+        ...addedIds.map((uid) => logChange(uid, 'task.assigned')),
+        ...removedIds.map((uid) => logChange(uid, 'task.unassigned')),
+      ]);
     }
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating task assignees:', error);
-    return { error: 'Failed to update assignees.' };
+    return toActionError(error, 'Failed to update assignees.');
   }
 }
 
-export async function getComments(taskId: string) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
+const commentWithAuthor = {
+  id: comment.id,
+  body: comment.body,
+  createdAt: comment.createdAt,
+  updatedAt: comment.updatedAt,
+  author: {
+    id: userTable.id,
+    name: userTable.name,
+    image: userTable.image,
+  },
+};
 
+export async function getComments(taskId: string): Promise<ActionResult<{ comments: CommentWithAuthor[] }>> {
   try {
+    const ctx = await requireTaskAccess(idSchema.parse(taskId));
+
     const rows = await db
-      .select({
-        id: comment.id,
-        body: comment.body,
-        createdAt: comment.createdAt,
-        updatedAt: comment.updatedAt,
-        author: {
-          id: userTable.id,
-          name: userTable.name,
-          image: userTable.image,
-        },
-      })
+      .select(commentWithAuthor)
       .from(comment)
       .innerJoin(userTable, eq(comment.authorId, userTable.id))
-      .where(eq(comment.taskId, taskId))
+      .where(eq(comment.taskId, ctx.task.id))
       .orderBy(asc(comment.createdAt));
 
     return { comments: rows };
   } catch (error) {
-    console.error('Error fetching comments:', error);
-    return { error: 'Failed to load comments.' };
+    return toActionError(error, 'Failed to load comments.');
   }
 }
 
-export async function addComment(
-  taskId: string,
-  body: string,
-  workspaceMembers: { id: string; name: string }[],
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-  const trimmed = body.trim();
-  if (!trimmed || trimmed.length > 2000) {
-    return { error: 'Comment must be between 1 and 2000 characters.' };
-  }
+/**
+ * True when `text` contains `@name` followed by a non-word character or the
+ * end of the text. Matching against known names (rather than parsing tokens
+ * out of the text) supports multi-word names like "@Ada Lovelace".
+ */
+function mentionsName(text: string, name: string) {
+  if (!name.trim()) return false;
+  return new RegExp(`@${escapeRegExp(name.trim())}(?!\\w)`, 'i').test(text);
+}
 
+export async function addComment(taskId: string, body: string): Promise<ActionResult<{ comment: CommentWithAuthor }>> {
   try {
+    const ctx = await requireTaskAccess(idSchema.parse(taskId));
+    const text = commentBodySchema.parse(body);
+    const actorId = ctx.session.user.id;
+
     const [newComment] = await db
       .insert(comment)
-      .values({ taskId, authorId: session.user.id, body: trimmed })
-      .returning();
+      .values({ taskId: ctx.task.id, authorId: actorId, body: text })
+      .returning({ id: comment.id });
 
-    // Parse @Name mentions and notify matched members (excluding self)
-    const mentionPattern = /@(\w[\w\s]*)/g;
-    const matches = [...trimmed.matchAll(mentionPattern)].map((m) =>
-      m[1].trim().toLowerCase(),
-    );
+    // Resolve @Name mentions against the workspace's real members, never
+    // against a list supplied by the client. The comment is already saved, so
+    // a notification failure must not turn into an error (a retry would post
+    // a duplicate comment).
+    if (text.includes('@')) {
+      try {
+        const members = await db
+          .select({ id: userTable.id, name: userTable.name })
+          .from(member)
+          .innerJoin(userTable, eq(member.userId, userTable.id))
+          .where(eq(member.workspaceId, ctx.workspace.id));
 
-    if (matches.length > 0) {
-      const mentionedUsers = workspaceMembers.filter(
-        (m) =>
-          matches.includes(m.name.toLowerCase()) &&
-          m.id !== session.user.id,
-      );
+        const mentioned = members.filter(
+          (m) => m.id !== actorId && mentionsName(text, m.name),
+        );
 
-      if (mentionedUsers.length > 0) {
-        const [mentionedTask] = await db
-          .select({ title: task.title })
-          .from(task)
-          .where(eq(task.id, taskId));
-
-        if (mentionedTask) {
+        if (mentioned.length > 0) {
           await db.insert(notification).values(
-            mentionedUsers.map((u) => ({
+            mentioned.map((u) => ({
               userId: u.id,
               type: 'comment_mention' as const,
-              actorName: session.user.name,
-              taskTitle: mentionedTask.title,
+              actorName: ctx.session.user.name,
+              taskTitle: ctx.task.title,
             })),
           );
         }
+      } catch (notifyError) {
+        console.error('[comments] mention notifications failed:', notifyError);
       }
     }
 
-    // Return with author info
     const [withAuthor] = await db
-      .select({
-        id: comment.id,
-        body: comment.body,
-        createdAt: comment.createdAt,
-        updatedAt: comment.updatedAt,
-        author: {
-          id: userTable.id,
-          name: userTable.name,
-          image: userTable.image,
-        },
-      })
+      .select(commentWithAuthor)
       .from(comment)
       .innerJoin(userTable, eq(comment.authorId, userTable.id))
       .where(eq(comment.id, newComment.id));
 
-    const ctx = await getTaskContext(taskId);
-    if (ctx) {
-      await insertActivity({
-        workspaceId: ctx.workspaceId,
-        actorId: session.user.id,
-        action: 'task.comment_added',
-        projectId: ctx.projectId,
-        taskId,
-        metadata: { taskTitle: ctx.taskTitle },
-      });
-    }
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId,
+      action: 'task.comment_added',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title },
+    });
 
     return { comment: withAuthor };
   } catch (error) {
-    console.error('Error adding comment:', error);
-    return { error: 'Failed to add comment.' };
+    return toActionError(error, 'Failed to add comment.');
   }
 }
 
-export async function updateComment(commentId: string, body: string) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
-  const trimmed = body.trim();
-  if (!trimmed || trimmed.length > 2000) {
-    return { error: 'Comment must be between 1 and 2000 characters.' };
-  }
-
+export async function updateComment(commentId: string, body: string): Promise<ActionResult> {
   try {
-    const [existing] = await db
-      .select({ authorId: comment.authorId })
-      .from(comment)
-      .where(eq(comment.id, commentId));
+    const ctx = await requireCommentAccess(idSchema.parse(commentId));
+    const text = commentBodySchema.parse(body);
 
-    if (existing?.authorId !== session.user.id) {
+    if (ctx.comment.authorId !== ctx.session.user.id) {
       return { error: 'Not authorized to edit this comment.' };
     }
 
     await db
       .update(comment)
-      .set({ body: trimmed })
-      .where(and(eq(comment.id, commentId), eq(comment.authorId, session.user.id)));
+      .set({ body: text })
+      .where(and(eq(comment.id, ctx.comment.id), eq(comment.authorId, ctx.session.user.id)));
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating comment:', error);
-    return { error: 'Failed to update comment.' };
+    return toActionError(error, 'Failed to update comment.');
   }
 }
 
-export async function deleteComment(commentId: string) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error('Unauthorized');
-
+export async function deleteComment(commentId: string): Promise<ActionResult> {
   try {
-    const [existing] = await db
-      .select({ authorId: comment.authorId })
-      .from(comment)
-      .where(eq(comment.id, commentId));
+    const ctx = await requireCommentAccess(idSchema.parse(commentId));
 
-    if (existing?.authorId !== session.user.id) {
+    if (ctx.comment.authorId !== ctx.session.user.id) {
       return { error: 'Not authorized to delete this comment.' };
     }
 
     await db
       .delete(comment)
-      .where(and(eq(comment.id, commentId), eq(comment.authorId, session.user.id)));
+      .where(and(eq(comment.id, ctx.comment.id), eq(comment.authorId, ctx.session.user.id)));
 
     return { success: true };
   } catch (error) {
-    console.error('Error deleting comment:', error);
-    return { error: 'Failed to delete comment.' };
+    return toActionError(error, 'Failed to delete comment.');
   }
 }

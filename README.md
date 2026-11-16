@@ -1,6 +1,6 @@
 # Tide
 
-A full-featured project management app built with Next.js 15 App Router. Manage workspaces, projects, and tasks with your team — with real-time notifications, role-based access control, and subscription billing.
+A full-featured project management app built with the Next.js 16 App Router. Manage workspaces, projects, and tasks with your team — with real-time notifications, role-based access control, and subscription billing.
 
 **Live demo:** https://next-project-management-three.vercel.app/
 
@@ -30,7 +30,7 @@ A full-featured project management app built with Next.js 15 App Router. Manage 
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Framework | Next.js 15 (App Router) | Server Actions eliminate a dedicated API layer for mutations |
+| Framework | Next.js 16 (App Router) | Server Actions eliminate a dedicated API layer for mutations |
 | Database | PostgreSQL via [Neon](https://neon.tech) | Serverless-compatible, branching for preview envs |
 | ORM | Drizzle ORM | Type-safe queries with zero-overhead SQL; schema-as-code |
 | Auth | Better Auth | Modern session management, built-in OAuth adapters |
@@ -78,6 +78,33 @@ db/
 - **Feature-based modules** — Each feature owns its actions, schemas, and components to keep related code co-located and avoid cross-feature coupling
 - **Subscription enforcement at the action layer** — Plan limits are checked in Server Actions before any DB write, not just in UI, so they cannot be bypassed
 
+
+---
+
+## Security Model
+
+Tide is multi-tenant: every project, task, comment and activity entry belongs to exactly one workspace, and users may only touch workspaces they are members of.
+
+**Every server entry point that takes an ID goes through [`lib/authz.ts`](lib/authz.ts).**
+
+| Helper | Resolves | Used by |
+|---|---|---|
+| `requireSession()` | the signed-in user | `/api/call/leave` |
+| `requireWorkspaceMember(workspaceId, { roles? })` | workspace + caller's role | activity feed |
+| `requireProjectAccess(projectId, { roles? })` | project → workspace → membership | task creation, bulk actions, reorder, call and board streams |
+| `requireTaskAccess(taskId, { roles? })` | task → project → workspace → membership | single-task updates, comments, task activity |
+| `requireCommentAccess(commentId)` | comment → task → project → membership | comment edit and delete |
+
+The rules these helpers enforce:
+
+- **One query, through membership.** Each helper joins from the resource to the caller's `member` row in a single query, so there is no gap between "does it exist?" and "may I see it?".
+- **Not found, never forbidden.** A resource in someone else's workspace is indistinguishable from one that doesn't exist (`{ error: 'Not found.' }` from actions, `404` from routes and pages). This stops other tenants' IDs being probed.
+- **Never trust client context.** Client-supplied relations are re-checked on the server. Target columns must belong to the task's project, assignees and @mentions are resolved against the workspace's real members, and bulk operations are rejected outright if any ID falls outside the project.
+- **Validate first.** Every Server Action and Route Handler parses its input with Zod before touching the database.
+- **Pages too.** The workspace layout and project page call `notFound()` for non-members, and the sidebar's project list is fetched through the caller's membership.
+- **Atomic multi-row writes.** Rows that must exist together (a workspace and its owner; a project, its columns and its first task) are written with `db.batch()`, which runs as a single transaction on Neon.
+
+Workspace management actions (`features/workspaces/actions.ts`) additionally enforce roles: only owners and admins can invite, change roles or remove members, and only owners can delete a workspace. Cross-tenant tests live in `tests/lib/authz.test.ts`, `tests/features/**/actions.test.ts`, `tests/api/` and `e2e/tenant-isolation.spec.ts`.
 ---
 
 ## Local Setup
@@ -111,8 +138,10 @@ See the [Environment Variables](#environment-variables) section below for detail
 ### 3. Run database migrations
 
 ```bash
-npx drizzle-kit push
+npm run db:migrate
 ```
+
+> **Never run `drizzle-kit push` against a shared or production database.** Migrations in `db/migrations/` are the source of truth. Change `db/schema.ts`, run `npm run db:generate`, review the SQL, commit it, then `npm run db:migrate`. See [docs/runbooks/migrations.md](docs/runbooks/migrations.md).
 
 ### 4. Start the dev server
 
@@ -138,7 +167,9 @@ Open [http://localhost:3000](http://localhost:3000).
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) |
 | `STRIPE_PRO_PRICE_ID` | Stripe Price ID for the Pro plan |
 | `STRIPE_BUSINESS_PRICE_ID` | Stripe Price ID for the Business plan |
-| `NEXT_PUBLIC_APP_URL` | Publicly accessible base URL (used in emails and OAuth redirects) |
+| `NEXT_PUBLIC_APP_URL` | *Optional.* Publicly accessible base URL used in email links (defaults to `BETTER_AUTH_URL`) |
+
+Required variables are validated by [`lib/env.ts`](lib/env.ts). A production build on Vercel **fails** if one is missing or malformed, and a production server refuses to start. In development you get a warning listing what's wrong. `SKIP_ENV_VALIDATION=1` bypasses the check for unusual builds.
 
 > **Stripe webhooks in development:** Use the [Stripe CLI](https://stripe.com/docs/stripe-cli) to forward events locally:
 > ```bash
@@ -156,8 +187,10 @@ npm run lint         # ESLint
 npm test             # Run unit tests (Vitest)
 npm run test:watch   # Watch mode
 npm run test:coverage  # Coverage report
-npx drizzle-kit push      # Push schema changes to the database
-npx drizzle-kit studio    # Open Drizzle Studio (visual DB browser)
+npm run db:generate  # Generate a migration from schema.ts changes
+npm run db:migrate   # Apply pending migrations to DATABASE_URL
+npm run db:check     # Check migration history consistency
+npm run db:studio    # Open Drizzle Studio (visual DB browser)
 ```
 
 ---
@@ -184,4 +217,4 @@ Unit and integration tests live in `tests/`, mirroring the `features/` and `lib/
 npm test
 ```
 
-CI runs typecheck, lint, and tests on every push and pull request via GitHub Actions.
+CI runs typecheck, lint, unit tests, and a migration check (fresh Postgres is built from `db/migrations/`, and the job fails if `schema.ts` has changes without a migration) on pushes and pull requests to `main` and `develop`.

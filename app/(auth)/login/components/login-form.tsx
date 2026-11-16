@@ -23,7 +23,7 @@ const loginSchema = z.object({
   rememberMe: z.boolean().optional(),
 });
 
-export function LoginForm() {
+export function LoginForm({ callbackURL = '/' }: { callbackURL?: string }) {
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -39,7 +39,7 @@ export function LoginForm() {
         email: values.email,
         password: values.password,
         rememberMe: values.rememberMe,
-        callbackURL: '/',
+        callbackURL,
       },
       {
         onSuccess: () => {

@@ -21,7 +21,7 @@ const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters long'),
 });
 
-export function RegisterForm() {
+export function RegisterForm({ callbackURL = '/' }: { callbackURL?: string }) {
   const router = useRouter();
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -38,12 +38,12 @@ export function RegisterForm() {
         email: values.email,
         password: values.password,
         name: values.name,
-        callbackURL: '/',
+        callbackURL,
       },
       {
         onSuccess: () => {
           toast.success('Registration successful!', { position: 'top-center' });
-          router.push('/');
+          router.push(callbackURL);
         },
         onError: (ctx) => {
           toast.error(ctx.error.message || 'Failed to register', {

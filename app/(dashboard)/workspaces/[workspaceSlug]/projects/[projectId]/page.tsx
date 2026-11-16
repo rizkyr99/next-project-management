@@ -1,17 +1,36 @@
 import { db } from '@/db/drizzle';
-import { comment, member, project, user, workspace } from '@/db/schema';
-import { count, eq, inArray } from 'drizzle-orm';
+import { comment, member, project, user } from '@/db/schema';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import BoardView from '@/features/projects/components/board-view-client';
 import { CallButton } from '@/features/call/components/call-button';
 import { ListView } from '@/features/projects/components/list-view';
 import { TableView } from '@/features/projects/components/table-view';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth-session';
+import { getActiveWorkspace } from '@/lib/workspace-context';
+import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
+import type { Metadata } from 'next';
 
 type View = 'board' | 'list' | 'table';
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ workspaceSlug: string; projectId: string }>;
+}): Promise<Metadata> {
+  const { workspaceSlug, projectId } = await params;
+  const session = await getSession();
+  const ws = session ? await getActiveWorkspace(workspaceSlug, session.user.id) : null;
+  if (!ws) return {};
+  // Same scoping as the page: a project from another workspace gets no title.
+  const [row] = await db
+    .select({ name: project.name })
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.workspaceId, ws.id)))
+    .limit(1);
+  return row ? { title: row.name } : {};
+}
 
 export default async function ProjectIdPage({
   params,
@@ -25,33 +44,31 @@ export default async function ProjectIdPage({
     searchParams,
   ]);
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession();
   if (!session) redirect('/login');
 
   const currentView: View =
     view === 'list' || view === 'table' ? view : 'board';
 
-  const [currentWorkspace] = await db
-    .select({ id: workspace.id })
-    .from(workspace)
-    .where(eq(workspace.slug, workspaceSlug));
+  // Membership is resolved (and cached) by the workspace layout as well.
+  const currentWorkspace = await getActiveWorkspace(workspaceSlug, session.user.id);
+  if (!currentWorkspace) notFound();
 
   const [workspaceMembers, data] = await Promise.all([
-    currentWorkspace
-      ? db
-          .select({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-          })
-          .from(member)
-          .innerJoin(user, eq(member.userId, user.id))
-          .where(eq(member.workspaceId, currentWorkspace.id))
-      : Promise.resolve([]),
+    db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+      })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(eq(member.workspaceId, currentWorkspace.id)),
 
+    // Scoped to this workspace: a project ID from another tenant is a 404.
     db.query.project.findFirst({
-      where: eq(project.id, projectId),
+      where: and(eq(project.id, projectId), eq(project.workspaceId, currentWorkspace.id)),
       with: {
         statuses: {
           orderBy: (taskStatus, { asc }) => [asc(taskStatus.order)],
@@ -70,8 +87,10 @@ export default async function ProjectIdPage({
     }),
   ]);
 
+  if (!data) notFound();
+
   // Fetch comment counts for all tasks in this project in one query
-  const allTaskIds = data?.statuses.flatMap((s) => s.tasks.map((t) => t.id)) ?? [];
+  const allTaskIds = data.statuses.flatMap((s) => s.tasks.map((t) => t.id)) ?? [];
   const commentCounts =
     allTaskIds.length > 0
       ? await db
@@ -86,7 +105,7 @@ export default async function ProjectIdPage({
     <div className='h-full flex flex-col'>
       <div className='px-4 py-2 space-y-2 border-b'>
         <div className='text-lg font-semibold flex items-center justify-between'>
-          {data?.name}
+          {data.name}
           <CallButton
             projectId={projectId}
             currentUserId={session.user.id}

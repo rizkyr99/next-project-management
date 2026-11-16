@@ -67,7 +67,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const addMutation = useMutation({
-    mutationFn: (text: string) => addComment(taskId, text, workspaceMembers),
+    mutationFn: (text: string) => addComment(taskId, text),
     onSuccess: (res) => {
       if ('error' in res) {
         toast.error(res.error, { position: 'top-center' });

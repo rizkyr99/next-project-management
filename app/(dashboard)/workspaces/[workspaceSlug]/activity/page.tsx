@@ -6,6 +6,9 @@ import { auth } from '@/lib/auth';
 import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'Activity' };
 
 export default async function ActivityPage({
   params,

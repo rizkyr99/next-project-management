@@ -13,6 +13,7 @@ type ActivityAction =
   | 'task.deleted'
   | 'project.created'
   | 'member.invited'
+  | 'member.joined'
   | 'member.removed'
   | 'member.role_changed';
 
@@ -61,6 +62,8 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return `created project "${m.projectName ?? 'Untitled'}"`;
     case 'member.invited':
       return `invited ${m.inviteEmail ?? 'someone'} as ${m.role ?? 'member'}`;
+    case 'member.joined':
+      return `joined the workspace as ${m.role ?? 'member'}`;
     case 'member.removed':
       return `removed ${m.memberName ?? 'a member'} from the workspace`;
     case 'member.role_changed':

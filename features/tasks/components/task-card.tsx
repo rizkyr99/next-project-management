@@ -309,7 +309,7 @@ export function TaskCard({
     setDraftTitle(trimmed);
     setIsEditingTitle(false);
     if (trimmed !== currentTitle) {
-      const result = await updateTaskTitle(id, trimmed, projectId);
+      const result = await updateTaskTitle(id, trimmed);
       if (result?.error) toast.error(result.error, { position: 'top-center' });
     }
   };
@@ -326,13 +326,13 @@ export function TaskCard({
 
   const handlePriorityChange = async (newPriority: Priority) => {
     setPriority(newPriority);
-    const result = await updateTaskPriority(id, newPriority, projectId);
+    const result = await updateTaskPriority(id, newPriority);
     if (result?.error) toast.error(result.error, { position: 'top-center' });
   };
 
   const handleDueDateChange = async (date: Date | null) => {
     setDueDate(date);
-    const result = await updateTaskDueDate(id, date, projectId);
+    const result = await updateTaskDueDate(id, date);
     if (result?.error) toast.error(result.error, { position: 'top-center' });
   };
 
@@ -341,7 +341,7 @@ export function TaskCard({
       ? selectedAssigneeIds.filter((i) => i !== userId)
       : [...selectedAssigneeIds, userId];
     setSelectedAssigneeIds(next);
-    const result = await updateTaskAssignees(id, next, projectId);
+    const result = await updateTaskAssignees(id, next);
     if (result?.error) toast.error(result.error, { position: 'top-center' });
   };
 
