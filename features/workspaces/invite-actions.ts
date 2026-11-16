@@ -17,6 +17,7 @@ import {
   type InviteState,
 } from '@/lib/invite-token';
 import { findInviteById, findInviteByToken, type InviteRow } from '@/lib/invites';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 const inviteSchema = z.object({
   email: z
@@ -73,6 +74,7 @@ export async function inviteUserToWorkspace(
   try {
     const { email, role } = inviteSchema.parse(values);
     const { session, workspace: ws } = await requireInviteManager(workspaceSlug);
+    await enforceRateLimit('invites', session.user.id);
 
     if (email === session.user.email.toLowerCase()) {
       return { error: "You're already a member of this workspace." };
@@ -165,6 +167,7 @@ export async function resendInvite(
 ): Promise<ActionResult<InviteSent>> {
   try {
     const { session, workspace: ws } = await requireInviteManager(workspaceSlug);
+    await enforceRateLimit('invites', session.user.id);
     const { token, hash } = generateInviteToken();
 
     const [updated] = await db

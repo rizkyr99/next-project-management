@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from './lib/auth';
 import { headers } from 'next/headers';
-import { rateLimit } from '@/lib/rate-limit';
+import { LIMITS, clientIp, rateLimit } from '@/lib/rate-limit';
 import { safeCallbackPath } from '@/lib/safe-redirect';
 
-// 20 requests per minute per IP on auth endpoints — prevents credential stuffing
-const AUTH_LIMIT = { limit: 20, windowMs: 60_000 };
+// Better Auth endpoints that take credentials or send email: strict, per IP,
+// against credential stuffing and sign-up spam. Everything else under
+// /api/auth (session reads the client makes in the background, sign-out) gets
+// a generous limit, so a busy office behind one IP isn't locked out.
+const SENSITIVE_AUTH =
+  /^\/api\/auth\/(sign-in|sign-up|forget-password|request-password-reset|reset-password|change-password|send-verification-email)(\/|$)/;
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Rate limit auth endpoints before any session check
   if (pathname.startsWith('/api/auth')) {
-    const ip =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-    const result = rateLimit(`auth:${ip}`, AUTH_LIMIT);
+    const sensitive = SENSITIVE_AUTH.test(pathname);
+    const opts = sensitive ? LIMITS.authSensitive : LIMITS.authGeneral;
+    const ip = clientIp(request.headers);
+    const result = await rateLimit(`${sensitive ? 'auth' : 'auth-general'}:${ip}`, opts);
 
     if (!result.success) {
       return NextResponse.json(
@@ -22,8 +27,8 @@ export async function proxy(request: NextRequest) {
         {
           status: 429,
           headers: {
-            'Retry-After': String(Math.ceil((result.resetAt - Date.now()) / 1000)),
-            'X-RateLimit-Limit': String(AUTH_LIMIT.limit),
+            'Retry-After': String(Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000))),
+            'X-RateLimit-Limit': String(opts.limit),
             'X-RateLimit-Remaining': '0',
             'X-RateLimit-Reset': String(result.resetAt),
           },
@@ -32,7 +37,7 @@ export async function proxy(request: NextRequest) {
     }
 
     const res = NextResponse.next();
-    res.headers.set('X-RateLimit-Limit', String(AUTH_LIMIT.limit));
+    res.headers.set('X-RateLimit-Limit', String(opts.limit));
     res.headers.set('X-RateLimit-Remaining', String(result.remaining));
     res.headers.set('X-RateLimit-Reset', String(result.resetAt));
     return res;
@@ -70,5 +75,10 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|static|.*\\.).*)'],
+    // Pages (everything except API routes, Next internals and files).
+    '/((?!api|_next/static|_next/image|static|.*\\.).*)',
+    // Auth API, for rate limiting only. The page matcher above excludes /api,
+    // which used to mean auth endpoints were never rate limited at all.
+    '/api/auth/:path*',
+  ],
 };

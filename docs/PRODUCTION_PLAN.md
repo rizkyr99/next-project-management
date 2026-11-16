@@ -182,7 +182,7 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 5. Email failures must not fail the action: wrap sends, log to Sentry, and still return success with a `warning` the UI can show.
 
 **Done when**
-- [ ] An invite sent to an outside Gmail address arrives in the inbox (not spam), with working links.
+- [x] An invite sent to an outside Gmail address arrives in the inbox (not spam), with working links. (2026-11-17: sent from `notifications@tide.ramarizdev.web.id`, Resend reported `delivered`, and it landed in the Gmail **Inbox**. Live in production since release PR #24.)
 
 *Progress:* sending domain `tide.ramarizdev.web.id` verified in Resend (SPF/DKIM). `EMAIL_FROM` is required in production by `lib/env.ts`. Templates live in `emails/` (React Email, shared `EmailLayout`, auto-escaped), with a plain-text part. Email failures never fail the action (since P1.3). `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` are unified behind `siteUrl()` (since P1.6). The `password-reset`, `verify-email` and `due-soon-digest` templates will come with their features (P3 and the due-soon cron).
 
@@ -231,7 +231,9 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 4. Use `x-real-ip` / `request.ip` rather than the first `x-forwarded-for` entry, which a client can spoof.
 
 **Done when**
-- [ ] Hammering login from two different serverless instances is limited consistently (check with a quick script against a preview deployment).
+- [x] Hammering login from two different serverless instances is limited consistently. Verified against the real Upstash database: two separate Node processes each fired 15 concurrent requests at one key with a 20/min limit, and exactly **20 of 30** were allowed in total (10 and 10). The old in-memory limiter would have allowed all 30.
+
+*Implementation notes:* `lib/rate-limit.ts` uses an Upstash sliding window with a 1s timeout and **fails open**, logging to Sentry, so a Redis hiccup can't lock users out. Keys are prefixed per environment (`tide:<env>:rl:…`), so dev and preview runs sharing the free-tier database never touch production counters. Without credentials it falls back to in-memory. IP comes from `x-real-ip` (set by Vercel), never the client-controlled first `x-forwarded-for` entry. **Pre-existing bug found:** the proxy `matcher` excluded `/api/*`, so auth endpoints had **never** been rate limited. `/api/auth/:path*` is now matched. Limits: credential endpoints (sign-in, sign-up, password reset/change, verification email) 20/min per IP. Other `/api/auth` traffic (background session reads) 300/min per IP, so an office behind one NAT isn't locked out. Invites and resends 20/hour, comments 30/min, task creation 120/min, all per user. Password reset 5/hour per email waits for the reset flow (P3); the endpoint is already covered by the per-IP limit. *E2E note:* the suite's sign-ups now count against the real per-IP limit. If the suite grows past ~20 registrations a minute, give each test context its own `x-real-ip`.
 
 ### P1.5 Environment hygiene
 
