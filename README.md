@@ -138,8 +138,10 @@ See the [Environment Variables](#environment-variables) section below for detail
 ### 3. Run database migrations
 
 ```bash
-npx drizzle-kit push
+npm run db:migrate
 ```
+
+> **Never run `drizzle-kit push` against a shared or production database.** Migrations in `db/migrations/` are the source of truth. Change `db/schema.ts`, run `npm run db:generate`, review the SQL, commit it, then `npm run db:migrate`. See [docs/runbooks/migrations.md](docs/runbooks/migrations.md).
 
 ### 4. Start the dev server
 
@@ -183,8 +185,10 @@ npm run lint         # ESLint
 npm test             # Run unit tests (Vitest)
 npm run test:watch   # Watch mode
 npm run test:coverage  # Coverage report
-npx drizzle-kit push      # Push schema changes to the database
-npx drizzle-kit studio    # Open Drizzle Studio (visual DB browser)
+npm run db:generate  # Generate a migration from schema.ts changes
+npm run db:migrate   # Apply pending migrations to DATABASE_URL
+npm run db:check     # Check migration history consistency
+npm run db:studio    # Open Drizzle Studio (visual DB browser)
 ```
 
 ---
@@ -211,4 +215,4 @@ Unit and integration tests live in `tests/`, mirroring the `features/` and `lib/
 npm test
 ```
 
-CI runs typecheck, lint, and tests on every push and pull request via GitHub Actions.
+CI runs typecheck, lint, unit tests, and a migration check (fresh Postgres is built from `db/migrations/`, and the job fails if `schema.ts` has changes without a migration) on pushes and pull requests to `main` and `develop`.

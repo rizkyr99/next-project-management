@@ -15,6 +15,13 @@
       "when": 1776331283379,
       "tag": "0001_watery_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794837097833,
+      "tag": "0002_sync_missing_tables",
+      "breakpoints": true
     }
   ]
 }
