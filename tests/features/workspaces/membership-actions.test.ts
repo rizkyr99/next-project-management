@@ -13,6 +13,7 @@ vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
 vi.mock('@/lib/subscription', () => ({ checkWorkspaceLimit: vi.fn() }));
 vi.mock('@/lib/membership', () => ({
+  lockWorkspace: vi.fn(() => ({ kind: 'lock' })),
   unassignFromWorkspaceTasks: vi.fn((userId: string) => ({ kind: 'unassign', userId })),
 }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
@@ -25,7 +26,7 @@ vi.mock('@/lib/authz', async (importOriginal) => {
 import { auth } from '@/lib/auth';
 import { insertActivity } from '@/lib/activity';
 import { AuthzError, requireWorkspaceMember } from '@/lib/authz';
-import { unassignFromWorkspaceTasks } from '@/lib/membership';
+import { lockWorkspace, unassignFromWorkspaceTasks } from '@/lib/membership';
 import { checkWorkspaceLimit } from '@/lib/subscription';
 import { redirect } from 'next/navigation';
 import { removeMember } from '@/features/workspaces/actions';
@@ -37,11 +38,15 @@ const ctx = (role: 'owner' | 'admin' | 'member') => ({ session, workspace: ws, r
 
 /** update().set().where() and delete().where() return markers for inspection. */
 function markers() {
-  db.update.mockImplementation(() => ({
-    set: (values: unknown) => ({ where: () => ({ kind: 'update', values }) }),
-  }));
-  db.delete.mockImplementation(() => ({ where: () => ({ kind: 'delete' }) }));
-  db.batch.mockResolvedValue([]);
+  const marker = (kind: string, values?: unknown) => ({
+    kind,
+    values,
+    returning: () => ({ kind, values, returning: true }),
+  });
+  db.update.mockImplementation(() => ({ set: (values: unknown) => ({ where: () => marker('update', values) }) }));
+  db.delete.mockImplementation(() => ({ where: () => marker('delete') }));
+  // [lock, guarded write, ...]: the guarded write affected one row.
+  db.batch.mockResolvedValue([[{ id: ws.id }], [{ id: 'row' }], []]);
 }
 
 beforeEach(() => {
@@ -50,6 +55,7 @@ beforeEach(() => {
   vi.mocked(unassignFromWorkspaceTasks).mockImplementation(
     (userId: string) => ({ kind: 'unassign', userId }) as never,
   );
+  vi.mocked(lockWorkspace).mockImplementation(() => ({ kind: 'lock' }) as never);
 });
 
 describe('leaveWorkspace', () => {
@@ -66,10 +72,20 @@ describe('leaveWorkspace', () => {
     await leaveWorkspace({ workspaceId: ws.id });
 
     const batch = db.batch.mock.calls[0][0] as { kind: string; userId?: string }[];
-    expect(batch.map((q) => q.kind)).toEqual(['unassign', 'delete']);
+    expect(batch.map((q) => q.kind)).toEqual(['lock', 'delete', 'unassign']);
+    expect(lockWorkspace).toHaveBeenCalledWith(ws.id);
     expect(unassignFromWorkspaceTasks).toHaveBeenCalledWith('u-owner', ws.id);
     expect(insertActivity).toHaveBeenCalledWith(expect.objectContaining({ action: 'member.left' }));
     expect(redirect).toHaveBeenCalledWith('/');
+  });
+
+  it('reports the refusal when ownership moved to them meanwhile (delete matched nothing under the lock)', async () => {
+    vi.mocked(requireWorkspaceMember).mockResolvedValue(ctx('member') as never);
+    db.batch.mockResolvedValue([[{ id: ws.id }], [], []]);
+    const result = await leaveWorkspace({ workspaceId: ws.id });
+    expect(result?.error).toMatch(/Transfer ownership/);
+    expect(insertActivity).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it('returns Not found for a workspace the caller is not in', async () => {
@@ -127,10 +143,24 @@ describe('transferOwnership', () => {
     });
 
     const batch = db.batch.mock.calls[0][0] as { kind: string; values: Record<string, string> }[];
-    expect(batch.map((q) => q.values)).toEqual([{ role: 'owner' }, { role: 'admin' }, { userId: 'u-2' }]);
+    expect(batch.map((q) => q.kind)).toEqual(['lock', 'update', 'update', 'update']);
+    expect(batch.slice(1).map((q) => q.values)).toEqual([{ role: 'owner' }, { role: 'admin' }, { userId: 'u-2' }]);
     expect(insertActivity).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'member.ownership_transferred', metadata: { memberName: 'Theo' } }),
     );
+  });
+});
+
+describe('transferOwnership under concurrency', () => {
+  it('reports a stale transfer (promotion matched nothing under the lock) without logging', async () => {
+    vi.mocked(requireWorkspaceMember).mockResolvedValue(ctx('owner') as never);
+    vi.mocked(checkWorkspaceLimit).mockResolvedValue({ allowed: true, current: 0, limit: 1 });
+    db.select.mockReturnValueOnce(chain([{ id: 'm-2', userId: 'u-2', name: 'Theo' }]));
+    db.batch.mockResolvedValue([[{ id: ws.id }], [], [], []]);
+
+    const result = await transferOwnership({ workspaceId: ws.id, toMemberId: 'm-2' });
+    expect(result.error).toMatch(/changed while you were doing this/);
+    expect(insertActivity).not.toHaveBeenCalled();
   });
 });
 
@@ -145,8 +175,22 @@ describe('removeMember', () => {
 
     expect(await removeMember(ws.slug, 'm-2')).toEqual({ success: true });
     const batch = db.batch.mock.calls[0][0] as { kind: string }[];
-    expect(batch.map((q) => q.kind)).toEqual(['unassign', 'delete']);
+    expect(batch.map((q) => q.kind)).toEqual(['lock', 'delete', 'unassign']);
     expect(unassignFromWorkspaceTasks).toHaveBeenCalledWith('u-2', ws.id);
+  });
+
+  it('reports a removal refused under the lock (e.g. they just became owner) without logging', async () => {
+    vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
+    db.select
+      .mockReturnValueOnce(chain([{ id: ws.id, slug: ws.slug }]))
+      .mockReturnValueOnce(chain([{ role: 'admin' }]))
+      .mockReturnValueOnce(chain([{ id: 'm-2', userId: 'u-2', role: 'member' }]))
+      .mockReturnValueOnce(chain([{ name: 'Theo' }]));
+    db.batch.mockResolvedValue([[{ id: ws.id }], [], []]);
+
+    const result = await removeMember(ws.slug, 'm-2');
+    expect(result?.error).toMatch(/Roles changed/);
+    expect(insertActivity).not.toHaveBeenCalled();
   });
 
   it('still refuses to remove the owner', async () => {

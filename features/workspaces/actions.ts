@@ -5,13 +5,13 @@ import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { auth } from '@/lib/auth';
 import { checkWorkspaceLimit } from '@/lib/subscription';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { isUniqueViolation } from '@/lib/db-errors';
-import { unassignFromWorkspaceTasks } from '@/lib/membership';
+import { lockWorkspace, unassignFromWorkspaceTasks } from '@/lib/membership';
 import { workspaceFormSchema } from './schema';
 
 // Same rules as the client form, enforced again on the server.
@@ -157,13 +157,30 @@ export async function removeMember(workspaceSlug: string, memberId: string) {
     .from(userTable)
     .where(eq(userTable.id, targetMember.userId));
 
-  // Drop their task assignments with the membership, atomically.
-  await db.batch([
-    unassignFromWorkspaceTasks(targetMember.userId, targetWorkspace.id),
+  // Under the workspace lock, re-check what was read above: the target is
+  // still not the owner (ownership may have just moved to them), admins can
+  // still only remove plain members, and the actor still has the authority.
+  // Assignments are only dropped if the removal went through.
+  const actorRole = (roles: string) =>
+    sql`exists (select 1 from ${member} where ${member.workspaceId} = ${targetWorkspace.id} and ${member.userId} = ${session.user.id} and ${member.role} in (${sql.raw(roles)}))`;
+  const [, removed] = await db.batch([
+    lockWorkspace(targetWorkspace.id),
     db
       .delete(member)
-      .where(and(eq(member.id, memberId), eq(member.workspaceId, targetWorkspace.id))),
+      .where(
+        and(
+          eq(member.id, memberId),
+          eq(member.workspaceId, targetWorkspace.id),
+          ne(member.role, 'owner'),
+          or(actorRole("'owner'"), and(eq(member.role, 'member'), actorRole("'admin'"))),
+        ),
+      )
+      .returning({ id: member.id }),
+    unassignFromWorkspaceTasks(targetMember.userId, targetWorkspace.id),
   ]);
+  if (removed.length === 0) {
+    return { error: 'Roles changed while you were doing this. Refresh and try again.' };
+  }
 
   await insertActivity({
     workspaceId: targetWorkspace.id,
@@ -218,7 +235,26 @@ export async function changeMemberRole(
     .from(userTable)
     .where(eq(userTable.id, targetMember.userId));
 
-  await db.update(member).set({ role: newRole }).where(eq(member.id, memberId));
+  // Under the workspace lock: never touch whoever is owner now (ownership may
+  // have just moved to the target), and only while the actor still owns it.
+  const [, changed] = await db.batch([
+    lockWorkspace(targetWorkspace.id),
+    db
+      .update(member)
+      .set({ role: newRole })
+      .where(
+        and(
+          eq(member.id, memberId),
+          eq(member.workspaceId, targetWorkspace.id),
+          ne(member.role, 'owner'),
+          sql`exists (select 1 from ${workspace} where ${workspace.id} = ${targetWorkspace.id} and ${workspace.userId} = ${session.user.id})`,
+        ),
+      )
+      .returning({ id: member.id }),
+  ]);
+  if (changed.length === 0) {
+    return { error: 'Roles changed while you were doing this. Refresh and try again.' };
+  }
 
   await insertActivity({
     workspaceId: targetWorkspace.id,
@@ -256,7 +292,10 @@ export async function deleteWorkspace(workspaceSlug: string) {
     return { error: 'Only the workspace owner can delete this workspace' };
   }
 
-  await db.delete(workspace).where(eq(workspace.id, targetWorkspace.id));
+  // workspace.userId re-checks ownership at write time (it may have just been transferred).
+  await db
+    .delete(workspace)
+    .where(and(eq(workspace.id, targetWorkspace.id), eq(workspace.userId, session.user.id)));
 
   redirect('/create-workspace');
 }

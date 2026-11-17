@@ -105,13 +105,22 @@ function TaskDetailBody({
   members: Person[];
   currentUserId: string;
 }) {
-  // Optimistic edits sit on top of the server data until the next refresh
-  // brings the saved values back (or a failure rolls them back).
+  // Optimistic edits sit on top of the server data. A refresh drops only the
+  // overrides with no save in flight: a refresh triggered by one save must
+  // not erase a newer edit that's still saving (e.g. two quick assignee
+  // toggles), or the next edit would be built on stale values.
   const [overrides, setOverrides] = useState<Overrides>({});
+  const [inFlight, setInFlight] = useState<Partial<Record<keyof Overrides, number>>>({});
   const [serverTask, setServerTask] = useState(task);
   if (serverTask !== task) {
     setServerTask(task);
-    setOverrides({});
+    setOverrides((prev) => {
+      const kept: Overrides = {};
+      for (const key of Object.keys(prev) as (keyof Overrides)[]) {
+        if ((inFlight[key] ?? 0) > 0) Object.assign(kept, { [key]: prev[key] });
+      }
+      return kept;
+    });
   }
 
   const [editingTitle, setEditingTitle] = useState(false);
@@ -137,7 +146,15 @@ function TaskDetailBody({
 
   async function save<K extends keyof Overrides>(key: K, value: Overrides[K], action: () => Promise<{ error?: string }>) {
     setOverrides((prev) => ({ ...prev, [key]: value }));
-    const result = await action();
+    setInFlight((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+    let result: { error?: string };
+    try {
+      result = await action();
+    } catch {
+      result = { error: 'Something went wrong. Please try again.' };
+    } finally {
+      setInFlight((prev) => ({ ...prev, [key]: Math.max(0, (prev[key] ?? 0) - 1) }));
+    }
     if (result.error !== undefined) {
       toast.error(result.error, { position: 'top-center' });
       setOverrides((prev) => {

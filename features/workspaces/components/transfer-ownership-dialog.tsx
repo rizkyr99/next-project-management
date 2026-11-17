@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { useResetOnOpen } from '@/hooks/use-reset-on-open';
 import { transferOwnership } from '../membership-actions';
 
 /** Confirms handing the workspace to another member (type their name). */
@@ -32,10 +33,7 @@ export function TransferOwnershipDialog({
   const [confirmation, setConfirmation] = useState('');
   const [isPending, startTransition] = useTransition();
 
-  const handleOpenChange = (next: boolean) => {
-    if (next) setConfirmation('');
-    onOpenChange(next);
-  };
+  useResetOnOpen(open, () => setConfirmation(''));
 
   const transfer = () =>
     startTransition(async () => {
@@ -50,7 +48,7 @@ export function TransferOwnershipDialog({
     });
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Transfer ownership</DialogTitle>

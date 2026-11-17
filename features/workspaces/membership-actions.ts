@@ -4,9 +4,9 @@ import { db } from '@/db/drizzle';
 import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { type ActionResult, requireWorkspaceMember, toActionError } from '@/lib/authz';
-import { unassignFromWorkspaceTasks } from '@/lib/membership';
+import { lockWorkspace, unassignFromWorkspaceTasks } from '@/lib/membership';
 import { checkWorkspaceLimit } from '@/lib/subscription';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -31,9 +31,10 @@ export async function leaveWorkspace(values: z.input<typeof leaveSchema>): Promi
     }
     const userId = ctx.session.user.id;
 
-    await db.batch([
-      unassignFromWorkspaceTasks(userId, ctx.workspace.id),
-      // ne(owner) repeats the guard in SQL, in case the role changed meanwhile.
+    const [, removed] = await db.batch([
+      lockWorkspace(ctx.workspace.id),
+      // ne(owner) repeats the guard under the lock, in case ownership was
+      // transferred to them meanwhile.
       db
         .delete(member)
         .where(
@@ -42,8 +43,13 @@ export async function leaveWorkspace(values: z.input<typeof leaveSchema>): Promi
             eq(member.userId, userId),
             ne(member.role, 'owner'),
           ),
-        ),
+        )
+        .returning({ id: member.id }),
+      unassignFromWorkspaceTasks(userId, ctx.workspace.id),
     ]);
+    if (removed.length === 0) {
+      return { error: 'Transfer ownership to another member before leaving this workspace.' };
+    }
 
     await insertActivity({
       workspaceId: ctx.workspace.id,
@@ -94,11 +100,25 @@ export async function transferOwnership(values: z.input<typeof transferSchema>):
       };
     }
 
-    await db.batch([
+    // Under the workspace lock, every write requires the current state: the
+    // caller still owns it, and the recipient is still a member. The demotion
+    // and the billing move only happen if the promotion did.
+    const targetIsOwner = sql`exists (select 1 from ${member} where ${member.id} = ${target.id} and ${member.role} = 'owner')`;
+    const [, promoted] = await db.batch([
+      lockWorkspace(ctx.workspace.id),
       db
         .update(member)
         .set({ role: 'owner' })
-        .where(and(eq(member.id, target.id), eq(member.workspaceId, ctx.workspace.id))),
+        .where(
+          and(
+            eq(member.id, target.id),
+            eq(member.workspaceId, ctx.workspace.id),
+            eq(member.userId, target.userId),
+            ne(member.role, 'owner'),
+            sql`exists (select 1 from ${workspace} where ${workspace.id} = ${ctx.workspace.id} and ${workspace.userId} = ${fromUserId})`,
+          ),
+        )
+        .returning({ id: member.id }),
       db
         .update(member)
         .set({ role: 'admin' })
@@ -107,13 +127,17 @@ export async function transferOwnership(values: z.input<typeof transferSchema>):
             eq(member.workspaceId, ctx.workspace.id),
             eq(member.userId, fromUserId),
             eq(member.role, 'owner'),
+            targetIsOwner,
           ),
         ),
       db
         .update(workspace)
         .set({ userId: target.userId })
-        .where(and(eq(workspace.id, ctx.workspace.id), eq(workspace.userId, fromUserId))),
+        .where(and(eq(workspace.id, ctx.workspace.id), eq(workspace.userId, fromUserId), targetIsOwner)),
     ]);
+    if (promoted.length === 0) {
+      return { error: 'The workspace changed while you were doing this. Refresh and try again.' };
+    }
 
     await insertActivity({
       workspaceId: ctx.workspace.id,

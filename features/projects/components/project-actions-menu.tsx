@@ -24,6 +24,7 @@ import { SidebarMenuAction } from '@/components/ui/sidebar';
 import { unstable_rethrow } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { useResetOnOpen } from '@/hooks/use-reset-on-open';
 import { deleteProject, updateProject } from '../actions';
 
 export interface ProjectSummary {
@@ -111,13 +112,10 @@ function EditProjectDialog({
   const [isPending, startTransition] = useTransition();
 
   // Start from the current values every time the dialog opens.
-  const handleOpenChange = (next: boolean) => {
-    if (next) {
-      setName(project.name);
-      setDescription(project.description ?? '');
-    }
-    onOpenChange(next);
-  };
+  useResetOnOpen(open, () => {
+    setName(project.name);
+    setDescription(project.description ?? '');
+  });
 
   const save = () =>
     startTransition(async () => {
@@ -133,7 +131,7 @@ function EditProjectDialog({
   const trimmed = name.trim();
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit project</DialogTitle>
@@ -192,10 +190,7 @@ function DeleteProjectDialog({
   const [confirmation, setConfirmation] = useState('');
   const [isPending, startTransition] = useTransition();
 
-  const handleOpenChange = (next: boolean) => {
-    if (next) setConfirmation('');
-    onOpenChange(next);
-  };
+  useResetOnOpen(open, () => setConfirmation(''));
 
   const remove = () =>
     startTransition(async () => {
@@ -210,7 +205,7 @@ function DeleteProjectDialog({
     });
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete project</DialogTitle>
