@@ -323,6 +323,15 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
         };
       }
 
+      // The emailed token proves they read this mailbox, and the invite's
+      // address matched theirs (evaluateInvite), so that's a verification.
+      if ('token' in ref && !session.user.emailVerified) {
+        await db
+          .update(user)
+          .set({ emailVerified: true })
+          .where(and(eq(user.id, session.user.id), sql`lower(${user.email}) = ${invite.email.toLowerCase()}`));
+      }
+
       await insertActivity({
         workspaceId: invite.workspaceId,
         actorId: session.user.id,

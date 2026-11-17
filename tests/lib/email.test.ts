@@ -9,7 +9,13 @@ vi.mock('resend', () => ({
 }));
 
 import * as Sentry from '@sentry/nextjs';
-import { emailFrom, isReservedTestAddress, sendPasswordResetEmail, sendWorkspaceInviteEmail } from '@/lib/email';
+import {
+  emailFrom,
+  isReservedTestAddress,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+  sendWorkspaceInviteEmail,
+} from '@/lib/email';
 
 const invite = {
   inviterName: 'Ada',
@@ -89,5 +95,25 @@ describe('sendPasswordResetEmail', () => {
     expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
       tags: { area: 'email', template: 'password-reset' },
     });
+  });
+});
+
+describe('sendVerificationEmail', () => {
+  const verify = { name: 'Ada', verifyUrl: 'https://tide.example.com/api/auth/verify-email?token=t&callbackURL=%2Femail-verified' };
+
+  it('never contacts Resend for reserved test addresses', async () => {
+    send.mockClear();
+    expect(await sendVerificationEmail({ ...verify, to: 'e2e@example.com' })).toEqual({ sent: false });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sends the link in both parts', async () => {
+    send.mockClear();
+    send.mockResolvedValue({ data: { id: 'msg_3' }, error: null });
+    expect(await sendVerificationEmail({ ...verify, to: 'someone@gmail.com' })).toEqual({ sent: true });
+    const arg = send.mock.calls[0][0];
+    expect(arg.subject).toBe('Confirm your email for Tide');
+    expect(arg.text).toContain(verify.verifyUrl);
+    expect(arg.html).toContain('verify-email?token=t');
   });
 });

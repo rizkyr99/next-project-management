@@ -37,4 +37,23 @@ export const auth = betterAuth({
       });
     },
   },
+  // P3.2: email verification, as a soft gate. Unverified users can use the
+  // app but can't accept invites from /invites or get email notifications
+  // (see the banner in the workspace layout). Google accounts arrive
+  // verified.
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60 * 24,
+    sendVerificationEmail: async ({ user, url }) => {
+      // Always land on our confirmation page (it also explains bad or
+      // expired links), whatever callback the sign-up form passed.
+      const verifyUrl = new URL(url);
+      verifyUrl.searchParams.set('callbackURL', '/email-verified');
+      after(async () => {
+        const { sendVerificationEmail } = await import('@/lib/email');
+        await sendVerificationEmail({ to: user.email, name: user.name, verifyUrl: verifyUrl.toString() });
+      });
+    },
+  },
 });

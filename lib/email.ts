@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { siteUrl } from '@/lib/site';
 import { WorkspaceInviteEmail, workspaceInviteText } from '@/emails/workspace-invite';
 import { PasswordResetEmail, passwordResetText } from '@/emails/password-reset';
+import { VerifyEmail, verifyEmailText } from '@/emails/verify-email';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -110,6 +111,39 @@ export async function sendPasswordResetEmail({
   } catch (err) {
     console.error('[email] password reset send failed:', err);
     Sentry.captureException(err, { tags: { area: 'email', template: 'password-reset' } });
+    return { sent: false };
+  }
+}
+
+/** Sends the email-verification link. Never throws; failures go to Sentry. */
+export async function sendVerificationEmail({
+  to,
+  name,
+  verifyUrl,
+}: {
+  to: string;
+  name: string;
+  verifyUrl: string;
+}): Promise<{ sent: boolean }> {
+  if (isReservedTestAddress(to)) {
+    console.info('[email] skipped verification to reserved test address');
+    return { sent: false };
+  }
+  const props = { name, verifyUrl, appUrl: APP_URL };
+  try {
+    const html = await render(VerifyEmail(props));
+    const { error } = await resend.emails.send({
+      from: emailFrom(),
+      to,
+      subject: 'Confirm your email for Tide',
+      html,
+      text: verifyEmailText(props),
+    });
+    if (error) throw new Error(`Resend: ${error.name ?? ''} ${error.message}`);
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] verification send failed:', err);
+    Sentry.captureException(err, { tags: { area: 'email', template: 'verify-email' } });
     return { sent: false };
   }
 }
