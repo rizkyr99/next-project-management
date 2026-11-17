@@ -10,9 +10,11 @@ import 'server-only';
  * across the reconnect.
  */
 
-/** Use as `export const maxDuration = SSE_MAX_DURATION` in each stream route. */
-export const SSE_MAX_DURATION = 300;
-/** Close well before maxDuration, so a slow last poll still fits. */
+/**
+ * Stream routes set `export const maxDuration = 300` (a literal: Next reads
+ * segment config statically). Close well before that, so a slow last poll
+ * still fits.
+ */
 const LIFETIME_MS = 240_000;
 const RETRY_MS = 1_000;
 

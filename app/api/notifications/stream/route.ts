@@ -1,12 +1,13 @@
 import { db } from '@/db/drizzle';
 import { notification } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { pollingStream, SSE_MAX_DURATION } from '@/lib/sse';
+import { pollingStream } from '@/lib/sse';
 import { and, desc, eq, gt } from 'drizzle-orm';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = SSE_MAX_DURATION;
+// Must be a literal (Next reads it statically); see lib/sse.ts.
+export const maxDuration = 300;
 
 type Row = typeof notification.$inferSelect;
 const toPayload = (rows: Row[]) => ({

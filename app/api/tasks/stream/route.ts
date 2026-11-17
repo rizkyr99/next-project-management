@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { projectSnapshot } from '@/features/tasks/snapshot';
 import { requireProjectAccess, toErrorResponse } from '@/lib/authz';
-import { pollingStream, SSE_MAX_DURATION } from '@/lib/sse';
+import { pollingStream } from '@/lib/sse';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = SSE_MAX_DURATION;
+// Must be a literal (Next reads it statically); see lib/sse.ts.
+export const maxDuration = 300;
 
 /**
  * Tells an open board when anything on it changed, so it refreshes.
