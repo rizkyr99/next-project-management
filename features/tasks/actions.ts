@@ -24,9 +24,11 @@ import {
   bulkUpdateStatusSchema,
   commentBodySchema,
   createTaskSchema,
+  deleteTaskSchema,
   reorderTasksSchema,
   idSchema,
   updateTaskAssigneesSchema,
+  updateTaskDescriptionSchema,
   updateTaskDueDateSchema,
   updateTaskPrioritySchema,
   updateTaskStatusSchema,
@@ -50,7 +52,7 @@ export type CommentWithAuthor = {
 //   3. scopes every write to the project/task it was authorized for.
 // IDs and project context sent by the client are never trusted on their own.
 
-export async function createTask(values: z.infer<typeof createTaskSchema>): Promise<ActionResult<{ task: Task }>> {
+export async function createTask(values: z.input<typeof createTaskSchema>): Promise<ActionResult<{ task: Task }>> {
   try {
     const input = createTaskSchema.parse(values);
     const ctx = await requireProjectAccess(input.projectId);
@@ -61,6 +63,7 @@ export async function createTask(values: z.infer<typeof createTaskSchema>): Prom
       .insert(task)
       .values({
         title: input.title,
+        description: input.description ?? null,
         dueDate: input.dueDate,
         order: input.order,
         projectId: ctx.project.id,
@@ -211,6 +214,62 @@ export async function updateTaskTitle(taskId: string, title: string): Promise<Ac
     return { success: true };
   } catch (error) {
     return toActionError(error, 'Failed to update title.');
+  }
+}
+
+export async function updateTaskDescription(
+  values: z.input<typeof updateTaskDescriptionSchema>,
+): Promise<ActionResult> {
+  try {
+    const input = updateTaskDescriptionSchema.parse(values);
+    const ctx = await requireTaskAccess(input.taskId);
+
+    await db
+      .update(task)
+      .set({ description: input.description })
+      .where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.description_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Failed to update description.');
+  }
+}
+
+/**
+ * Deletes one task (comments and assignees cascade). Any member of the
+ * workspace may delete, matching bulkDeleteTasks. The board's undo window
+ * is client-side: this is only called once it has passed.
+ */
+export async function deleteTask(values: z.input<typeof deleteTaskSchema>): Promise<ActionResult> {
+  try {
+    const input = deleteTaskSchema.parse(values);
+    const ctx = await requireTaskAccess(input.taskId);
+
+    await db.delete(task).where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.deleted',
+      projectId: ctx.project.id,
+      taskId: null,
+      metadata: { taskTitle: ctx.task.title },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Failed to delete task.');
   }
 }
 

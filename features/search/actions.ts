@@ -12,6 +12,8 @@ export interface SearchResult {
   title: string;
   subtitle: string;
   projectId: string;
+  /** Set for tasks and comments: opens that task's sheet. */
+  taskId?: string;
   workspaceSlug: string;
 }
 
@@ -83,6 +85,7 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
     title: t.title,
     subtitle: `${projectMap[t.projectId] ?? 'Unknown project'} · ${t.statusName}`,
     projectId: t.projectId,
+    taskId: t.id,
     workspaceSlug,
   }));
 
@@ -101,6 +104,7 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
     title: c.body.length > 60 ? c.body.slice(0, 60) + '…' : c.body,
     subtitle: `Comment on: ${c.taskTitle}`,
     projectId: c.projectId,
+    taskId: c.taskId,
     workspaceSlug,
   }));
 

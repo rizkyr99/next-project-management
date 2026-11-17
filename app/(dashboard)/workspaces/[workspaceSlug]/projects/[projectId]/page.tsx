@@ -12,6 +12,8 @@ import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { ProjectActionsMenu } from '@/features/projects/components/project-actions-menu';
 import type { Metadata } from 'next';
+import { createHash } from 'node:crypto';
+import { TaskDetailSheet } from '@/features/tasks/components/task-detail/task-detail-sheet';
 
 type View = 'board' | 'list' | 'table';
 
@@ -102,6 +104,30 @@ export default async function ProjectIdPage({
       : [];
   const commentCountMap = Object.fromEntries(commentCounts.map((r) => [r.taskId, r.count]));
 
+  // The views keep local state (drag and drop, optimistic edits); remount
+  // them whenever the server data they show changes (columns, order, or any
+  // task field).
+  const boardKey = createHash('sha1')
+    .update(
+      JSON.stringify(
+        data.statuses.map((s) => [
+          s.id,
+          s.name,
+          s.color,
+          s.isDefault,
+          s.tasks.map((t) => [
+            t.id,
+            t.title,
+            t.priority,
+            t.dueDate?.getTime() ?? null,
+            Boolean(t.description),
+            t.assignees.map((a) => a.user.id),
+          ]),
+        ]),
+      ),
+    )
+    .digest('base64url');
+
   return (
     <div className='h-full flex flex-col'>
       <div className='px-4 py-2 space-y-2 border-b'>
@@ -130,22 +156,22 @@ export default async function ProjectIdPage({
         </Suspense>
       </div>
       {currentView === 'board' && (
-        <BoardView
-          boardKey={`${data.statuses
-            .map((s) => `${s.id}:${s.name}:${s.color ?? ''}:${s.isDefault ? 1 : 0}`)
-            .join('|')}#${allTaskIds.join(',')}`}
-          project={data}
-          workspaceMembers={workspaceMembers}
-          currentUserId={session.user.id}
-          commentCountMap={commentCountMap}
-        />
+        <BoardView boardKey={boardKey} project={data} commentCountMap={commentCountMap} />
       )}
       {currentView === 'list' && (
-        <ListView project={data} workspaceMembers={workspaceMembers} />
+        <ListView key={boardKey} project={data} workspaceMembers={workspaceMembers} />
       )}
       {currentView === 'table' && (
-        <TableView project={data} workspaceMembers={workspaceMembers} />
+        <TableView key={boardKey} project={data} workspaceMembers={workspaceMembers} />
       )}
+      <Suspense>
+        <TaskDetailSheet
+          projectId={data.id}
+          statuses={data.statuses}
+          members={workspaceMembers}
+          currentUserId={session.user.id}
+        />
+      </Suspense>
     </div>
   );
 }

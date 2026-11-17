@@ -307,8 +307,10 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 5. Allow an optional `description` in `createTaskSchema`, and show a small "has description" icon on board cards.
 
 **Done when**
-- [ ] Opening a task from a notification, search or a pasted URL opens the right task.
-- [ ] `task-card.tsx` is under ~200 lines.
+- [x] Opening a task from search, activity, My tasks or a pasted URL opens the right task. Notifications follow in P2.5, which adds the `taskId`/`href` columns they need.
+- [x] `task-card.tsx` is under ~200 lines (now ~100; the sheet lives in `task-detail/`).
+
+**Notes:** delete uses a client-side 5 s undo window (the server delete runs only after it), so Undo needs no restore path. A link to a missing task shows "That task no longer exists." No task emails exist yet, so there were none to update.
 
 ### P2.4 Membership lifecycle
 

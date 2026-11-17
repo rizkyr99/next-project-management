@@ -5,22 +5,26 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { getWorkspaceActivity } from '../actions';
 import { ActivityItem } from './activity-item';
+import { taskHref } from '@/features/tasks/task-link';
 
 type ActivityRow = {
   id: string;
   action: string;
   metadata: Record<string, string> | null;
   createdAt: Date;
+  taskId?: string | null;
+  projectId?: string | null;
   actor: { id: string; name: string; image: string | null };
 };
 
 interface ActivityFeedProps {
   workspaceId: string;
+  workspaceSlug: string;
   initialItems: ActivityRow[];
   initialNextCursor: string | null;
 }
 
-export function ActivityFeed({ workspaceId, initialItems, initialNextCursor }: ActivityFeedProps) {
+export function ActivityFeed({ workspaceId, workspaceSlug, initialItems, initialNextCursor }: ActivityFeedProps) {
   const [items, setItems] = useState<ActivityRow[]>(initialItems);
   const [cursor, setCursor] = useState<string | null>(initialNextCursor);
   const [loading, setLoading] = useState(false);
@@ -56,6 +60,11 @@ export function ActivityFeed({ workspaceId, initialItems, initialNextCursor }: A
           metadata={item.metadata}
           createdAt={item.createdAt}
           actor={item.actor}
+          href={
+            item.taskId && item.projectId
+              ? taskHref(workspaceSlug, item.projectId, item.taskId)
+              : undefined
+          }
         />
       ))}
       {cursor && (

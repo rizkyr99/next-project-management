@@ -60,10 +60,18 @@ test('manage board columns without losing tasks', async ({ page }) => {
   // focus its grip, pick it up with Space, move left twice, drop with Space.
   // This is deterministic, unlike a raw mouse drag over animating columns.
   const grip = page.getByRole('button', { name: 'Reorder column QA' });
+  // Each step is confirmed through dnd-kit's live-region announcement, so
+  // the next key press never races the previous step's animation.
+  const announcer = page.locator('[id^="DndLiveRegion"]');
+  const step = async (key: string) => {
+    const before = await announcer.textContent();
+    await page.keyboard.press(key);
+    await expect(announcer).not.toHaveText(before ?? '');
+  };
   await grip.focus();
-  await page.keyboard.press('Space');
-  await page.keyboard.press('ArrowLeft');
-  await page.keyboard.press('ArrowLeft');
+  await step('Space');
+  await step('ArrowLeft');
+  await step('ArrowLeft');
   // The board reorders optimistically; wait for the server action to finish
   // saving before reloading, or the reload can cancel it.
   const saved = page.waitForResponse(

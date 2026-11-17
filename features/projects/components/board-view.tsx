@@ -4,7 +4,9 @@ import { reorderTasks } from '@/features/tasks/actions';
 import { reorderStatuses } from '@/features/projects/status-actions';
 import { AddColumn, type ColumnInfo } from '@/features/projects/components/column-controls';
 import { BoardColumn, columnDragId } from '@/features/tasks/components/board-column';
-import { TaskCard } from '@/features/tasks/components/task-card';
+import { cardClassName, TaskCardPreview } from '@/features/tasks/components/task-card';
+import type { TaskData } from '@/features/tasks/components/task-meta';
+import { usePendingDeletes } from '@/features/tasks/pending-deletes';
 import { useTaskStream } from '@/features/tasks/hooks/use-task-stream';
 import {
   closestCenter,
@@ -27,7 +29,7 @@ import {
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 const isColumnEntry = (entry: { data: { current?: { type?: string } } } | undefined) =>
@@ -67,16 +69,7 @@ const boardKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
   });
 };
 
-interface WorkspaceMember {
-  id: string;
-  name: string;
-  email: string;
-  image: string | null;
-}
-
 interface BoardViewProps {
-  workspaceMembers?: WorkspaceMember[];
-  currentUserId?: string;
   commentCountMap?: Record<string, number>;
   project?: {
     id: string;
@@ -85,29 +78,25 @@ interface BoardViewProps {
       name: string;
       color?: string | null;
       isDefault?: boolean | null;
-      tasks: {
-        id: string;
-        title: string;
-        priority: 'low' | 'medium' | 'high';
-        dueDate?: Date | null;
-        assignees: {
-          user: {
-            id: string;
-            name: string;
-            email?: string;
-            image?: string | null;
-          };
-        }[];
-      }[];
+      tasks: TaskData[];
     }[];
   };
 }
 
-export function BoardView({ project, workspaceMembers = [], currentUserId = '', commentCountMap = {} }: BoardViewProps) {
+export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
   useTaskStream(project?.id ?? '');
-  const [statuses, setStatuses] = useState(project?.statuses ?? []);
+  const [allStatuses, setStatuses] = useState(project?.statuses ?? []);
+  // Tasks inside their undo window are hidden everywhere, drag logic included.
+  const hidden = usePendingDeletes();
+  const statuses = useMemo(
+    () =>
+      hidden.size === 0
+        ? allStatuses
+        : allStatuses.map((s) => ({ ...s, tasks: s.tasks.filter((t) => !hidden.has(t.id)) })),
+    [allStatuses, hidden],
+  );
 
-  const handleTaskCreated = (statusId: string, newTask: { id: string; title: string; priority: 'low' | 'medium' | 'high'; dueDate: Date | null; assignees: [] }) => {
+  const handleTaskCreated = (statusId: string, newTask: TaskData) => {
     setStatuses((prev) =>
       prev.map((s) =>
         s.id === statusId ? { ...s, tasks: [...s.tasks, { ...newTask, statusId }] } : s,
@@ -331,11 +320,7 @@ export function BoardView({ project, workspaceMembers = [], currentUserId = '', 
             color={status.color ?? null}
             isDefault={Boolean(status.isDefault)}
             columns={columnInfos}
-            projectId={project!.id}
-            statuses={statuses.map((s) => ({ id: s.id, name: s.name }))}
             tasks={status.tasks.map((t) => ({ ...t, commentCount: commentCountMap[t.id] ?? 0 }))}
-            availableAssignees={workspaceMembers}
-            currentUserId={currentUserId}
             onTaskCreated={(newTask) => handleTaskCreated(status.id, newTask)}
           />
         ))}
@@ -348,18 +333,9 @@ export function BoardView({ project, workspaceMembers = [], currentUserId = '', 
             {statuses.find((s) => s.id === activeColumnId)?.name}
           </div>
         ) : activeTask ? (
-          <TaskCard
-            id={activeTask.id}
-            title={activeTask.title}
-            priority={activeTask.priority}
-            dueDate={activeTask.dueDate}
-            statusId={statuses.find((s) => s.tasks.some((t) => t.id === activeTask.id))?.id ?? ''}
-            projectId={project!.id}
-            statuses={statuses.map((s) => ({ id: s.id, name: s.name }))}
-            assignees={activeTask.assignees}
-            availableAssignees={workspaceMembers}
-            currentUserId={currentUserId}
-          />
+          <div className={cardClassName}>
+            <TaskCardPreview task={activeTask} commentCount={commentCountMap[activeTask.id] ?? 0} />
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>
