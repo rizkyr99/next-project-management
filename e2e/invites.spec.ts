@@ -95,6 +95,10 @@ test.describe('Workspace invites', () => {
       where lower(u.email) = ${inviteeEmail} and w.slug = ${owner.slug}`;
     expect(membership?.role).toBe('admin');
 
+    // Accepting does not verify the address: the inviter can see the link too.
+    const [verified] = await sql`select email_verified from "user" where lower(email) = ${inviteeEmail}`;
+    expect(verified.email_verified).toBe(false);
+
     // Reusing the link afterwards is a no-op that points back into the workspace.
     await invitee.page.goto(invitePath);
     await expect(invitee.page.getByText('Invite already accepted')).toBeVisible();

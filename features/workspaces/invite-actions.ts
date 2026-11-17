@@ -323,6 +323,10 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
         };
       }
 
+      // Accepting does NOT verify the email: the inviter also sees the invite
+      // link, so the token doesn't prove the invitee reads this mailbox.
+      // Verification only comes from Better Auth's own emailed link.
+
       await insertActivity({
         workspaceId: invite.workspaceId,
         actorId: session.user.id,

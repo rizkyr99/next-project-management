@@ -19,6 +19,7 @@ import { ChangePasswordForm } from '@/features/account/components/change-passwor
 import { DeleteAccountSection } from '@/features/account/components/delete-account-section';
 import { getOwnedWorkspaces } from '@/lib/account';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Account' };
 
@@ -148,6 +149,19 @@ export default async function AccountPage() {
               })}
             </span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Email notifications */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Email notifications</CardTitle>
+          <CardDescription>Choose which emails Tide sends you.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href='/settings/notifications' className='text-sm font-medium underline underline-offset-4'>
+            Manage email preferences
+          </Link>
         </CardContent>
       </Card>
 

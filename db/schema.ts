@@ -267,6 +267,8 @@ export const task = pgTable(
   (table) => [
     index('task_projectId_idx').on(table.projectId),
     index('task_statusId_idx').on(table.statusId),
+    // The daily due-soon job scans by due date.
+    index('task_dueDate_idx').on(table.dueDate),
   ],
 );
 
@@ -279,6 +281,9 @@ export const taskAssignee = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    // The due date this assignee was last reminded about (P3.3). The daily
+    // job reminds again only if the task's due date has changed since.
+    dueSoonNotifiedFor: timestamp('due_soon_notified_for', { withTimezone: true }),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.taskId, table.userId] }),
@@ -437,6 +442,26 @@ export const notification = pgTable(
     index('notification_userId_createdAt_idx').on(table.userId, table.createdAt.desc()),
   ],
 );
+
+/**
+ * Per-user email choices (P3.4). No row means the defaults: emails for
+ * assignments and mentions on, daily digest off. In-app notifications are
+ * always on; these only control email, which also requires a verified address.
+ */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  emailOnAssign: boolean('email_on_assign').default(true).notNull(),
+  emailOnMention: boolean('email_on_mention').default(true).notNull(),
+  emailDigest: boolean('email_digest').default(false).notNull(),
+  // When the last digest went out; notifications after this go in the next one.
+  digestLastSentAt: timestamp('digest_last_sent_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 export const notificationRelations = relations(notification, ({ one }) => ({
   user: one(user, { fields: [notification.userId], references: [user.id] }),

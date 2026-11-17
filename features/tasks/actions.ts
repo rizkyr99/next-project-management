@@ -4,6 +4,8 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import z from 'zod';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
+import { emailTaskNotification } from '@/lib/notification-emails';
 import { db } from '@/db/drizzle';
 import { comment, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
@@ -340,6 +342,9 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
   try {
     const input = updateTaskAssigneesSchema.parse({ taskId, assigneeIds });
     const ctx = await requireTaskAccess(input.taskId);
+    // Before any write: assigning can email people, so toggling someone on
+    // and off must not become a way to flood their inbox.
+    await enforceRateLimit('assignees', ctx.session.user.id);
     const nextIds = [...new Set(input.assigneeIds)];
     await assertWorkspaceMembers(nextIds, ctx.workspace.id);
     const taskLink = notificationLink(ctx);
@@ -377,6 +382,15 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
         })),
       );
     }
+    after(() =>
+      emailTaskNotification({
+        kind: 'assigned',
+        userIds: notifyIds,
+        actorName: ctx.session.user.name,
+        taskTitle: ctx.task.title,
+        href: taskLink.href,
+      }),
+    );
 
     revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
 
@@ -491,6 +505,16 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
               taskTitle: ctx.task.title,
               ...taskLink,
             })),
+          );
+          after(() =>
+            emailTaskNotification({
+              kind: 'mentioned',
+              userIds: mentioned.map((u) => u.id),
+              actorName: ctx.session.user.name,
+              taskTitle: ctx.task.title,
+              href: taskLink.href,
+              excerpt: text,
+            }),
           );
         }
       } catch (notifyError) {

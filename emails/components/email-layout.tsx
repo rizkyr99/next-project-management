@@ -20,6 +20,7 @@ export function EmailLayout({
   appUrl,
   children,
   footerNote,
+  preferencesUrl,
 }: {
   /** Inbox preview text (the grey line after the subject). */
   preview: string;
@@ -27,6 +28,8 @@ export function EmailLayout({
   children: ReactNode;
   /** Why the recipient got this email. */
   footerNote: string;
+  /** Notification emails link to the page where they can be turned off. */
+  preferencesUrl?: string;
 }) {
   return (
     <Html lang='en'>
@@ -38,6 +41,13 @@ export function EmailLayout({
           <Section style={card}>{children}</Section>
           <Hr style={hr} />
           <Text style={footer}>{footerNote}</Text>
+          {preferencesUrl && (
+            <Text style={footer}>
+              <Link href={preferencesUrl} style={footerLink}>
+                Manage email preferences
+              </Link>
+            </Text>
+          )}
           <Text style={footer}>
             Sent by <Link href={appUrl} style={footerLink}>Tide</Link>, project management for small
             teams.

@@ -12,6 +12,13 @@ const db = vi.hoisted(() => ({
 vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
+vi.mock('@/lib/notification-emails', () => ({ emailTaskNotification: vi.fn() }));
+vi.mock('@/lib/rate-limit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/rate-limit')>();
+  return { ...actual, enforceRateLimit: vi.fn() };
+});
+// after() needs a request scope; run the callback inline so it can be asserted.
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => fn() }));
 
 // Keep the real error classes and toActionError; stub the DB-backed checks so
 // each action can be tested against "allowed" and "denied" outcomes.
@@ -30,6 +37,8 @@ vi.mock('@/lib/authz', async (importOriginal) => {
 
 import { revalidatePath } from 'next/cache';
 import { insertActivity } from '@/lib/activity';
+import { emailTaskNotification } from '@/lib/notification-emails';
+import { enforceRateLimit, RateLimitError } from '@/lib/rate-limit';
 import {
   AuthzError,
   UnauthenticatedError,
@@ -310,6 +319,15 @@ describe('deleteTask', () => {
 });
 
 describe('updateTaskAssignees', () => {
+  it('is rate limited per actor before any write (each assignment can send an email)', async () => {
+    vi.mocked(enforceRateLimit).mockRejectedValue(new RateLimitError(30));
+    const result = await updateTaskAssignees(TASK, ['user-2']);
+    expect(result.error).toMatch(/Too many requests/);
+    expect(enforceRateLimit).toHaveBeenCalledWith('assignees', 'user-1');
+    expectNoWrites();
+    expect(emailTaskNotification).not.toHaveBeenCalled();
+  });
+
   it('refuses to assign users outside the workspace', async () => {
     vi.mocked(assertWorkspaceMembers).mockImplementation(denied);
     expect(await updateTaskAssignees(TASK, ['outsider'])).toEqual({ error: 'Not found.' });
@@ -337,6 +355,13 @@ describe('task notifications link to the task', () => {
       }));
 
     expect(await updateTaskAssignees(TASK, ['user-2'])).toEqual({ success: true });
+    expect(emailTaskNotification).toHaveBeenCalledWith({
+      kind: 'assigned',
+      userIds: ['user-2'],
+      actorName: 'Alice',
+      taskTitle: 'Ship it',
+      href,
+    });
     expect(written).toEqual([
       expect.objectContaining({
         userId: 'user-2',
@@ -363,6 +388,9 @@ describe('task notifications link to the task', () => {
 
     await addComment(TASK, 'hi @Bob');
     expect(written).toEqual([expect.objectContaining({ type: 'comment_mention', taskId: TASK, href })]);
+    expect(emailTaskNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'mentioned', userIds: ['user-2'], href, excerpt: 'hi @Bob' }),
+    );
   });
 });
 

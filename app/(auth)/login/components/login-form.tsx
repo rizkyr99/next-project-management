@@ -16,6 +16,7 @@ import { authClient } from '@/lib/auth-client';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import Link from 'next/link';
 
 const loginSchema = z.object({
   email: z.email('Invalid email address'),
@@ -98,6 +99,11 @@ export function LoginForm({ callbackURL = '/' }: { callbackURL?: string }) {
                     onCheckedChange={field.onChange}
                   />
                   <Label htmlFor='rememberMe'>Remember me</Label>
+                  <Link
+                    href='/forgot-password'
+                    className='ml-auto text-sm text-blue-500 hover:underline'>
+                    Forgot password?
+                  </Link>
                 </div>
               </FormControl>
             </FormItem>

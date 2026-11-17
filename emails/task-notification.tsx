@@ -1,0 +1,97 @@
+import { Button, Heading, Link, Text } from '@react-email/components';
+import { EmailLayout } from './components/email-layout';
+
+export interface TaskNotificationEmailProps {
+  kind: 'assigned' | 'mentioned';
+  actorName: string;
+  taskTitle: string;
+  /** The comment text, for mentions (shortened). */
+  excerpt?: string;
+  taskUrl: string;
+  appUrl: string;
+  preferencesUrl: string;
+}
+
+const COPY = {
+  assigned: { verb: 'assigned you to', heading: 'You have a new task' },
+  mentioned: { verb: 'mentioned you in', heading: 'You were mentioned' },
+} as const;
+
+/** "Ada assigned you to …" / "Ada mentioned you in …". All props are escaped by React. */
+export function TaskNotificationEmail(props: TaskNotificationEmailProps) {
+  const { kind, actorName, taskTitle, excerpt, taskUrl, appUrl, preferencesUrl } = props;
+  const copy = COPY[kind];
+  return (
+    <EmailLayout
+      preview={`${actorName} ${copy.verb} ${taskTitle}`}
+      appUrl={appUrl}
+      preferencesUrl={preferencesUrl}
+      footerNote={
+        kind === 'assigned'
+          ? 'You received this because someone assigned you a task on Tide.'
+          : 'You received this because someone mentioned you in a comment on Tide.'
+      }>
+      <Heading as='h1' style={heading}>
+        {copy.heading}
+      </Heading>
+      <Text style={text}>
+        <strong>{actorName}</strong> {copy.verb} <strong>{taskTitle}</strong>.
+      </Text>
+      {excerpt && <Text style={quote}>{excerpt}</Text>}
+      <Button href={taskUrl} style={button}>
+        Open task
+      </Button>
+      <Text style={muted}>Or paste this into your browser:</Text>
+      <Link href={taskUrl} style={rawLink}>
+        {taskUrl}
+      </Link>
+    </EmailLayout>
+  );
+}
+
+export function taskNotificationText(props: TaskNotificationEmailProps): string {
+  const copy = COPY[props.kind];
+  return [
+    `${props.actorName} ${copy.verb} ${props.taskTitle}.`,
+    ...(props.excerpt ? ['', `"${props.excerpt}"`] : []),
+    '',
+    `Open the task: ${props.taskUrl}`,
+    '',
+    `Manage email preferences: ${props.preferencesUrl}`,
+  ].join('\n');
+}
+
+TaskNotificationEmail.PreviewProps = {
+  kind: 'mentioned',
+  actorName: 'Ada',
+  taskTitle: 'Ship the landing page',
+  excerpt: '@Grace can you review the copy before Friday?',
+  taskUrl: 'https://tide.example.com/workspaces/acme/projects/p?task=t',
+  appUrl: 'https://tide.example.com',
+  preferencesUrl: 'https://tide.example.com/settings/notifications',
+} satisfies TaskNotificationEmailProps;
+
+export default TaskNotificationEmail;
+
+const quote = {
+  fontSize: '14px',
+  lineHeight: '22px',
+  color: '#3f3f46',
+  borderLeft: '3px solid #e4e4e7',
+  padding: '2px 0 2px 12px',
+  margin: '0 0 24px',
+};
+const heading = { fontSize: '22px', fontWeight: 700, color: '#18181b', margin: '0 0 12px' };
+const text = { fontSize: '15px', lineHeight: '24px', color: '#3f3f46', margin: '0 0 24px' };
+const button = {
+  backgroundColor: '#18181b',
+  color: '#ffffff',
+  borderRadius: '8px',
+  fontSize: '15px',
+  fontWeight: 600,
+  padding: '12px 22px',
+  textDecoration: 'none',
+  display: 'inline-block',
+};
+const muted = { fontSize: '13px', lineHeight: '20px', color: '#71717a', margin: '24px 0 6px' };
+const rawLink = { fontSize: '13px', color: '#2563eb', wordBreak: 'break-all' as const };

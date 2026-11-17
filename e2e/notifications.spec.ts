@@ -15,6 +15,7 @@ async function newUser(browser: Browser, email: string, name: string) {
 }
 
 test('an assignment notification opens the task and is marked read', async ({ browser }) => {
+  test.setTimeout(60_000); // two users, many server round trips
   const s = stamp();
   const owner = await newUser(browser, `notif-own+${s}@example.com`, `Nora ${s}`);
   const memberEmail = `notif-mem+${s}@example.com`;

@@ -366,12 +366,16 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 3. Add a "Forgot password?" link on the login form. Rate limit per P1.4.
 4. Revoke other sessions on reset (`revokeSessionsOnPasswordReset: true`).
 
+**Status:** done. Links expire after 1 hour and work once. The email is sent after the response (`after()`), so "account exists" and "no account" answer equally fast. Both pages are public in `proxy.ts`. Google-only accounts can use the flow to add a password, since they prove mailbox ownership.
+
 ### P3.2 Email verification
 
 **Steps**
 1. Configure `emailVerification.sendVerificationEmail` and `sendOnSignUp: true`.
 2. Use a **soft gate**: unverified users can use the app, but see a banner ("Verify your email to receive invites and notifications") and **can't accept invites or receive email notifications** until verified. A hard gate adds friction for portfolio visitors.
 3. Google OAuth users are already verified.
+
+**Status:** done. Links expire after 24 h and sign the user in on success. They always land on `/email-verified`, which also explains expired or invalid links and offers a resend. The banner sits under the header in every workspace. Accepting an invite through its emailed token also marks the account verified, since the token proves the mailbox. No notification emails exist yet; P3.4 must only send them to verified addresses.
 
 ### P3.3 Scheduled jobs (due-soon notifications) (F13)
 
@@ -384,12 +388,16 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 4. Also clean up: expire `pending` invites past `expiresAt`, delete stale `webrtc_signal` rows (> 1 h) and `call_participant` rows with `lastSeen` > 2 min, and delete notifications older than 90 days.
 5. Note: Vercel Hobby limits crons to once per day. Hourly needs Pro, or else use daily due-soon checks with a 48 h window.
 
+**Status:** done, as one daily job: `/api/cron/daily` at 08:00 UTC (`vercel.json`), with a 48 h due-soon window because the project is on Hobby. Reminders are idempotent through `task_assignee.due_soon_notified_for` (migration 0006), and moving a due date re-arms them. Reminders go only to current members, and skip tasks in the project's last column. Cleanup expires pending invites, deletes `webrtc_signal` older than 1 h and `call_participant` not seen for 2 min, deletes expired `verification` rows (reset tokens), and deletes notifications older than 90 days. The daily digest email (step 3) moves to P3.4, since it needs the preferences. **Deploy:** set `CRON_SECRET` in Vercel (production); without it the route refuses every call.
+
 ### P3.4 Notification preferences
 
 **Steps**
 1. Add a `user_preferences` table (or a JSON column on `user`): `emailOnAssign`, `emailOnMention`, `emailDigest`.
 2. Settings UI under `/settings/profile` → "Notifications".
 3. Every email send checks preferences. Every email footer links to this page.
+
+**Status:** done. Preferences live in a `user_preferences` table (migration 0007; a missing row means the defaults: assign and mention emails on, digest off). They're edited at `/settings/notifications`, linked from the Account page and from every notification email's footer. Assignment and @mention emails go out via `after()`, and only to verified addresses with that preference on. The daily digest (moved here from P3.3) runs in the daily cron after the due-soon reminders. It lists up to 10 unread notifications since the last digest, and each user is claimed once per 20 h so retries never double-send. Sentry is now enabled only in production builds; dev and E2E traffic had been flooding the `/monitoring` tunnel.
 
 **Phase 3 exit criteria:** a user who forgets their password can recover. Due dates trigger notifications. Users control which emails they receive.
 
