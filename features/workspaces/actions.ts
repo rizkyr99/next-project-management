@@ -11,6 +11,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { isUniqueViolation } from '@/lib/db-errors';
+import { unassignFromWorkspaceTasks } from '@/lib/membership';
 import { workspaceFormSchema } from './schema';
 
 // Same rules as the client form, enforced again on the server.
@@ -156,7 +157,13 @@ export async function removeMember(workspaceSlug: string, memberId: string) {
     .from(userTable)
     .where(eq(userTable.id, targetMember.userId));
 
-  await db.delete(member).where(eq(member.id, memberId));
+  // Drop their task assignments with the membership, atomically.
+  await db.batch([
+    unassignFromWorkspaceTasks(targetMember.userId, targetWorkspace.id),
+    db
+      .delete(member)
+      .where(and(eq(member.id, memberId), eq(member.workspaceId, targetWorkspace.id))),
+  ]);
 
   await insertActivity({
     workspaceId: targetWorkspace.id,

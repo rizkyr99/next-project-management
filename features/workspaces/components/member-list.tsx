@@ -10,9 +10,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, ShieldCheck, User, UserMinus } from 'lucide-react';
+import { Crown, MoreHorizontal, ShieldCheck, User, UserMinus } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { changeMemberRole, removeMember } from '../actions';
+import { TransferOwnershipDialog } from './transfer-ownership-dialog';
 
 interface WorkspaceMember {
   id: string;
@@ -24,6 +26,8 @@ interface WorkspaceMember {
 
 interface MemberListProps {
   members: WorkspaceMember[];
+  workspaceId: string;
+  workspaceName: string;
   workspaceSlug: string;
   currentUserId: string;
   currentUserRole: 'owner' | 'admin' | 'member';
@@ -37,11 +41,14 @@ const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 
 export function MemberList({
   members,
+  workspaceId,
+  workspaceName,
   workspaceSlug,
   currentUserId,
   currentUserRole,
 }: MemberListProps) {
   const canManage = currentUserRole === 'owner' || currentUserRole === 'admin';
+  const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleRemove = async (memberId: string, name: string | null) => {
     const result = await removeMember(workspaceSlug, memberId);
@@ -68,6 +75,7 @@ export function MemberList({
   };
 
   return (
+    <>
     <div className='divide-y rounded-md border'>
       {members.map((m) => {
         const isSelf = m.id === currentUserId;
@@ -108,7 +116,11 @@ export function MemberList({
               {canActOnMember && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant='ghost' size='icon' className='h-8 w-8'>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='h-8 w-8'
+                      aria-label={`${m.name ?? m.email} options`}>
                       <MoreHorizontal className='h-4 w-4' />
                     </Button>
                   </DropdownMenuTrigger>
@@ -133,6 +145,11 @@ export function MemberList({
                             Make member
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem
+                          onClick={() => setTransferTarget({ id: m.id, name: m.name ?? m.email })}>
+                          <Crown className='mr-2 h-4 w-4' />
+                          Transfer ownership
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                       </>
                     )}
@@ -150,5 +167,13 @@ export function MemberList({
         );
       })}
     </div>
+    <TransferOwnershipDialog
+      workspaceId={workspaceId}
+      workspaceName={workspaceName}
+      target={transferTarget}
+      open={transferTarget !== null}
+      onOpenChange={(open) => !open && setTransferTarget(null)}
+    />
+    </>
   );
 }

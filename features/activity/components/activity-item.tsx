@@ -19,6 +19,8 @@ type ActivityAction =
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'
+  | 'member.left'
+  | 'member.ownership_transferred'
   | 'member.role_changed';
 
 interface ActivityItemProps {
@@ -78,6 +80,10 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return `joined the workspace as ${m.role ?? 'member'}`;
     case 'member.removed':
       return `removed ${m.memberName ?? 'a member'} from the workspace`;
+    case 'member.left':
+      return 'left the workspace';
+    case 'member.ownership_transferred':
+      return `transferred ownership to ${m.memberName ?? 'another member'}`;
     case 'member.role_changed':
       return `changed ${m.memberName ?? 'a member'}'s role from ${m.from ?? '?'} to ${m.to ?? '?'}`;
     default:
