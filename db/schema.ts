@@ -267,6 +267,8 @@ export const task = pgTable(
   (table) => [
     index('task_projectId_idx').on(table.projectId),
     index('task_statusId_idx').on(table.statusId),
+    // The daily due-soon job scans by due date.
+    index('task_dueDate_idx').on(table.dueDate),
   ],
 );
 
@@ -279,6 +281,9 @@ export const taskAssignee = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    // The due date this assignee was last reminded about (P3.3). The daily
+    // job reminds again only if the task's due date has changed since.
+    dueSoonNotifiedFor: timestamp('due_soon_notified_for', { withTimezone: true }),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.taskId, table.userId] }),
