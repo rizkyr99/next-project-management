@@ -64,7 +64,10 @@ export function BoardColumn({
       ref={setColumnRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       data-testid={`column-${title}`}
-      className={cn('bg-muted w-64 p-2 rounded-lg space-y-2 shrink-0', isDragging && 'opacity-50')}>
+      className={cn(
+        'bg-muted w-[85vw] max-w-80 sm:w-64 p-2 rounded-lg space-y-2 shrink-0 snap-start',
+        isDragging && 'opacity-50',
+      )}>
       <ColumnHeader
         column={column}
         columns={columns.length > 0 ? columns : [column]}

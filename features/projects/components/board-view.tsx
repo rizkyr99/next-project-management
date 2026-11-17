@@ -19,7 +19,8 @@ import {
   DragOverlay,
   DragStartEvent,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   useSensor,
   useSensors,
@@ -159,7 +160,10 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
     .find((t) => t.id === activeId);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // Mouse: drag after moving 5px. Touch: press and hold 250ms first, so a
+    // swipe across the board scrolls instead of picking up a card (P4.6).
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: boardKeyboardCoordinates,
     }),
@@ -363,7 +367,8 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
       accessibility={{ announcements, screenReaderInstructions: boardInstructions }}>
-      <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
+      {/* Phones: one column at a time with the next peeking in, snapping as you swipe. */}
+      <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto snap-x snap-mandatory scroll-px-4 sm:snap-none'>
         <SortableContext
           items={statuses.map((s) => columnDragId(s.id))}
           strategy={horizontalListSortingStrategy}>
