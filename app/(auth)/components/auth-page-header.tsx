@@ -20,7 +20,7 @@ export function AuthPageHeader({
         <h1 className='text-xl font-bold text-center'>{title}</h1>
         <p className='text-sm text-center text-muted-foreground'>
           {subtitle}{' '}
-          <Link href={linkHref} className='text-blue-500'>
+          <Link href={linkHref} className='font-medium text-primary underline underline-offset-4'>
             {linkText}
           </Link>
         </p>
