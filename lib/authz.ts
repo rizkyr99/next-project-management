@@ -1,6 +1,7 @@
 import 'server-only';
 import { and, eq, inArray } from 'drizzle-orm';
 import { headers } from 'next/headers';
+import { unstable_rethrow } from 'next/navigation';
 import { ZodError } from 'zod';
 import { db } from '@/db/drizzle';
 import { comment, member, project, task, taskStatus, workspace } from '@/db/schema';
@@ -267,8 +268,16 @@ export type ActionResult<T extends object = { success: true }> =
  * the UI already understands. Missing sessions are re-thrown, and unexpected
  * errors are logged and replaced with `fallback` so internals never leak.
  */
+/** What a server action returns when the caller's session has gone. */
+export const SESSION_EXPIRED = 'Your session has expired. Log in again to continue.';
+
+/**
+ * Maps any error from a server action to a message the UI can show as a toast.
+ * Actions never throw to the client: a thrown action error makes Next.js show
+ * its generic "An error occurred in the Server Components render" screen.
+ */
 export function toActionError(error: unknown, fallback: string): { error: string } {
-  if (error instanceof UnauthenticatedError) throw error;
+  if (error instanceof UnauthenticatedError) return { error: SESSION_EXPIRED };
   if (error instanceof AuthzError) return { error: 'Not found.' };
   if (error instanceof RateLimitError) return { error: error.message };
   if (error instanceof ZodError) {
@@ -276,6 +285,19 @@ export function toActionError(error: unknown, fallback: string): { error: string
   }
   console.error(fallback, error);
   return { error: fallback };
+}
+
+/**
+ * Runs a server action body and returns `{ error }` instead of throwing.
+ * Next.js control flow (redirect(), notFound()) still passes through.
+ */
+export async function runAction<T>(fallback: string, body: () => Promise<T>): Promise<T | { error: string }> {
+  try {
+    return await body();
+  } catch (error) {
+    unstable_rethrow(error);
+    return toActionError(error, fallback);
+  }
 }
 
 /**

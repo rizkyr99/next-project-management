@@ -14,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { createCheckoutSession, createPortalSession } from '@/features/billing/actions';
 import type { PlanName } from '@/lib/stripe';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { unstable_rethrow } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -51,9 +52,12 @@ export function BillingContent({
   function handleUpgrade(targetPlan: 'pro' | 'business') {
     startTransition(async () => {
       try {
-        await createCheckoutSession(targetPlan);
-      } catch {
-        toast.error('Failed to start checkout. Please try again.');
+        // Redirects to Stripe on success; otherwise it returns { error }.
+        const result = await createCheckoutSession(targetPlan);
+        if (result && 'error' in result) toast.error(result.error, { position: 'top-center' });
+      } catch (error) {
+        unstable_rethrow(error);
+        toast.error('Failed to start checkout. Please try again.', { position: 'top-center' });
       }
     });
   }
@@ -61,9 +65,11 @@ export function BillingContent({
   function handleManageBilling() {
     startTransition(async () => {
       try {
-        await createPortalSession();
-      } catch {
-        toast.error('Failed to open billing portal. Please try again.');
+        const result = await createPortalSession();
+        if (result && 'error' in result) toast.error(result.error, { position: 'top-center' });
+      } catch (error) {
+        unstable_rethrow(error);
+        toast.error('Failed to open billing portal. Please try again.', { position: 'top-center' });
       }
     });
   }

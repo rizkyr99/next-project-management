@@ -13,6 +13,8 @@ vi.mock('next/cache', () => ({
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
+  // Lets real Next.js control flow pass through runAction in tests (no-op here).
+  unstable_rethrow: vi.fn(),
 }));
 
 // Unit tests must never reach the real Upstash database: force the in-memory
