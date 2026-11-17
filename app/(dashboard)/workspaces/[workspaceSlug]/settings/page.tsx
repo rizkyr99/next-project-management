@@ -23,12 +23,18 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Settings' };
 
+const TABS = ['general', 'members', 'danger'] as const;
+
 export default async function WorkspaceSettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ readonly workspaceSlug: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
-  const { workspaceSlug } = await params;
+  const [{ workspaceSlug }, { tab }] = await Promise.all([params, searchParams]);
+  // ?tab=members lets links (e.g. the onboarding checklist) open a tab directly.
+  const initialTab = TABS.find((t) => t === tab) ?? 'general';
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -108,7 +114,7 @@ export default async function WorkspaceSettingsPage({
           </p>
         </div>
 
-        <Tabs defaultValue='general'>
+        <Tabs defaultValue={initialTab}>
           <TabsList>
             <TabsTrigger value='general'>General</TabsTrigger>
             <TabsTrigger value='members'>

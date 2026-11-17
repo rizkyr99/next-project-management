@@ -105,6 +105,15 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
   };
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+
+  // Take in fresh server data (our own saves, teammates' changes) without
+  // remounting, so open forms like "Add column" survive a refresh. During a
+  // drag the local order wins; the latest data is applied once it ends.
+  const [syncedProject, setSyncedProject] = useState(project);
+  if (project !== syncedProject && activeId === null && activeColumnId === null) {
+    setSyncedProject(project);
+    setStatuses(project?.statuses ?? []);
+  }
   const previousStatusesRef = useRef<typeof statuses | null>(null);
 
   const columnInfos: ColumnInfo[] = statuses.map((s) => ({

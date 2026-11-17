@@ -1,5 +1,9 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+
+import { EmptyState } from '@/components/empty-state';
+
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -77,11 +81,17 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
 
   if (tasks.length === 0) {
     return (
-      <div className='flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground text-sm'>
-        <CheckSquare className='size-10 opacity-20' />
-        <p className='font-medium'>No tasks assigned to you</p>
-        <p>Tasks assigned to you across projects will appear here.</p>
-      </div>
+      <EmptyState
+        icon={CheckSquare}
+        title='Nothing assigned to you'
+        className='flex-1'
+        action={
+          <Button asChild size='sm' variant='outline'>
+            <Link href={`/workspaces/${workspaceSlug}`}>Browse projects</Link>
+          </Button>
+        }>
+        Open a task and add yourself under Assignees. Everything assigned to you, in every project, lands here.
+      </EmptyState>
     );
   }
 
@@ -124,9 +134,9 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
       {/* Table */}
       <div className='flex-1 overflow-auto p-4'>
         {filtered.length === 0 ? (
-          <div className='flex items-center justify-center py-16 text-sm text-muted-foreground'>
-            No tasks match the selected filters.
-          </div>
+          <EmptyState icon={CheckSquare} title='No tasks match these filters'>
+            Change the priority or status filter to see more.
+          </EmptyState>
         ) : (
           <Table>
             <TableHeader>

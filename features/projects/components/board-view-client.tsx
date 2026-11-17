@@ -19,8 +19,9 @@ const BoardViewLazy = dynamic(
   },
 );
 
-type Props = ComponentProps<typeof BoardView> & { boardKey?: string };
+type Props = ComponentProps<typeof BoardView>;
 
-export default function BoardViewClient({ boardKey, ...props }: Props) {
-  return <BoardViewLazy key={boardKey} {...props} />;
+/** The board syncs itself from fresh server data (no remount key needed). */
+export default function BoardViewClient(props: Props) {
+  return <BoardViewLazy {...props} />;
 }

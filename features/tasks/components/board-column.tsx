@@ -74,6 +74,16 @@ export function BoardColumn({
           {tasks.map((task) => (
             <TaskCard key={task.id} task={task} commentCount={task.commentCount} />
           ))}
+          {/* Empty columns read as drop targets; only the default (where new
+              tasks land) says what to do, so an empty board isn't repetitive. */}
+          {tasks.length === 0 &&
+            (isDefault ? (
+              <p className='rounded-md border border-dashed border-muted-foreground/25 px-2 py-4 text-center text-xs text-muted-foreground'>
+                No tasks yet. Add the first one below.
+              </p>
+            ) : (
+              <div aria-hidden className='h-12 rounded-md border border-dashed border-muted-foreground/20' />
+            ))}
           <AddTaskInline statusId={id} onTaskCreated={onTaskCreated} />
         </div>
       </SortableContext>

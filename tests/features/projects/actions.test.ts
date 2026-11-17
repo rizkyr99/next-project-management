@@ -57,10 +57,10 @@ describe('createProject', () => {
     expect(db.batch).not.toHaveBeenCalled();
   });
 
-  it('writes project, columns and welcome task in one batch', async () => {
+  it('writes the project and its columns in one batch, with no tasks (P4.3)', async () => {
     db.select.mockReturnValue(chain([{ workspaceId: 'ws-1' }]));
     const inserted = captureInserts();
-    db.batch.mockImplementation(async () => [[{ id: 'p-1', name: 'Site' }], [], []]);
+    db.batch.mockImplementation(async () => [[{ id: 'p-1', name: 'Site' }], []]);
 
     const result = await createProject({
       workspaceSlug: 'acme',
@@ -70,17 +70,17 @@ describe('createProject', () => {
 
     expect(result).toEqual({ project: { id: 'p-1', name: 'Site' } });
     expect(db.batch).toHaveBeenCalledOnce();
-    expect(db.batch.mock.calls[0][0]).toHaveLength(3);
+    expect(db.batch.mock.calls[0][0]).toHaveLength(2);
 
-    const [projectRow, statusRows, taskRow] = inserted as [
+    const [projectRow, statusRows] = inserted as [
       { id: string; description: string | null; workspaceId: string },
-      { id?: string; projectId: string; isDefault?: boolean }[],
-      { projectId: string; statusId: string },
+      { id?: string; projectId: string; isDefault?: boolean; name: string }[],
     ];
+    expect(inserted).toHaveLength(2); // no welcome task any more
     expect(projectRow).toMatchObject({ description: 'Marketing site', workspaceId: 'ws-1' });
+    expect(statusRows.map((r) => r.name)).toEqual(['To Do', 'In Progress', 'Done']);
     expect(statusRows.every((r) => r.projectId === projectRow.id)).toBe(true);
-    const todo = statusRows.find((r) => r.isDefault);
-    expect(taskRow).toMatchObject({ projectId: projectRow.id, statusId: todo?.id });
+    expect(statusRows.filter((r) => r.isDefault)).toHaveLength(1);
   });
 
   it('returns an error (and writes nothing partially) when the batch fails', async () => {

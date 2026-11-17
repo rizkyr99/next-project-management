@@ -65,7 +65,7 @@ describe('createWorkspace', () => {
     vi.mocked(checkWorkspaceLimit).mockResolvedValue({ allowed: true, current: 0, limit: 1 });
   }
 
-  it('writes the workspace and owner membership in a single batch', async () => {
+  it('writes the workspace, owner membership and Getting started project in one batch', async () => {
     allowCreate();
     const inserted: Record<string, unknown>[] = [];
     mockInsert.mockImplementation(() => ({
@@ -80,9 +80,22 @@ describe('createWorkspace', () => {
 
     expect(result).toEqual({ slug: 'my-ws' });
     expect(mockBatch).toHaveBeenCalledOnce();
-    expect(mockBatch.mock.calls[0][0]).toHaveLength(2);
-    const [ws, owner] = inserted;
+    // workspace, owner, then the Getting started project, its columns and tasks
+    expect(mockBatch.mock.calls[0][0]).toHaveLength(5);
+    const [ws, owner, gettingStarted, columns, tasks] = inserted as unknown as [
+      Record<string, unknown>,
+      Record<string, unknown>,
+      Record<string, unknown>,
+      { id: string; isDefault?: boolean }[],
+      { title: string; statusId: string; projectId: string }[],
+    ];
     expect(owner).toMatchObject({ workspaceId: ws.id, userId: 'user-1', role: 'owner' });
+    expect(gettingStarted).toMatchObject({ name: 'Getting started', workspaceId: ws.id });
+    expect(columns).toHaveLength(3);
+    expect(tasks.length).toBeGreaterThanOrEqual(5);
+    // Every task belongs to the project and one of its columns.
+    const columnIds = new Set(columns.map((c) => c.id));
+    expect(tasks.every((t) => t.projectId === gettingStarted.id && columnIds.has(t.statusId))).toBe(true);
   });
 
   it('reports a taken URL when the slug violates the unique constraint', async () => {
