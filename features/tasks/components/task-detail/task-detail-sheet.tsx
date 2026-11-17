@@ -57,20 +57,25 @@ export function TaskDetailSheet({ projectId, statuses, members, currentUserId }:
   const router = useRouter();
   const [isRefreshing, startRefresh] = useTransition();
   const refreshedFor = useRef<string | null>(null);
+  // The page data at the time of that refresh. The verdict waits until newer
+  // data arrives: a fast refresh can finish within one commit, so watching
+  // isRefreshing alone could miss it and never report.
+  const statusesAtRefresh = useRef<typeof statuses | null>(null);
   const reported = useRef<string | null>(null);
   useEffect(() => {
     if (!taskId || task || hidden.has(taskId)) return;
     if (reported.current === taskId) return;
     if (refreshedFor.current !== taskId) {
       refreshedFor.current = taskId;
+      statusesAtRefresh.current = statuses;
       startRefresh(() => router.refresh());
       return;
     }
-    if (isRefreshing) return;
+    if (isRefreshing || statuses === statusesAtRefresh.current) return;
     reported.current = taskId;
     toast.error('That task no longer exists.', { position: 'top-center' });
     closeTask();
-  }, [taskId, task, hidden, isRefreshing, router]);
+  }, [taskId, task, hidden, isRefreshing, router, statuses]);
 
   const statusOptions = useMemo(() => statuses.map((s) => ({ id: s.id, name: s.name })), [statuses]);
 

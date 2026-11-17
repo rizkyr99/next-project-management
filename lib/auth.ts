@@ -14,6 +14,13 @@ export const auth = betterAuth({
       verification,
     },
   }),
+  // Better Auth's own rate limiter (on in production) identifies clients by
+  // IP. Use the same header as lib/rate-limit.ts: on Vercel `x-real-ip` is
+  // set by the platform. Without this it read x-forwarded-for, so every E2E
+  // user in a production build shared one sign-up limit (3 per 10 s).
+  advanced: {
+    ipAddress: { ipAddressHeaders: ['x-real-ip', 'x-forwarded-for'] },
+  },
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID!,

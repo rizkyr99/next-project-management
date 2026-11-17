@@ -595,6 +595,10 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
   - **Sentry:** `NEXT_PUBLIC_SENTRY_DISABLED` keeps CI's production build from reporting to it.
   - **The daily-job spec:** runs last in shard 3, on that shard's own branch.
   - **Ubuntu 24.04:** Playwright has no browser builds for 26.04 yet.
+  - **What the production build exposed, fixed:**
+    - Better Auth's own rate limiter (production only) keyed on `x-forwarded-for`, so every test sign-up shared one limit. It now reads `x-real-ip` first, like `lib/rate-limit.ts`.
+    - The task panel sometimes never reported a deleted task: a fast refresh finished within one commit. It now waits for the refreshed data.
+    - Test timing: the task-detail spec gets 60 s. The keyboard column drag re-presses an arrow only when nothing moved.
 - **Build fixes the new jobs exposed:**
   - **Lock file:** the npm bundled with Node 24.11.1 rejected `package-lock.json`, so `.nvmrc` moves to 24.22.3.
   - **Fonts:** builds failed when Google Fonts served URLs Turbopack couldn't map. Geist, Geist Mono and Schibsted Grotesk are now self-hosted (`app/fonts/`, latin, variable weight) through `next/font/local`.

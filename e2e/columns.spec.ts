@@ -70,13 +70,23 @@ test('manage board columns without losing tasks', async ({ page }) => {
     await page.keyboard.press(key);
     await expect(announcer).not.toHaveText(before ?? '');
   };
+  // Arrow keys: dnd-kit measures the columns just after pickup, and a key
+  // pressed before that (only a test is that fast) is ignored. Press again
+  // only if nothing moved; a move is announced within milliseconds.
+  const move = async (key: string) => {
+    const before = await announcer.textContent();
+    await expect(async () => {
+      if ((await announcer.textContent()) === before) await page.keyboard.press(key);
+      await expect(announcer).not.toHaveText(before ?? '', { timeout: 1000 });
+    }).toPass({ timeout: 8000 });
+  };
   await grip.focus();
   await step('Space');
   // Screen readers hear names, not internal ids (P4.5).
   await expect(announcer).toHaveText('Picked up Column QA.');
-  await step('ArrowLeft');
+  await move('ArrowLeft');
   await expect(announcer).toHaveText('Column QA is over column Done.');
-  await step('ArrowLeft');
+  await move('ArrowLeft');
   // The board reorders optimistically; wait for the server action to finish
   // saving before reloading, or the reload can cancel it.
   const saved = page.waitForResponse(

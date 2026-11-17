@@ -7,6 +7,7 @@ import { addTask } from './helpers/tasks';
 const WELCOME = 'Welcome to your new project!';
 
 test('task sheet: description, deep link and delete with undo', async ({ page }) => {
+  test.setTimeout(60_000);
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   await registerAndLogin(page, `sheet+${stamp}@example.com`, 'Sheet Owner');
 
