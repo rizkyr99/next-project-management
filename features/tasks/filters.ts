@@ -66,7 +66,8 @@ export function matchesFilters(
   if (f.due) {
     const due = task.dueDate ? new Date(task.dueDate) : null;
     const today = startOfDay(ctx.now ?? new Date());
-    const weekEnd = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // Calendar days, not 7 × 24 h: across a DST change those differ by an hour.
+    const weekEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
     if (f.due === 'none' && due) return false;
     if (f.due === 'overdue' && !(due && due < today)) return false;
     if (f.due === 'week' && !(due && due >= today && due < weekEnd)) return false;

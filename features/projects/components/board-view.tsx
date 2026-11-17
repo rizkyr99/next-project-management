@@ -248,8 +248,21 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
     setStatuses(newStatuses);
   };
 
+  // A drop wins over any server data that arrived during the drag: that data
+  // predates the drop. The save's own revalidation brings the next snapshot.
+  const acceptCurrentProject = () => setSyncedProject(project);
+
+  /** Escape (or any cancelled drag): put everything back as it was. */
+  const handleDragCancel = () => {
+    if (activeId !== null && previousStatusesRef.current) setStatuses(previousStatusesRef.current);
+    previousStatusesRef.current = null;
+    setActiveId(null);
+    setActiveColumnId(null);
+  };
+
   const handleColumnDragEnd = async (event: DragEndEvent) => {
     setActiveColumnId(null);
+    acceptCurrentProject();
     const fromId = event.active.data.current?.statusId as string;
     if (!event.over) return;
     const from = statuses.findIndex((s) => s.id === fromId);
@@ -273,6 +286,7 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
     if (isColumnDrag(event)) return handleColumnDragEnd(event);
     const { active, over } = event;
     setActiveId(null);
+    acceptCurrentProject();
 
     if (!over) {
       if (previousStatusesRef.current) {
@@ -339,7 +353,8 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
       collisionDetection={boardCollisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}>
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}>
       <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
         <SortableContext
           items={statuses.map((s) => columnDragId(s.id))}
