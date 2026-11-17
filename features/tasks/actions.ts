@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/db/drizzle';
 import { comment, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
+import { taskHref } from './task-link';
 import {
   type ActionResult,
   AuthzError,
@@ -36,6 +37,16 @@ import {
 } from './schema';
 
 type Task = typeof task.$inferSelect;
+
+/** Notification columns that make a task notification open that task. */
+function notificationLink(ctx: { workspace: { id: string; slug: string }; project: { id: string }; task: { id: string } }) {
+  return {
+    workspaceId: ctx.workspace.id,
+    projectId: ctx.project.id,
+    taskId: ctx.task.id,
+    href: taskHref(ctx.workspace.slug, ctx.project.id, ctx.task.id),
+  };
+}
 
 export type CommentWithAuthor = {
   id: string;
@@ -331,6 +342,7 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
     const ctx = await requireTaskAccess(input.taskId);
     const nextIds = [...new Set(input.assigneeIds)];
     await assertWorkspaceMembers(nextIds, ctx.workspace.id);
+    const taskLink = notificationLink(ctx);
 
     const actorId = ctx.session.user.id;
 
@@ -361,6 +373,7 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
           type: 'task_assigned' as const,
           actorName: ctx.session.user.name,
           taskTitle: ctx.task.title,
+          ...taskLink,
         })),
       );
     }
@@ -446,6 +459,7 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
     const text = commentBodySchema.parse(body);
     const actorId = ctx.session.user.id;
     await enforceRateLimit('comments', actorId);
+    const taskLink = notificationLink(ctx);
 
     const [newComment] = await db
       .insert(comment)
@@ -475,6 +489,7 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
               type: 'comment_mention' as const,
               actorName: ctx.session.user.name,
               taskTitle: ctx.task.title,
+              ...taskLink,
             })),
           );
         }

@@ -336,6 +336,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 2. Clicking a notification marks it read and navigates there.
 3. Add an empty state, a "view all" page (`/notifications`) with pagination, and delete notifications older than 90 days in the P3.3 cron.
 
+**Status:** done. Migration `0005_notification_links` adds `workspace_id`, `project_id` and `task_id` (all `ON DELETE CASCADE`, so a notification never outlives what it links to), `href`, and a `(user_id, created_at desc)` index. Task notifications link to `?task=`; invites link to `/invites`. Rows from before the migration have no link (invite rows still fall back to `/invites`). `deleteExpiredNotifications()` in `lib/notifications.ts` is ready for the P3.3 cron to call.
+
 ### P2.6 Account deletion
 
 **Files:** `features/account/actions.ts`, `app/(dashboard)/settings/profile/page.tsx`

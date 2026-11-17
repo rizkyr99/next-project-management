@@ -421,9 +421,21 @@ export const notification = pgTable(
     taskTitle: text('task_title'),
     workspaceName: text('workspace_name'),
     dueLabel: text('due_label'),
+    // What the notification is about, so it can link there. Cascades: a
+    // notification about a deleted task, project or workspace goes with it,
+    // so no notification ever links to something that's gone.
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => project.id, { onDelete: 'cascade' }),
+    taskId: text('task_id').references(() => task.id, { onDelete: 'cascade' }),
+    // App-relative path built on the server from the IDs above (never user
+    // input, never a raw invite token). Null for older rows.
+    href: text('href'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('notification_userId_idx').on(table.userId)],
+  (table) => [
+    // Covers "my notifications, newest first" and cursor pagination.
+    index('notification_userId_createdAt_idx').on(table.userId, table.createdAt.desc()),
+  ],
 );
 
 export const notificationRelations = relations(notification, ({ one }) => ({

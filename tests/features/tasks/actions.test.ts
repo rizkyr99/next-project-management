@@ -317,6 +317,55 @@ describe('updateTaskAssignees', () => {
   });
 });
 
+describe('task notifications link to the task', () => {
+  const href = `/workspaces/acme/projects/${PROJECT}?task=${TASK}`;
+
+  it('stores the task link on assignment notifications', async () => {
+    const written: Record<string, unknown>[] = [];
+    db.select
+      .mockReturnValueOnce(chain([])) // existing assignees
+      .mockReturnValueOnce(chain([{ id: 'user-2', name: 'Bob' }])); // names for activity
+    db.delete.mockReturnValue(chain(undefined));
+    db.batch.mockResolvedValue([]);
+    db.insert
+      .mockReturnValueOnce(chain(undefined)) // assignee rows (inside the batch)
+      .mockImplementationOnce(() => ({
+        values: (rows: Record<string, unknown>[]) => {
+          written.push(...rows);
+          return chain(undefined);
+        },
+      }));
+
+    expect(await updateTaskAssignees(TASK, ['user-2'])).toEqual({ success: true });
+    expect(written).toEqual([
+      expect.objectContaining({
+        userId: 'user-2',
+        type: 'task_assigned',
+        workspaceId: 'ws-1',
+        projectId: PROJECT,
+        taskId: TASK,
+        href,
+      }),
+    ]);
+  });
+
+  it('stores the task link on mention notifications', async () => {
+    const written: Record<string, unknown>[] = [];
+    db.insert.mockReturnValueOnce(chain([{ id: COMMENT }])).mockImplementationOnce(() => ({
+      values: (rows: Record<string, unknown>[]) => {
+        written.push(...rows);
+        return chain(undefined);
+      },
+    }));
+    db.select
+      .mockReturnValueOnce(chain([{ id: 'user-2', name: 'Bob' }]))
+      .mockReturnValueOnce(chain([{ id: COMMENT, body: 'hi @Bob' }]));
+
+    await addComment(TASK, 'hi @Bob');
+    expect(written).toEqual([expect.objectContaining({ type: 'comment_mention', taskId: TASK, href })]);
+  });
+});
+
 describe('getComments', () => {
   it('returns Not found for a task in another workspace', async () => {
     vi.mocked(requireTaskAccess).mockImplementation(denied);

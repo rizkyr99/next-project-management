@@ -134,6 +134,8 @@ export async function inviteUserToWorkspace(
         type: 'workspace_invite',
         actorName: session.user.name,
         workspaceName: ws.name,
+        workspaceId: ws.id,
+        href: '/invites',
       });
     }
 
