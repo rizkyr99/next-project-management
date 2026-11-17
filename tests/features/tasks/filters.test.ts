@@ -103,3 +103,20 @@ describe('sortTasks', () => {
     expect(ids(sortTasks(rows, { key: 'due', dir: 'desc' }, order))).toEqual([1, 3, 2]);
   });
 });
+
+describe('due "this week" across a daylight-saving change', () => {
+  it('ends after 7 calendar days, not 168 hours (America/New_York, March 2026)', () => {
+    const prevTz = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      const nowDst = new Date(2026, 2, 7, 12, 0); // Sat Mar 7; clocks go forward Sun Mar 8
+      const f = { assignee: null, priority: null, due: 'week' as const, q: '' };
+      const at = (d: number) => t({ dueDate: new Date(2026, 2, d, 0, 0) });
+      const c = { currentUserId: 'me-id', now: nowDst };
+      expect(matchesFilters(at(13), f, c)).toBe(true); // 6th day after today
+      expect(matchesFilters(at(14), f, c)).toBe(false); // 7th: excluded
+    } finally {
+      process.env.TZ = prevTz;
+    }
+  });
+});

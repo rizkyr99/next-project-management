@@ -10,7 +10,8 @@ import {
 } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, ne, sql } from 'drizzle-orm';
+import { GETTING_STARTED_NAME } from '@/lib/onboarding';
 import { cookies } from 'next/headers';
 import { EmptyState } from '@/components/empty-state';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
@@ -75,12 +76,14 @@ export default async function WorkspaceHomePage({
 
   // First-run checklist (owners and admins, who can invite): completion is
   // read from data, never stored. The seeded "Getting started" project logs
-  // no activity, so these count the user's own first project and task.
+  // no activity, so the activity log counts the user's own first project and
+  // task. Activity logging is best-effort, so durable rows count too: any
+  // project, or task, outside Getting started.
   const canManage = currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin';
   const checklistHidden = (await cookies()).get(checklistCookie(currentWorkspace.id))?.value === '1';
   let checklist: ChecklistState | null = null;
   if (canManage && !checklistHidden) {
-    const [[activity], [pendingInvites]] = await Promise.all([
+    const [[activity], [pendingInvites], [own]] = await Promise.all([
       db
         .select({
           projects: sql<number>`count(*) filter (where ${activityLog.action} = 'project.created')::int`,
@@ -92,10 +95,18 @@ export default async function WorkspaceHomePage({
         .select({ n: count() })
         .from(workspaceInvite)
         .where(and(eq(workspaceInvite.workspaceId, currentWorkspace.id), eq(workspaceInvite.status, 'pending'))),
+      db
+        .select({
+          projects: sql<number>`count(distinct ${project.id})::int`,
+          tasks: sql<number>`count(${task.id})::int`,
+        })
+        .from(project)
+        .leftJoin(task, eq(task.projectId, project.id))
+        .where(and(eq(project.workspaceId, currentWorkspace.id), ne(project.name, GETTING_STARTED_NAME))),
     ]);
     const state: ChecklistState = {
-      createdProject: (activity?.projects ?? 0) > 0,
-      addedTask: (activity?.tasks ?? 0) > 0,
+      createdProject: (activity?.projects ?? 0) > 0 || (own?.projects ?? 0) > 0,
+      addedTask: (activity?.tasks ?? 0) > 0 || (own?.tasks ?? 0) > 0,
       invitedTeammate: members.length > 1 || (pendingInvites?.n ?? 0) > 0,
     };
     // Once everything is done, it gets out of the way by itself.

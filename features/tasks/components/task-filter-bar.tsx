@@ -22,16 +22,24 @@ export function TaskFilterBar({
   currentUserId: string;
 }) {
   const { filters, active, setFilter, clear } = useTaskFilters();
-  // Local text so typing stays smooth; the URL follows shortly after.
+  // Local text so typing stays smooth; the URL follows shortly after. The
+  // URL only overrides the box when it changed from elsewhere (a shared
+  // link, Back, "Clear filters"), never with an older value we wrote
+  // ourselves while the user kept typing.
   const [text, setText] = useState(filters.q);
   const [lastUrlQ, setLastUrlQ] = useState(filters.q);
+  const [written, setWritten] = useState<string | null>(null);
   if (filters.q !== lastUrlQ) {
     setLastUrlQ(filters.q);
-    setText(filters.q);
+    if (filters.q !== written) setText(filters.q);
   }
   useEffect(() => {
-    if (text.trim() === filters.q) return;
-    const t = setTimeout(() => setFilter('q', text.trim() || null), 200);
+    const value = text.trim();
+    if (value === filters.q) return;
+    const t = setTimeout(() => {
+      setWritten(value);
+      setFilter('q', value || null);
+    }, 200);
     return () => clearTimeout(t);
   }, [text, filters.q, setFilter]);
 
@@ -96,6 +104,7 @@ export function TaskFilterBar({
           variant='ghost'
           size='sm'
           onClick={() => {
+            setWritten('');
             setText('');
             clear();
           }}>

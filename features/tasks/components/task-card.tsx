@@ -91,8 +91,12 @@ export function TaskCard({ task, commentCount, dragDisabled = false }: TaskCardP
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      {...attributes}
-      {...listeners}
+      {...(dragDisabled
+        ? // Filtered: still a button that opens the task, just not draggable,
+          // so drop the "sortable"/disabled semantics and drag instructions.
+          { role: 'button', tabIndex: 0 }
+        : attributes)}
+      {...(dragDisabled ? {} : listeners)}
       onKeyDown={onKeyDown}
       onClick={() => openTask(task.id)}
       aria-label={`Open task ${task.title}`}
