@@ -54,8 +54,13 @@ function Shot({
   return (
     <picture className={className}>
       <source media={PHONE} srcSet={mobileSrcSet} sizes='calc(100vw - 32px)' />
-      {/* eslint-disable-next-line jsx-a11y/alt-text -- alt is in props */}
-      <img {...props} className='block h-auto w-full' />
+      {/* <source> can't carry width/height, so give the box each image's ratio
+          up front: no layout shift when the phone crop replaces the default. */}
+      <img
+        {...props}
+        alt={alt}
+        className='block aspect-[1500/860] h-auto w-full object-cover sm:aspect-[2880/1250]'
+      />
     </picture>
   );
 }

@@ -33,6 +33,11 @@ export default function PrivacyPage() {
           <strong>Technical data:</strong> session cookies that keep you signed in, your IP address (used to
           limit abuse such as password guessing), error reports, and anonymous page performance metrics.
         </li>
+        <li>
+          <strong>Session recordings:</strong> to find and fix bugs, we record a sample of visits (about 1 in
+          10, and any visit where an error happens) as a replay of what was shown and clicked on the page. Text
+          you type and the content of pages are masked in these recordings.
+        </li>
       </ul>
 
       <h2>How we use it</h2>
@@ -53,7 +58,9 @@ export default function PrivacyPage() {
         <li>Resend: sending email.</li>
         <li>Stripe: payments, for paid plans.</li>
         <li>Upstash: short-lived rate-limit counters keyed by IP address or account.</li>
-        <li>Sentry: error reports, which can include the page and account involved.</li>
+        <li>
+          Sentry: error reports and session recordings, which can include the page and account involved.
+        </li>
         <li>Google: sign-in, if you choose “Continue with Google”.</li>
       </ul>
       <p>Each processes data only to provide its service to us.</p>

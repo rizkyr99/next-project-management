@@ -9,6 +9,7 @@ import { emailTaskNotification } from '@/lib/notification-emails';
 import { db } from '@/db/drizzle';
 import { comment, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
+import { mentionedNames } from './mentions';
 import { taskHref } from './task-link';
 import {
   type ActionResult,
@@ -453,20 +454,6 @@ export async function getComments(taskId: string): Promise<ActionResult<{ commen
   }
 }
 
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * True when `text` contains `@name` followed by a non-word character or the
- * end of the text. Matching against known names (rather than parsing tokens
- * out of the text) supports multi-word names like "@Ada Lovelace".
- */
-function mentionsName(text: string, name: string) {
-  if (!name.trim()) return false;
-  return new RegExp(`@${escapeRegExp(name.trim())}(?!\\w)`, 'i').test(text);
-}
-
 export async function addComment(taskId: string, body: string): Promise<ActionResult<{ comment: CommentWithAuthor }>> {
   try {
     const ctx = await requireTaskAccess(idSchema.parse(taskId));
@@ -492,8 +479,11 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
           .innerJoin(userTable, eq(member.userId, userTable.id))
           .where(eq(member.workspaceId, ctx.workspace.id));
 
+        // Longest name wins at each "@" (features/tasks/mentions.ts), the same
+        // rule the comment view uses to highlight.
+        const mentionedSet = new Set(mentionedNames(text, members.map((m) => m.name)));
         const mentioned = members.filter(
-          (m) => m.id !== actorId && mentionsName(text, m.name),
+          (m) => m.id !== actorId && mentionedSet.has(m.name),
         );
 
         if (mentioned.length > 0) {
