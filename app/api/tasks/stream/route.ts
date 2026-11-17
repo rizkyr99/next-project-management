@@ -1,75 +1,42 @@
-import { db } from '@/db/drizzle';
-import { task } from '@/db/schema';
-import { and, count, eq, max } from 'drizzle-orm';
 import { z } from 'zod';
+import { projectSnapshot } from '@/features/tasks/snapshot';
 import { requireProjectAccess, toErrorResponse } from '@/lib/authz';
+import { pollingStream, SSE_MAX_DURATION } from '@/lib/sse';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = SSE_MAX_DURATION;
 
+/**
+ * Tells an open board when anything on it changed, so it refreshes.
+ *
+ * Every event carries the project's snapshot as its id. When the client
+ * reconnects (the stream recycles every few minutes, or the tab was hidden),
+ * it passes the last snapshot it saw, as Last-Event-ID or `?since=`, and
+ * hears about changes it missed straight away.
+ */
 export async function GET(request: Request) {
   let projectId: string;
+  let since: string | null;
   try {
     const { searchParams } = new URL(request.url);
     const requested = z.uuid().parse(searchParams.get('projectId'));
     projectId = (await requireProjectAccess(requested)).project.id;
+    since = request.headers.get('last-event-id') || searchParams.get('since') || null;
   } catch (error) {
     return toErrorResponse(error);
   }
 
-  let intervalId: NodeJS.Timeout;
-  // The client can disconnect before the first snapshot resolves.
-  let closed = false;
+  let last = since;
+  const check = async (send: { event: (data: unknown, id?: string) => void }) => {
+    const snap = await projectSnapshot(projectId);
+    if (last === null) {
+      // First connection: this is the baseline the page was rendered from.
+      send.event({ type: 'snapshot' }, snap);
+    } else if (snap !== last) {
+      send.event({ type: 'tasks_changed', projectId }, snap);
+    }
+    last = snap;
+  };
 
-  const stream = new ReadableStream({
-    start(controller) {
-      let lastSnapshot = '';
-
-      const getSnapshot = async () => {
-        const [row] = await db
-          .select({ total: count(), latest: max(task.createdAt) })
-          .from(task)
-          .where(and(eq(task.projectId, projectId)));
-        return `${row?.total ?? 0}:${row?.latest?.toISOString() ?? ''}`;
-      };
-
-      getSnapshot()
-        .then((snap) => {
-          if (closed) return;
-          lastSnapshot = snap;
-          controller.enqueue(': keepalive\n\n');
-        })
-        .catch((err) => console.error('[SSE tasks] initial snapshot error:', err));
-
-      intervalId = setInterval(async () => {
-        if (closed) return;
-        try {
-          controller.enqueue(': keepalive\n\n');
-
-          const snap = await getSnapshot();
-          if (snap !== lastSnapshot) {
-            lastSnapshot = snap;
-            if (closed) return;
-            const payload = JSON.stringify({ type: 'tasks_changed', projectId });
-            controller.enqueue(`data: ${payload}\n\n`);
-          }
-        } catch (err) {
-          console.error('[SSE tasks] poll error:', err);
-        }
-      }, 5_000);
-    },
-
-    cancel() {
-      closed = true;
-      clearInterval(intervalId);
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  });
+  return pollingStream({ intervalMs: 5_000, label: 'tasks', onOpen: check, onTick: check });
 }

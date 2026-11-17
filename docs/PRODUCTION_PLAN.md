@@ -535,6 +535,29 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
 3. Add an **optimistic update** layer with TanStack Query mutations for drag-and-drop and status changes (with rollback on error) if it isn't fully there already.
 4. Longer-term note (not in scope): if real-time grows, swap DB polling for a pub/sub provider (Ably, Pusher, Supabase Realtime, or Postgres `LISTEN/NOTIFY` via a long-lived worker). Polling Neon every 5 s per open tab keeps the compute from scaling to zero, which costs money.
 
+**Status:** done, with a different approach to step 1.
+- **Snapshot (step 1):** `features/tasks/snapshot.ts` hashes what the views show instead of relying on `updated_at`: task fields, columns, assignees, comments, and the project name. Every kind of change now registers, including:
+  - assignee changes
+  - column renames
+  - a delete and a create inside the same poll
+
+  No migration, and no mutation path has to remember to bump a timestamp.
+- **Every view (new):** before this, only the board listened. Live updates now sit on the project page, so the list and table refresh too. The page passes its render-time snapshot, so a change between the render and the first poll isn't missed.
+- **Streams (step 2):** `lib/sse.ts` is a shared polling stream for the task and notification streams. It has these properties:
+  - `maxDuration = 300`; the stream closes itself cleanly at 240 s with a `retry` hint, so there are no timeout errors.
+  - Polls never overlap.
+  - There are no writes after the client leaves, which also fixes "Controller is already closed".
+- **Reconnects:** events carry the snapshot as their id, and a reconnect sends it back as `Last-Event-ID` or `?since=`, so nothing is lost when a stream recycles.
+- **Hidden tabs:**
+  - The task stream closes, which saves Neon polling.
+  - When the tab is visible again, the stream reopens from the last snapshot and catches up at once.
+  - If the server refuses the stream, reconnects back off up to 60 s.
+- **Step 3 (TanStack Query):** skipped. The board, list and table already apply edits optimistically and roll back on error.
+- **Call stream:** not changed here; it belongs with P5.2.
+- **Tests:**
+  - `tests/lib/sse.test.ts`: retry hint, ids, self-close, no late writes, no overlap.
+  - `e2e/realtime.spec.ts`: the change kinds above, list view, hidden-tab catch-up.
+
 ### P5.2 Calls: TURN and limits (F14)
 
 **Steps**
