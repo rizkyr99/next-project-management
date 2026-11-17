@@ -443,6 +443,26 @@ export const notification = pgTable(
   ],
 );
 
+/**
+ * Per-user email choices (P3.4). No row means the defaults: emails for
+ * assignments and mentions on, daily digest off. In-app notifications are
+ * always on; these only control email, which also requires a verified address.
+ */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  emailOnAssign: boolean('email_on_assign').default(true).notNull(),
+  emailOnMention: boolean('email_on_mention').default(true).notNull(),
+  emailDigest: boolean('email_digest').default(false).notNull(),
+  // When the last digest went out; notifications after this go in the next one.
+  digestLastSentAt: timestamp('digest_last_sent_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 export const notificationRelations = relations(notification, ({ one }) => ({
   user: one(user, { fields: [notification.userId], references: [user.id] }),
 }));

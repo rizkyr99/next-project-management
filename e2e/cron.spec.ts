@@ -88,6 +88,20 @@ test('due-soon reminders: once per due date, not for done or far-off tasks, plus
   rows = await reminders();
   expect(rows).toHaveLength(2);
 
+  // Digest (P3.4): only verified users who opted in are processed, once per day.
+  await sql`insert into user_preferences (user_id, email_digest) values (${userId}, true)`;
+  await run();
+  const digestAt = async () =>
+    (await sql`select digest_last_sent_at from user_preferences where user_id = ${userId}`)[0].digest_last_sent_at;
+  expect(await digestAt()).toBeNull(); // still unverified
+  await sql`update "user" set email_verified = true where id = ${userId}`;
+  const afterVerify = await run();
+  expect(afterVerify.digests.checked).toBeGreaterThanOrEqual(1);
+  const firstDigest = await digestAt();
+  expect(firstDigest).not.toBeNull();
+  await run(); // within 20 h: not processed again
+  expect((await digestAt()).toISOString()).toBe(new Date(firstDigest).toISOString());
+
   // The reminder shows in the bell and opens the task.
   await page.goto(`/workspaces/${slug}`);
   await page.getByRole('button', { name: /^Notifications/ }).click();

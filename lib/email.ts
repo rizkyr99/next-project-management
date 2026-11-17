@@ -6,6 +6,13 @@ import { siteUrl } from '@/lib/site';
 import { WorkspaceInviteEmail, workspaceInviteText } from '@/emails/workspace-invite';
 import { PasswordResetEmail, passwordResetText } from '@/emails/password-reset';
 import { VerifyEmail, verifyEmailText } from '@/emails/verify-email';
+import {
+  TaskNotificationEmail,
+  taskNotificationText,
+  type TaskNotificationEmailProps,
+} from '@/emails/task-notification';
+import { DailyDigestEmail, dailyDigestText, type DailyDigestEmailProps } from '@/emails/daily-digest';
+import type { ReactElement } from 'react';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -146,4 +153,77 @@ export async function sendVerificationEmail({
     Sentry.captureException(err, { tags: { area: 'email', template: 'verify-email' } });
     return { sent: false };
   }
+}
+
+/** Where every notification email's "Manage email preferences" link points. */
+export const PREFERENCES_URL = `${APP_URL}/settings/notifications`;
+
+/**
+ * Shared send path for notification emails: skips reserved test addresses,
+ * never throws, and reports failures to Sentry under `template`.
+ */
+async function deliver({
+  to,
+  subject,
+  element,
+  text,
+  template,
+}: {
+  to: string;
+  subject: string;
+  element: ReactElement;
+  text: string;
+  template: string;
+}): Promise<{ sent: boolean }> {
+  if (isReservedTestAddress(to)) {
+    console.info(`[email] skipped ${template} to reserved test address`);
+    return { sent: false };
+  }
+  try {
+    const html = await render(element);
+    const { error } = await resend.emails.send({ from: emailFrom(), to, subject, html, text });
+    if (error) throw new Error(`Resend: ${error.name ?? ''} ${error.message}`);
+    return { sent: true };
+  } catch (err) {
+    console.error(`[email] ${template} send failed:`, err);
+    Sentry.captureException(err, { tags: { area: 'email', template } });
+    return { sent: false };
+  }
+}
+
+export function sendTaskNotificationEmail(
+  to: string,
+  props: Omit<TaskNotificationEmailProps, 'appUrl' | 'preferencesUrl'>,
+) {
+  const full = { ...props, appUrl: APP_URL, preferencesUrl: PREFERENCES_URL };
+  const subject =
+    props.kind === 'assigned'
+      ? `${props.actorName} assigned you to ${props.taskTitle}`
+      : `${props.actorName} mentioned you in ${props.taskTitle}`;
+  return deliver({
+    to,
+    subject,
+    element: TaskNotificationEmail(full),
+    text: taskNotificationText(full),
+    template: `task-${props.kind}`,
+  });
+}
+
+export function sendDailyDigestEmail(
+  to: string,
+  props: Omit<DailyDigestEmailProps, 'appUrl' | 'preferencesUrl' | 'notificationsUrl'>,
+) {
+  const full = {
+    ...props,
+    appUrl: APP_URL,
+    preferencesUrl: PREFERENCES_URL,
+    notificationsUrl: `${APP_URL}/notifications`,
+  };
+  return deliver({
+    to,
+    subject: `Your Tide summary: ${props.total} unread notification${props.total === 1 ? '' : 's'}`,
+    element: DailyDigestEmail(full),
+    text: dailyDigestText(full),
+    template: 'daily-digest',
+  });
 }

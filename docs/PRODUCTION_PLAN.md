@@ -397,6 +397,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 2. Settings UI under `/settings/profile` → "Notifications".
 3. Every email send checks preferences. Every email footer links to this page.
 
+**Status:** done. Preferences live in a `user_preferences` table (migration 0007; a missing row means the defaults: assign and mention emails on, digest off). They're edited at `/settings/notifications`, linked from the Account page and from every notification email's footer. Assignment and @mention emails go out via `after()`, and only to verified addresses with that preference on. The daily digest (moved here from P3.3) runs in the daily cron after the due-soon reminders. It lists up to 10 unread notifications since the last digest, and each user is claimed once per 20 h so retries never double-send. Sentry is now enabled only in production builds; dev and E2E traffic had been flooding the `/monitoring` tunnel.
+
 **Phase 3 exit criteria:** a user who forgets their password can recover. Due dates trigger notifications. Users control which emails they receive.
 
 ---

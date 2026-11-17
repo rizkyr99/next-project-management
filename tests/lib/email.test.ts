@@ -12,7 +12,9 @@ import * as Sentry from '@sentry/nextjs';
 import {
   emailFrom,
   isReservedTestAddress,
+  sendDailyDigestEmail,
   sendPasswordResetEmail,
+  sendTaskNotificationEmail,
   sendVerificationEmail,
   sendWorkspaceInviteEmail,
 } from '@/lib/email';
@@ -115,5 +117,45 @@ describe('sendVerificationEmail', () => {
     expect(arg.subject).toBe('Confirm your email for Tide');
     expect(arg.text).toContain(verify.verifyUrl);
     expect(arg.html).toContain('verify-email?token=t');
+  });
+});
+
+describe('notification emails', () => {
+  it('assignment email links the task and the preferences page, with escaped user text', async () => {
+    send.mockClear();
+    send.mockResolvedValue({ data: { id: 'm' }, error: null });
+    await sendTaskNotificationEmail('someone@gmail.com', {
+      kind: 'assigned',
+      actorName: 'Ada <script>',
+      taskTitle: 'Ship it',
+      taskUrl: 'https://tide.example.com/workspaces/a/projects/p?task=t',
+    });
+    const arg = send.mock.calls[0][0];
+    expect(arg.subject).toBe('Ada <script> assigned you to Ship it');
+    expect(arg.html).not.toContain('<script>');
+    expect(arg.html).toContain('/settings/notifications');
+    expect(arg.text).toContain('Manage email preferences:');
+  });
+
+  it('digest lists items and summarises the rest', async () => {
+    send.mockClear();
+    send.mockResolvedValue({ data: { id: 'm' }, error: null });
+    await sendDailyDigestEmail('someone@gmail.com', {
+      name: 'Ada',
+      total: 12,
+      items: [{ text: 'Grace assigned you to X', url: 'https://tide.example.com/x' }],
+    });
+    const arg = send.mock.calls[0][0];
+    expect(arg.subject).toBe('Your Tide summary: 12 unread notifications');
+    expect(arg.text).toContain('…and 11 more.');
+    expect(arg.html).toContain('/notifications');
+  });
+
+  it('never emails reserved test addresses', async () => {
+    send.mockClear();
+    expect(
+      await sendDailyDigestEmail('e2e@example.com', { name: 'A', total: 1, items: [] }),
+    ).toEqual({ sent: false });
+    expect(send).not.toHaveBeenCalled();
   });
 });
