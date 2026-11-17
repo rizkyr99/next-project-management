@@ -1,7 +1,5 @@
-export default function WorkspaceLoading() {
-  return (
-    <div className='flex h-full w-full items-center justify-center'>
-      <div className='border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent' />
-    </div>
-  );
+import { WorkspaceHomeSkeleton } from '@/components/page-skeletons';
+
+export default function Loading() {
+  return <WorkspaceHomeSkeleton />;
 }

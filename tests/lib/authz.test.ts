@@ -20,6 +20,8 @@ import {
   requireSession,
   requireTaskAccess,
   requireWorkspaceMember,
+  SESSION_EXPIRED,
+  runAction,
   toActionError,
 } from '@/lib/authz';
 
@@ -194,8 +196,8 @@ describe('assertWorkspaceMembers', () => {
 });
 
 describe('toActionError', () => {
-  it('re-throws UnauthenticatedError', () => {
-    expect(() => toActionError(new UnauthenticatedError(), 'x')).toThrow('Unauthorized');
+  it('turns a missing session into a message instead of throwing (P4.2)', () => {
+    expect(toActionError(new UnauthenticatedError(), 'x')).toEqual({ error: SESSION_EXPIRED });
   });
 
   it('maps AuthzError to a generic "Not found."', () => {
@@ -229,5 +231,25 @@ describe('toActionError with rate limits', () => {
     expect(toActionError(new RateLimitError(12), 'fallback')).toEqual({
       error: 'Too many requests. Please try again in 12 seconds.',
     });
+  });
+});
+
+describe('runAction', () => {
+  it('returns the body\'s result when it succeeds', async () => {
+    expect(await runAction('x', async () => ({ success: true }))).toEqual({ success: true });
+  });
+
+  it('turns thrown errors into messages instead of rejecting', async () => {
+    expect(await runAction('Failed.', async () => { throw new UnauthenticatedError(); })).toEqual({ error: SESSION_EXPIRED });
+    expect(await runAction('Failed.', async () => { throw new AuthzError(); })).toEqual({ error: 'Not found.' });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await runAction('Failed.', async () => { throw new Error('db down'); })).toEqual({ error: 'Failed.' });
+  });
+
+  it('lets Next.js control flow through (redirect, notFound)', async () => {
+    const { unstable_rethrow } = await import('next/navigation');
+    const signal = new Error('NEXT_REDIRECT');
+    await runAction('x', async () => { throw signal; });
+    expect(unstable_rethrow).toHaveBeenCalledWith(signal);
   });
 });

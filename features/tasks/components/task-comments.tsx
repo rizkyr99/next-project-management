@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { mentionPattern } from '../mentions';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Pencil, Send, Trash2, X } from 'lucide-react';
@@ -35,10 +36,15 @@ function getInitials(name: string) {
     .join('');
 }
 
-function renderBody(body: string) {
-  const parts = body.split(/(@\w[\w\s]*)/g);
-  return parts.map((part, i) =>
-    part.startsWith('@') ? (
+/**
+ * Highlights @mentions of real workspace members with the exact rule the
+ * server uses to notify them (features/tasks/mentions.ts).
+ */
+export function renderBody(body: string, memberNames: string[]) {
+  const pattern = mentionPattern(memberNames);
+  if (!pattern) return body;
+  return body.split(pattern).map((part, i) =>
+    i % 2 === 1 ? (
       <mark key={i} className='bg-primary/15 text-primary rounded px-0.5 font-medium not-italic'>
         {part}
       </mark>
@@ -51,6 +57,7 @@ function renderBody(body: string) {
 export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCommentsProps) {
   const queryClient = useQueryClient();
   const queryKey = ['comments', taskId];
+  const memberNames = workspaceMembers.map((m) => m.name);
 
   const { data: comments = [] } = useQuery({
     queryKey,
@@ -202,7 +209,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     </div>
                   </div>
                 ) : (
-                  <p className='text-sm mt-0.5 break-words'>{renderBody(c.body)}</p>
+                  <p className='text-sm mt-0.5 break-words'>{renderBody(c.body, memberNames)}</p>
                 )}
               </div>
 

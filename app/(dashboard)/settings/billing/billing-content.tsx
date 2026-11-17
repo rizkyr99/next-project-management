@@ -1,5 +1,6 @@
 'use client';
 
+import { PLAN_DETAILS, workspaceLimitLabel } from '@/lib/plans';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { createCheckoutSession, createPortalSession } from '@/features/billing/actions';
 import type { PlanName } from '@/lib/stripe';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { unstable_rethrow } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -26,9 +28,9 @@ interface BillingContentProps {
 }
 
 const PLAN_LABELS: Record<PlanName, string> = {
-  free: 'Free',
-  pro: 'Pro',
-  business: 'Business',
+  free: PLAN_DETAILS.free.name,
+  pro: PLAN_DETAILS.pro.name,
+  business: PLAN_DETAILS.business.name,
 };
 
 const PLAN_BADGE_VARIANTS: Record<PlanName, 'secondary' | 'default' | 'destructive'> = {
@@ -50,9 +52,12 @@ export function BillingContent({
   function handleUpgrade(targetPlan: 'pro' | 'business') {
     startTransition(async () => {
       try {
-        await createCheckoutSession(targetPlan);
-      } catch {
-        toast.error('Failed to start checkout. Please try again.');
+        // Redirects to Stripe on success; otherwise it returns { error }.
+        const result = await createCheckoutSession(targetPlan);
+        if (result && 'error' in result) toast.error(result.error, { position: 'top-center' });
+      } catch (error) {
+        unstable_rethrow(error);
+        toast.error('Failed to start checkout. Please try again.', { position: 'top-center' });
       }
     });
   }
@@ -60,9 +65,11 @@ export function BillingContent({
   function handleManageBilling() {
     startTransition(async () => {
       try {
-        await createPortalSession();
-      } catch {
-        toast.error('Failed to open billing portal. Please try again.');
+        const result = await createPortalSession();
+        if (result && 'error' in result) toast.error(result.error, { position: 'top-center' });
+      } catch (error) {
+        unstable_rethrow(error);
+        toast.error('Failed to open billing portal. Please try again.', { position: 'top-center' });
       }
     });
   }
@@ -153,7 +160,7 @@ export function BillingContent({
                   <CardTitle className="text-base flex items-center justify-between">
                     Pro
                     <span className="text-sm font-normal text-muted-foreground">
-                      $9 / mo
+                      ${PLAN_DETAILS.pro.priceMonthly} / mo
                     </span>
                   </CardTitle>
                   <CardDescription>For growing teams</CardDescription>
@@ -162,7 +169,7 @@ export function BillingContent({
                   <ul className="text-sm space-y-1.5 text-muted-foreground">
                     <li className="flex items-center gap-2">
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      Up to 5 workspaces
+                      {workspaceLimitLabel(PLAN_DETAILS.pro.maxWorkspaces)}
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
@@ -185,7 +192,7 @@ export function BillingContent({
                 <CardTitle className="text-base flex items-center justify-between">
                   Business
                   <span className="text-sm font-normal text-muted-foreground">
-                    $29 / mo
+                    ${PLAN_DETAILS.business.priceMonthly} / mo
                   </span>
                 </CardTitle>
                 <CardDescription>For large organizations</CardDescription>
@@ -194,7 +201,7 @@ export function BillingContent({
                 <ul className="text-sm space-y-1.5 text-muted-foreground">
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                    Unlimited workspaces
+                    {workspaceLimitLabel(PLAN_DETAILS.business.maxWorkspaces)}
                   </li>
                   <li className="flex items-center gap-2">
                     <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />

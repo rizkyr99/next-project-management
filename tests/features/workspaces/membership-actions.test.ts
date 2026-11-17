@@ -16,7 +16,7 @@ vi.mock('@/lib/membership', () => ({
   lockWorkspace: vi.fn(() => ({ kind: 'lock' })),
   unassignFromWorkspaceTasks: vi.fn((userId: string) => ({ kind: 'unassign', userId })),
 }));
-vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
+vi.mock('next/navigation', () => ({ redirect: vi.fn(), unstable_rethrow: vi.fn() }));
 vi.mock('next/headers', () => ({ headers: vi.fn(() => new Headers()) }));
 vi.mock('@/lib/authz', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/authz')>();

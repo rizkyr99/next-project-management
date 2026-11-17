@@ -423,8 +423,12 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 6. Optional: a **demo account** button that signs into a seeded read-mostly workspace. This is very useful for a portfolio project. It needs a seed script (`scripts/seed-demo.ts`) and a nightly reset in the P3.3 cron.
 
 **Done when**
-- [ ] Lighthouse ≥ 95 for Performance, Accessibility, Best Practices and SEO on `/`.
-- [ ] Sharing the URL in Slack/Twitter shows the OG card.
+- [ ] Lighthouse ≥ 95 for Performance, Accessibility, Best Practices and SEO on `/`. Measured on a local production build: **desktop 100 / 100 / 96 / 100**; **mobile 87 / 100 / 96 / 100**. Best Practices is 96 only because Speed Insights' script 404s off Vercel. Mobile Performance is held back by client JS start-up under simulated slow 4G (LCP ~3.9 s, mostly "render delay" after the 18 KB hero image has loaded). The remaining lever is shipping less JS on public pages (root-layout providers, Sentry core); see the follow-up below.
+- [x] Sharing the URL in Slack/Twitter shows the OG card (`app/opengraph-image.tsx`, from P1.6).
+
+**Status:** shipped except the demo account (step 6, optional; not started). `/` is a static landing page, and the proxy sends signed-in visitors to `/home` (the old dashboard redirect). Prices live in `lib/plans.ts`, shared with in-app billing. Screenshots are real, captured from a seeded demo workspace on the dev branch. The legal pages read `NEXT_PUBLIC_CONTACT_EMAIL`. Found and fixed along the way: the proxy redirected Sentry's `/monitoring` tunnel to `/login` for logged-out visitors (their errors were lost); the CSP blocked Replay's worker (`worker-src blob:`); Replay is now lazy-loaded from Sentry's CDN (about 120 KB less JS on every page); comment @mention highlighting swallowed the rest of the sentence; stacked avatar initials were clipped.
+
+**Follow-up:** trim client JS on public pages to reach 95 on mobile.
 
 ### P4.2 Error, 404 and loading states
 
@@ -433,6 +437,14 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 2. `error.tsx` for `[workspaceSlug]` and `projects/[projectId]`, with a "Try again" (`reset()`) button that reports to Sentry.
 3. `loading.tsx` skeletons for project, my-tasks, activity and settings, matching the real layouts so content doesn't jump when it loads.
 4. Server actions: replace `throw new Error('Unauthorized')` with returned errors, and show every `{ ok: false }` as a toast. No action should surface the generic Next.js "An error occurred in the Server Components render".
+
+**Status:** done.
+- **404s:** a global `app/not-found.tsx`, and an in-app one inside the workspace shell with "Back to workspace".
+- **Error boundaries:** `error.tsx` for the workspace and project routes (shared `RouteError`: Sentry, "Try again", a way out, the error digest). `global-error.tsx` replaces Next's bare default.
+- **Loading:** skeletons matched to each page (workspace home, project board, my tasks, activity, settings) replace the spinner.
+- **Server actions:** `runAction()` wraps the 10 actions that used to throw, and `toActionError` returns *"Your session has expired. Log in again to continue."* instead of rethrowing.
+- **Proxy:** it no longer redirects server-action POSTs to `/login`. That redirect produced "An unexpected response was received from the server". Every action checks the session itself; this was audited.
+- **Callers:** they now toast returned errors (profile, delete workspace, billing).
 
 ### P4.3 Onboarding and empty states
 

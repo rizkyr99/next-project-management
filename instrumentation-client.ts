@@ -12,8 +12,9 @@ Sentry.init({
   enabled: process.env.NODE_ENV === 'production',
   dsn: "https://09d2571a7c72c1fb4050b24656134159@o4511237520883712.ingest.de.sentry.io/4511249899257936",
 
-  // Add optional integrations for additional features
-  integrations: [Sentry.replayIntegration()],
+  // Session Replay is lazy-loaded below instead of bundled: it's most of
+  // Sentry's client weight and was in the critical path of every page.
+  integrations: [],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
@@ -32,5 +33,23 @@ Sentry.init({
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
   sendDefaultPii: true,
 });
+
+// Load Replay from Sentry's CDN once the browser is idle (CSP allows
+// browser.sentry-cdn.com in next.config.ts). The sample rates above still
+// apply once it's added.
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+  const loadReplay = () =>
+    Sentry.lazyLoadIntegration('replayIntegration')
+      // Explicit privacy settings: /privacy promises that typed text and page
+      // content are masked in recordings (these are also Sentry's defaults).
+      .then((replayIntegration) =>
+        Sentry.addIntegration(replayIntegration({ maskAllText: true, maskAllInputs: true, blockAllMedia: true })),
+      )
+      .catch(() => {
+        // Blocked or offline: errors are still reported, just without replay.
+      });
+  if ('requestIdleCallback' in window) window.requestIdleCallback(loadReplay, { timeout: 5000 });
+  else setTimeout(loadReplay, 3000);
+}
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

@@ -109,9 +109,9 @@ function expectNoWrites() {
 describe('createTask', () => {
   const input = { title: 'Task', order: 0, projectId: PROJECT, statusId: STATUS };
 
-  it('throws Unauthorized when there is no session', async () => {
+  it('returns a session-expired message when there is no session', async () => {
     vi.mocked(requireProjectAccess).mockRejectedValue(new UnauthenticatedError());
-    await expect(createTask(input)).rejects.toThrow('Unauthorized');
+    expect(await createTask(input)).toEqual({ error: 'Your session has expired. Log in again to continue.' });
     expectNoWrites();
   });
 
@@ -441,6 +441,14 @@ describe('addComment', () => {
   it('notifies members mentioned mid-sentence, but not non-members or yourself', async () => {
     const notified = await notifiedBy('hey @Bob can you check, cc @Mallory @Alice', members);
     expect(notified).toEqual(['user-2']);
+  });
+
+  it('notifies only the longest matching member at each @ (not "Ada" for "@Ada Lovelace")', async () => {
+    const notified = await notifiedBy('@Ada Lovelace please review', [
+      ...members,
+      { id: 'user-4', name: 'Ada' },
+    ]);
+    expect(notified).toEqual(['user-3']);
   });
 
   it('matches multi-word names case-insensitively', async () => {

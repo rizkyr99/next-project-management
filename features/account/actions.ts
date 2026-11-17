@@ -1,10 +1,12 @@
 'use server';
 
+import { requireSession, runAction } from '@/lib/authz';
+
 import { db } from '@/db/drizzle';
 import { account, member, subscription, user, workspace } from '@/db/schema';
 import { getOwnedWorkspaces, type OwnedWorkspace } from '@/lib/account';
 import { auth } from '@/lib/auth';
-import { requireSession, toActionError } from '@/lib/authz';
+import { toActionError } from '@/lib/authz';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { stripe } from '@/lib/stripe';
 import { and, eq, sql } from 'drizzle-orm';
@@ -18,18 +20,19 @@ const updateProfileSchema = z.object({
 });
 
 export async function updateProfile(values: z.infer<typeof updateProfileSchema>) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) throw new Error('Unauthorized');
+  return runAction('Failed to update profile.', async () => {
+    const session = await requireSession();
 
-  const validated = updateProfileSchema.parse(values);
+    const validated = updateProfileSchema.parse(values);
 
-  await db
-    .update(user)
-    .set({ name: validated.name })
-    .where(eq(user.id, session.user.id));
+    await db
+      .update(user)
+      .set({ name: validated.name })
+      .where(eq(user.id, session.user.id));
 
-  revalidatePath('/', 'layout');
-  return { success: true };
+    revalidatePath('/', 'layout');
+    return { success: true };
+  });
 }
 
 const changePasswordSchema = z
@@ -46,27 +49,29 @@ const changePasswordSchema = z
 export async function changePassword(
   values: z.infer<typeof changePasswordSchema>,
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) throw new Error('Unauthorized');
+  return runAction('Failed to change password.', async () => {
+    // Fail fast with the session-expired message before calling Better Auth.
+    await requireSession();
 
-  const validated = changePasswordSchema.parse(values);
+    const validated = changePasswordSchema.parse(values);
 
-  try {
-    await auth.api.changePassword({
-      headers: await headers(),
-      body: {
-        currentPassword: validated.currentPassword,
-        newPassword: validated.newPassword,
-        revokeOtherSessions: false,
-      },
-    });
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : 'Failed to change password';
-    return { error: message };
-  }
+    try {
+      await auth.api.changePassword({
+        headers: await headers(),
+        body: {
+          currentPassword: validated.currentPassword,
+          newPassword: validated.newPassword,
+          revokeOtherSessions: false,
+        },
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to change password';
+      return { error: message };
+    }
 
-  return { success: true };
+    return { success: true };
+  });
 }
 
 const deleteAccountSchema = z.object({

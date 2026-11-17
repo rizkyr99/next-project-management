@@ -70,7 +70,7 @@ test('reset a forgotten password and sign out other sessions', async ({ browser 
   await expect(page.getByRole('alert').filter({ hasText: 'invalid or has expired' })).toBeVisible();
 
   // The other device was signed out.
-  await otherPage.goto('/');
+  await otherPage.goto('/home');
   await expect(otherPage).toHaveURL(/\/login/);
 
   // Old password no longer works; the new one does.

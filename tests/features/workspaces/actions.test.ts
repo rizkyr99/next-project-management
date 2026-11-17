@@ -32,6 +32,7 @@ vi.mock('next/cache', () => ({
 
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
+  unstable_rethrow: vi.fn(),
 }));
 
 import { createWorkspace } from '@/features/workspaces/actions';
@@ -43,12 +44,10 @@ const mockSession = { user: { id: 'user-1', name: 'Test', email: 'test@example.c
 beforeEach(() => vi.resetAllMocks());
 
 describe('createWorkspace', () => {
-  it('throws Unauthorized when there is no session', async () => {
+  it('returns a session-expired message when there is no session', async () => {
     vi.mocked(auth.api.getSession).mockResolvedValue(null);
-
-    await expect(
-      createWorkspace({ name: 'My WS', url: 'my-ws' }),
-    ).rejects.toThrow('Unauthorized');
+    expect(await createWorkspace({ name: 'My WS', url: 'my-ws' })).toEqual({ error: 'Your session has expired. Log in again to continue.' });
+    expect(mockInsert).not.toHaveBeenCalled();
   });
 
   it('returns error when workspace limit is reached', async () => {

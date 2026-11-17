@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 import { toast } from 'sonner';
 import { deleteWorkspace } from '../actions';
 
@@ -32,8 +33,14 @@ export function DeleteWorkspaceButton({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      await deleteWorkspace(workspaceSlug);
-    } catch {
+      // Redirects away on success; otherwise it returns { error }.
+      const result = await deleteWorkspace(workspaceSlug);
+      if (result && 'error' in result) {
+        toast.error(result.error, { position: 'top-center' });
+        setIsDeleting(false);
+      }
+    } catch (error) {
+      unstable_rethrow(error);
       toast.error('Failed to delete workspace', { position: 'top-center' });
       setIsDeleting(false);
     }

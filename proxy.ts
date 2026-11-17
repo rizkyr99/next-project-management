@@ -11,6 +11,9 @@ import { safeCallbackPath } from '@/lib/safe-redirect';
 const SENSITIVE_AUTH =
   /^\/api\/auth\/(sign-in|sign-up|forget-password|request-password-reset|reset-password|change-password|send-verification-email)(\/|$)/;
 
+/** Public marketing pages (app/(marketing)). */
+const MARKETING_PAGES = new Set(['/', '/pricing', '/privacy', '/terms']);
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -61,14 +64,26 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/opengraph-image') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
-    pathname === '/email-verified';
+    pathname === '/email-verified' ||
+    MARKETING_PAGES.has(pathname);
+
+  // `/` is the public landing page; signed-in people go straight to the app.
+  if (pathname === '/' && session) {
+    return NextResponse.redirect(new URL('/home', request.url));
+  }
 
   if (isAuthPage && session) {
     const target = safeCallbackPath(request.nextUrl.searchParams.get('callbackURL'));
     return NextResponse.redirect(new URL(target, request.url));
   }
 
-  if (!isAuthPage && !isPublicPage && !session) {
+  // Server action calls (POSTs with a Next-Action header) are never
+  // redirected: the browser expects an action response, not a login page
+  // ("An unexpected response was received from the server"). Every action
+  // checks the session itself and answers with a "session expired" message.
+  const isServerAction = request.method === 'POST' && request.headers.has('next-action');
+
+  if (!isAuthPage && !isPublicPage && !session && !isServerAction) {
     const login = new URL('/login', request.url);
     if (pathname !== '/') {
       login.searchParams.set('callbackURL', `${pathname}${request.nextUrl.search}`);
@@ -82,7 +97,10 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Pages (everything except API routes, Next internals and files).
-    '/((?!api|_next/static|_next/image|static|.*\\.).*)',
+    // /monitoring is Sentry's tunnel (next.config.ts tunnelRoute): it must
+    // never be auth-gated, or logged-out visitors' errors are redirected to
+    // /login and lost.
+    '/((?!api|_next/static|_next/image|static|monitoring|.*\\.).*)',
     // Auth API, for rate limiting only. The page matcher above excludes /api,
     // which used to mean auth endpoints were never rate limited at all.
     '/api/auth/:path*',
