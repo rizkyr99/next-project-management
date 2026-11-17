@@ -348,6 +348,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 3. Delete the user. Cascades handle the rest. Sign out and redirect to `/`.
 4. Required for Google OAuth verification and good practice for GDPR.
 
+**Status:** done. The delete button lives on the Account page (`/workspaces/:slug/account`, Danger zone); `/settings/profile`, a placeholder until now, forwards there. Confirmation is the account email plus the password for credential accounts (rate limited, 5 per 15 min). Workspaces the user owns alone are listed in the dialog and deleted with the account; shared ones block deletion and link to their settings. If the Stripe cancel fails, nothing is deleted.
+
 **Phase 2 exit criteria:** every entity a user can create, they can also edit and delete. Every notification is clickable.
 
 ---
