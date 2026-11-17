@@ -1,5 +1,6 @@
 import { AppSidebar } from '@/components/app-sidebar';
 import { Header } from '@/components/header';
+import { VerifyEmailBanner } from '@/features/account/components/verify-email-banner';
 import { db } from '@/db/drizzle';
 import { member, project, workspace } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
@@ -85,6 +86,7 @@ export default async function WorkspaceLayout({
       <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} atWorkspaceLimit={!limitCheck.allowed} />
       <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
         <Header />
+        {!session.user.emailVerified && <VerifyEmailBanner email={session.user.email} />}
         <main className='flex-1'>{children}</main>
       </div>
     </>

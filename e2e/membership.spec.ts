@@ -17,6 +17,7 @@ async function newUser(browser: Browser, email: string, name: string) {
 }
 
 test('transfer ownership, then the old owner leaves and is unassigned', async ({ browser }) => {
+  test.setTimeout(60_000); // two users, many server round trips
   const s = stamp();
   const ownerEmail = `own+${s}@example.com`;
   const heirEmail = `heir+${s}@example.com`;

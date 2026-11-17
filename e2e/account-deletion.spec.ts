@@ -17,6 +17,7 @@ async function newUser(browser: Browser, email: string, name: string) {
 }
 
 test('delete an account after handing off a shared workspace', async ({ browser }) => {
+  test.setTimeout(60_000); // two users, many server round trips
   const s = stamp();
   const email = `del+${s}@example.com`;
   const peerEmail = `del-peer+${s}@example.com`;

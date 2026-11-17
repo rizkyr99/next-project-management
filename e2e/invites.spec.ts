@@ -95,6 +95,10 @@ test.describe('Workspace invites', () => {
       where lower(u.email) = ${inviteeEmail} and w.slug = ${owner.slug}`;
     expect(membership?.role).toBe('admin');
 
+    // Accepting through the emailed token proves the mailbox, so it verifies the account (P3.2).
+    const [verified] = await sql`select email_verified from "user" where lower(email) = ${inviteeEmail}`;
+    expect(verified.email_verified).toBe(true);
+
     // Reusing the link afterwards is a no-op that points back into the workspace.
     await invitee.page.goto(invitePath);
     await expect(invitee.page.getByText('Invite already accepted')).toBeVisible();

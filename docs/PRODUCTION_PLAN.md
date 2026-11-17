@@ -375,6 +375,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 2. Use a **soft gate**: unverified users can use the app, but see a banner ("Verify your email to receive invites and notifications") and **can't accept invites or receive email notifications** until verified. A hard gate adds friction for portfolio visitors.
 3. Google OAuth users are already verified.
 
+**Status:** done. Links expire after 24 h and sign the user in on success. They always land on `/email-verified`, which also explains expired or invalid links and offers a resend. The banner sits under the header in every workspace. Accepting an invite through its emailed token also marks the account verified, since the token proves the mailbox. No notification emails exist yet; P3.4 must only send them to verified addresses.
+
 ### P3.3 Scheduled jobs (due-soon notifications) (F13)
 
 **Files:** new `app/api/cron/due-soon/route.ts`, `vercel.json`
