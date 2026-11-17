@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+# A newer push to the same PR or branch cancels the run in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   typecheck:
     name: Type Check
@@ -14,9 +19,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install
+      - run: npm ci
       - run: npx tsc --noEmit
 
   lint:
@@ -26,10 +31,40 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install
+      - run: npm ci
       - run: npm run lint
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    env:
+      # Placeholders so the app builds and starts without real services. None
+      # reach a real service: E2E emails go only to reserved test domains
+      # (lib/email.ts skips them), and no spec calls Stripe or Google.
+      BETTER_AUTH_URL: http://localhost:3000
+      GOOGLE_CLIENT_ID: ci-placeholder
+      GOOGLE_CLIENT_SECRET: ci-placeholder
+      STRIPE_SECRET_KEY: sk_test_ci_placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
+      STRIPE_PRO_PRICE_ID: price_ci_pro
+      STRIPE_BUSINESS_PRICE_ID: price_ci_business
+      RESEND_API_KEY: re_ci_placeholder
+      NEXT_TELEMETRY_DISABLED: '1'
+      # Never connected to during the build; the real URL lives in Vercel.
+      DATABASE_URL: postgres://ci:ci@localhost:5432/ci
+      BETTER_AUTH_SECRET: ci-build-only-secret-0123456789abcdef0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Catches what tsc and lint don't: invalid route segment config,
+      # server/client boundary mistakes, prerender failures.
+      - run: npm run build
 
   migrations:
     name: Migrations
@@ -53,9 +88,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install
+      - run: npm ci
       # A fresh database must be buildable purely from migration history.
       - run: npm run db:migrate
       - run: npm run db:check
@@ -76,12 +111,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
-      - run: npm install
-      - run: npm test
+      - run: npm ci
+      - run: npm run test:coverage -- --coverage.reporter=text --coverage.reporter=lcov --coverage.reporter=json-summary
+      - name: Coverage summary
+        if: always()
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage
           path: coverage/lcov.info
+
+  # End-to-end tests run in e2e.yml (release PRs, or any PR labelled "e2e").

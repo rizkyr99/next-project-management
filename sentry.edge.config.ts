@@ -10,7 +10,8 @@ Sentry.init({
   // trace and replay through the /monitoring tunnel; when Sentry was slow to
   // reach, those requests piled up and starved the browser's per-host
   // connection pool, stalling page loads (and polluting the real project).
-  enabled: process.env.NODE_ENV === 'production',
+  // CI's E2E runs a production build; NEXT_PUBLIC_SENTRY_DISABLED keeps it quiet.
+  enabled: process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_SENTRY_DISABLED,
   dsn: "https://09d2571a7c72c1fb4050b24656134159@o4511237520883712.ingest.de.sentry.io/4511249899257936",
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.

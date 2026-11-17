@@ -554,6 +554,7 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
   - If the server refuses the stream, reconnects back off up to 60 s.
 - **Step 3 (TanStack Query):** skipped. The board, list and table already apply edits optimistically and roll back on error.
 - **Call stream:** not changed here; it belongs with P5.2.
+- **Follow-up:** a live refresh that started before your own change can land after it and briefly show the older board. The next poll (about 5 s) corrects it. To fix: skip a refresh whose snapshot is older than the last one applied, or refresh after your own action's response.
 - **Tests:**
   - `tests/lib/sse.test.ts`: retry hint, ids, self-close, no late writes, no overlap.
   - `e2e/realtime.spec.ts`: the change kinds above, list view, hidden-tab catch-up.
@@ -581,6 +582,32 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
    - password reset with a mock email sink (P3.1)
    - Stripe checkout with test clocks/test card (happy path).
 5. Coverage target: ≥ 80 % on `features/*/actions.ts` and `lib/authz.ts`. Report it in the PR summary.
+
+**Status:** done. The E2E job turns on once the Neon secret and variable are set.
+- **Workflow:**
+  - All jobs use `npm ci` and Node from `.nvmrc` (24), with the npm cache.
+  - A newer push cancels the run in progress.
+  - A new **Build** job runs `next build` with placeholder env. It catches invalid segment config, which tsc misses (see #53).
+- **E2E workflow (`e2e.yml`):**
+  - **When it runs:** always on release PRs into `main`. On other PRs only with the `e2e` label, because it's slower than the 1-minute checks.
+  - **Shards:** 3 in parallel. Each shard creates its own Neon branch from the **dev** branch (never production), expiring after a day.
+  - **Each shard:** runs `db:migrate`, builds, and runs Playwright against `next start`. It uploads its report on failure, then deletes its branch.
+  - **Why a production build:** the dev server compiled pages on first visit, which made CI slow (10+ min) and caused timeout failures.
+  - **Sentry:** `NEXT_PUBLIC_SENTRY_DISABLED` keeps CI's production build from reporting to it.
+  - **The daily-job spec:** runs last in shard 3, on that shard's own branch.
+  - **Ubuntu 24.04:** Playwright has no browser builds for 26.04 yet.
+  - **What the production build exposed, fixed:**
+    - Better Auth's own rate limiter (production only) keyed on `x-forwarded-for`, so every test sign-up shared one limit. It now reads `x-real-ip` first, like `lib/rate-limit.ts`.
+    - The task panel sometimes never reported a deleted task: a fast refresh finished within one commit. It now waits for the refreshed data.
+    - Test timing: the task-detail spec gets 60 s. The keyboard column drag re-presses an arrow only when nothing moved.
+- **Build fixes the new jobs exposed:**
+  - **Lock file:** the npm bundled with Node 24.11.1 rejected `package-lock.json`, so `.nvmrc` moves to 24.22.3.
+  - **Fonts:** builds failed when Google Fonts served URLs Turbopack couldn't map. Geist, Geist Mono and Schibsted Grotesk are now self-hosted (`app/fonts/`, latin, variable weight) through `next/font/local`.
+- **Coverage:** `scripts/coverage-summary.mjs` writes a per-file table to the job summary. It fails the Unit Tests job below 80 %.
+  - Now 87.3 %, up from 70.4 %.
+  - New tests for billing, search, and workspace admin actions (update, remove member, change role, delete).
+- **Specs (step 4):** isolation, invites, columns, deep link and password reset already exist (`e2e/`).
+  - Stripe checkout is not covered: it needs real Stripe test keys and a webhook forwarder in CI. It's left for when billing goes live.
 
 ### P5.4 Content Security Policy
 
