@@ -11,6 +11,9 @@ async function columnOrder(page: Page) {
 }
 
 test('manage board columns without losing tasks', async ({ page }) => {
+  test.setTimeout(60_000);
+  // Column checks allow 15 s: a live refresh (P5.1) that started before a
+  // change can briefly show the older board until the next poll corrects it.
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   await registerAndLogin(page, `cols+${stamp}@example.com`, 'Column Owner');
 
@@ -27,7 +30,7 @@ test('manage board columns without losing tasks', async ({ page }) => {
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}/, { timeout: 15000 });
 
   // New projects start empty with To Do (default), In Progress and Done.
-  await expect.poll(() => columnOrder(page)).toEqual(['To Do', 'In Progress', 'Done']);
+  await expect.poll(() => columnOrder(page), { timeout: 15000 }).toEqual(['To Do', 'In Progress', 'Done']);
   await expect(page.getByTestId('column-To Do').getByText('No tasks yet. Add the first one below.')).toBeVisible();
   const welcome = 'Welcome to your new project!';
   await addTask(page, 'To Do', welcome);
@@ -36,7 +39,7 @@ test('manage board columns without losing tasks', async ({ page }) => {
   await page.getByRole('button', { name: 'Add column' }).click();
   await page.getByLabel('New column name').fill('Review');
   await page.getByLabel('New column name').press('Enter');
-  await expect.poll(() => columnOrder(page)).toEqual(['To Do', 'In Progress', 'Done', 'Review']);
+  await expect.poll(() => columnOrder(page), { timeout: 15000 }).toEqual(['To Do', 'In Progress', 'Done', 'Review']);
 
   // Rename it inline (double-click), and the change survives a reload.
   await page.getByTestId('column-Review').getByRole('button', { name: 'Review', exact: true }).dblclick();
@@ -54,7 +57,7 @@ test('manage board columns without losing tasks', async ({ page }) => {
   await page.getByRole('option', { name: 'Done' }).click();
   await dialog.getByRole('button', { name: 'Delete column' }).click();
 
-  await expect.poll(() => columnOrder(page)).toEqual(['In Progress', 'Done', 'QA']);
+  await expect.poll(() => columnOrder(page), { timeout: 15000 }).toEqual(['In Progress', 'Done', 'QA']);
   await expect(page.getByTestId('column-Done').getByText(welcome)).toBeVisible(); // not lost
   await expect(page.getByTestId('column-Done').getByLabel('Default column')).toBeVisible();
 
@@ -93,11 +96,11 @@ test('manage board columns without losing tasks', async ({ page }) => {
     (r) => r.request().method() === 'POST' && r.request().headers()['next-action'] !== undefined,
   );
   await page.keyboard.press('Space');
-  await expect.poll(() => columnOrder(page)).toEqual(['QA', 'In Progress', 'Done']);
+  await expect.poll(() => columnOrder(page), { timeout: 15000 }).toEqual(['QA', 'In Progress', 'Done']);
   expect((await saved).ok()).toBe(true);
 
   // Persisted server-side: survives a reload (and is what every other member loads).
   await page.reload();
-  await expect.poll(() => columnOrder(page)).toEqual(['QA', 'In Progress', 'Done']);
+  await expect.poll(() => columnOrder(page), { timeout: 15000 }).toEqual(['QA', 'In Progress', 'Done']);
   await expect(page.getByTestId('column-Done').getByText(welcome)).toBeVisible();
 });

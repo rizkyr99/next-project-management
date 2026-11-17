@@ -554,6 +554,7 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
   - If the server refuses the stream, reconnects back off up to 60 s.
 - **Step 3 (TanStack Query):** skipped. The board, list and table already apply edits optimistically and roll back on error.
 - **Call stream:** not changed here; it belongs with P5.2.
+- **Follow-up:** a live refresh that started before your own change can land after it and briefly show the older board. The next poll (about 5 s) corrects it. To fix: skip a refresh whose snapshot is older than the last one applied, or refresh after your own action's response.
 - **Tests:**
   - `tests/lib/sse.test.ts`: retry hint, ids, self-close, no late writes, no overlap.
   - `e2e/realtime.spec.ts`: the change kinds above, list view, hidden-tab catch-up.
