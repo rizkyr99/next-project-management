@@ -47,6 +47,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { usePendingDeletes } from '@/features/tasks/pending-deletes';
+import { openTask } from '@/features/tasks/task-link';
 
 type Priority = 'low' | 'medium' | 'high';
 
@@ -126,11 +128,19 @@ export function TableView({ project }: Readonly<TableViewProps>) {
   );
   const statusOptions = statuses.map((s) => ({ id: s.id, name: s.name }));
 
-  const [tasks, setTasks] = useState(initialTasks);
+  const [allTasks, setTasks] = useState(initialTasks);
+  const hidden = usePendingDeletes();
+  const tasks = hidden.size === 0 ? allTasks : allTasks.filter((t) => !hidden.has(t.id));
   const [taskStatusMap, setTaskStatusMap] = useState<Record<string, string>>(
     () => Object.fromEntries(initialTasks.map((t) => [t.id, t.statusId])),
   );
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [rawSelectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // A task inside its undo window is hidden, so it must not stay selected
+  // either: bulk actions would otherwise delete it behind Undo's back.
+  const selectedIds =
+    hidden.size === 0
+      ? rawSelectedIds
+      : new Set([...rawSelectedIds].filter((id) => !hidden.has(id)));
   const [isPending, setIsPending] = useState(false);
 
   if (!projectId || tasks.length === 0) {
@@ -296,7 +306,12 @@ export function TableView({ project }: Readonly<TableViewProps>) {
                   </TableCell>
 
                   <TableCell className='font-medium max-w-xs'>
-                    <span className='truncate block'>{task.title}</span>
+                    <button
+                      type='button'
+                      onClick={() => openTask(task.id)}
+                      className='truncate block max-w-full text-left hover:underline'>
+                      {task.title}
+                    </button>
                   </TableCell>
 
                   <TableCell>

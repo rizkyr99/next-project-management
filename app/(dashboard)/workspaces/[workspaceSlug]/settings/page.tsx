@@ -3,6 +3,7 @@ import { UpdateWorkspaceForm } from '@/features/workspaces/components/update-wor
 import { MemberList } from '@/features/workspaces/components/member-list';
 import { PendingInvitesList } from '@/features/workspaces/components/pending-invites-list';
 import { DeleteWorkspaceButton } from '@/features/workspaces/components/delete-workspace-button';
+import { LeaveWorkspaceButton } from '@/features/workspaces/components/leave-workspace-button';
 import { db } from '@/db/drizzle';
 import { member, user, workspace, workspaceInvite } from '@/db/schema';
 import { auth } from '@/lib/auth';
@@ -116,11 +117,9 @@ export default async function WorkspaceSettingsPage({
                 {members.length}
               </span>
             </TabsTrigger>
-            {membership.role === 'owner' && (
-              <TabsTrigger value='danger' className='text-destructive data-[state=active]:text-destructive'>
-                Danger zone
-              </TabsTrigger>
-            )}
+            <TabsTrigger value='danger' className='text-destructive data-[state=active]:text-destructive'>
+              Danger zone
+            </TabsTrigger>
           </TabsList>
 
           {/* ── General ─────────────────────────────────── */}
@@ -228,6 +227,8 @@ export default async function WorkspaceSettingsPage({
                     createdAt: m.createdAt,
                   }))}
                   workspaceSlug={workspaceSlug}
+                  workspaceId={membership.workspaceId}
+                  workspaceName={membership.workspaceName}
                   currentUserId={membership.memberId}
                   currentUserRole={membership.role as 'owner' | 'admin' | 'member'}
                 />
@@ -259,13 +260,30 @@ export default async function WorkspaceSettingsPage({
           </TabsContent>
 
           {/* ── Danger Zone ─────────────────────────────── */}
-          {membership.role === 'owner' && (
-            <TabsContent value='danger' className='mt-6'>
+          <TabsContent value='danger' className='mt-6 space-y-6'>
+            <Card className='border-destructive/40'>
+              <CardHeader>
+                <CardTitle className='text-destructive'>Leave workspace</CardTitle>
+                <CardDescription>
+                  {membership.role === 'owner'
+                    ? 'You own this workspace. Transfer ownership to another member (Members tab, member menu) before leaving, or delete the workspace.'
+                    : 'Remove yourself from this workspace. You will be unassigned from its tasks.'}
+                </CardDescription>
+              </CardHeader>
+              {membership.role !== 'owner' && (
+                <CardContent>
+                  <LeaveWorkspaceButton
+                    workspaceId={membership.workspaceId}
+                    workspaceName={membership.workspaceName}
+                  />
+                </CardContent>
+              )}
+            </Card>
+
+            {membership.role === 'owner' && (
               <Card className='border-destructive/40'>
                 <CardHeader>
-                  <CardTitle className='text-destructive'>
-                    Delete workspace
-                  </CardTitle>
+                  <CardTitle className='text-destructive'>Delete workspace</CardTitle>
                   <CardDescription>
                     Permanently delete this workspace, all its projects, tasks,
                     and remove all members. This action cannot be undone.
@@ -278,8 +296,8 @@ export default async function WorkspaceSettingsPage({
                   />
                 </CardContent>
               </Card>
-            </TabsContent>
-          )}
+            )}
+          </TabsContent>
         </Tabs>
       </div>
     </div>

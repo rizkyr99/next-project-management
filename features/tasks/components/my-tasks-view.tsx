@@ -19,6 +19,7 @@ import {
 import { ArrowDown, ArrowRight, ArrowUp, CheckSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { projectHref, taskHref } from '../task-link';
 
 type Priority = 'low' | 'medium' | 'high';
 
@@ -146,7 +147,7 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
                   <TableRow key={t.id}>
                     <TableCell className='font-medium max-w-xs'>
                       <Link
-                        href={`/workspaces/${workspaceSlug}/projects/${t.projectId}`}
+                        href={taskHref(workspaceSlug, t.projectId, t.id)}
                         className='hover:underline truncate block'>
                         {t.title}
                       </Link>
@@ -154,7 +155,7 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
 
                     <TableCell>
                       <Link
-                        href={`/workspaces/${workspaceSlug}/projects/${t.projectId}`}
+                        href={projectHref(workspaceSlug, t.projectId)}
                         className='text-sm text-muted-foreground hover:text-foreground truncate block'>
                         {t.projectName}
                       </Link>

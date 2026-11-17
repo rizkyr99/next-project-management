@@ -182,6 +182,41 @@ export async function requireCommentAccess(commentId: string, opts?: AccessOptio
   };
 }
 
+export async function requireStatusAccess(statusId: string, opts?: AccessOptions) {
+  const session = await requireSession();
+
+  const [row] = await db
+    .select({
+      statusId: taskStatus.id,
+      statusName: taskStatus.name,
+      isDefault: taskStatus.isDefault,
+      projectId: project.id,
+      workspaceId: workspace.id,
+      workspaceSlug: workspace.slug,
+      role: member.role,
+    })
+    .from(taskStatus)
+    .innerJoin(project, eq(project.id, taskStatus.projectId))
+    .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+    .innerJoin(
+      member,
+      and(eq(member.workspaceId, project.workspaceId), eq(member.userId, session.user.id)),
+    )
+    .where(eq(taskStatus.id, statusId))
+    .limit(1);
+
+  if (!row) throw new AuthzError();
+  assertRole(row.role, opts);
+
+  return {
+    session,
+    role: row.role,
+    status: { id: row.statusId, name: row.statusName, isDefault: row.isDefault ?? false },
+    project: { id: row.projectId },
+    workspace: { id: row.workspaceId, slug: row.workspaceSlug },
+  };
+}
+
 /** Throws unless `statusId` is a column of `projectId`. */
 export async function assertStatusInProject(statusId: string, projectId: string) {
   const [row] = await db

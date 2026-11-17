@@ -10,7 +10,10 @@ import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
+import { ProjectActionsMenu } from '@/features/projects/components/project-actions-menu';
 import type { Metadata } from 'next';
+import { createHash } from 'node:crypto';
+import { TaskDetailSheet } from '@/features/tasks/components/task-detail/task-detail-sheet';
 
 type View = 'board' | 'list' | 'table';
 
@@ -101,36 +104,74 @@ export default async function ProjectIdPage({
       : [];
   const commentCountMap = Object.fromEntries(commentCounts.map((r) => [r.taskId, r.count]));
 
+  // The views keep local state (drag and drop, optimistic edits); remount
+  // them whenever the server data they show changes (columns, order, or any
+  // task field).
+  const boardKey = createHash('sha1')
+    .update(
+      JSON.stringify(
+        data.statuses.map((s) => [
+          s.id,
+          s.name,
+          s.color,
+          s.isDefault,
+          s.tasks.map((t) => [
+            t.id,
+            t.title,
+            t.priority,
+            t.dueDate?.getTime() ?? null,
+            Boolean(t.description),
+            t.assignees.map((a) => a.user.id),
+          ]),
+        ]),
+      ),
+    )
+    .digest('base64url');
+
   return (
     <div className='h-full flex flex-col'>
       <div className='px-4 py-2 space-y-2 border-b'>
-        <div className='text-lg font-semibold flex items-center justify-between'>
-          {data.name}
-          <CallButton
-            projectId={projectId}
-            currentUserId={session.user.id}
-            currentUserName={session.user.name ?? 'User'}
-          />
+        <div className='flex items-start justify-between gap-4'>
+          <div className='min-w-0'>
+            <h1 className='text-lg font-semibold truncate'>{data.name}</h1>
+            {data.description && (
+              <p className='text-sm text-muted-foreground line-clamp-2'>{data.description}</p>
+            )}
+          </div>
+          <div className='flex items-center gap-2 shrink-0'>
+            <CallButton
+              projectId={projectId}
+              currentUserId={session.user.id}
+              currentUserName={session.user.name ?? 'User'}
+            />
+            <ProjectActionsMenu
+              project={{ id: data.id, name: data.name, description: data.description }}
+              canDelete={currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin'}
+              variant='header'
+            />
+          </div>
         </div>
         <Suspense>
           <ViewSwitcher currentView={currentView} />
         </Suspense>
       </div>
       {currentView === 'board' && (
-        <BoardView
-          boardKey={allTaskIds.join(',')}
-          project={data}
-          workspaceMembers={workspaceMembers}
-          currentUserId={session.user.id}
-          commentCountMap={commentCountMap}
-        />
+        <BoardView boardKey={boardKey} project={data} commentCountMap={commentCountMap} />
       )}
       {currentView === 'list' && (
-        <ListView project={data} workspaceMembers={workspaceMembers} />
+        <ListView key={boardKey} project={data} workspaceMembers={workspaceMembers} />
       )}
       {currentView === 'table' && (
-        <TableView project={data} workspaceMembers={workspaceMembers} />
+        <TableView key={boardKey} project={data} workspaceMembers={workspaceMembers} />
       )}
+      <Suspense>
+        <TaskDetailSheet
+          projectId={data.id}
+          statuses={data.statuses}
+          members={workspaceMembers}
+          currentUserId={session.user.id}
+        />
+      </Suspense>
     </div>
   );
 }

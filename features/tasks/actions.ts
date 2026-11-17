@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/db/drizzle';
 import { comment, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
+import { taskHref } from './task-link';
 import {
   type ActionResult,
   AuthzError,
@@ -24,9 +25,11 @@ import {
   bulkUpdateStatusSchema,
   commentBodySchema,
   createTaskSchema,
+  deleteTaskSchema,
   reorderTasksSchema,
   idSchema,
   updateTaskAssigneesSchema,
+  updateTaskDescriptionSchema,
   updateTaskDueDateSchema,
   updateTaskPrioritySchema,
   updateTaskStatusSchema,
@@ -34,6 +37,16 @@ import {
 } from './schema';
 
 type Task = typeof task.$inferSelect;
+
+/** Notification columns that make a task notification open that task. */
+function notificationLink(ctx: { workspace: { id: string; slug: string }; project: { id: string }; task: { id: string } }) {
+  return {
+    workspaceId: ctx.workspace.id,
+    projectId: ctx.project.id,
+    taskId: ctx.task.id,
+    href: taskHref(ctx.workspace.slug, ctx.project.id, ctx.task.id),
+  };
+}
 
 export type CommentWithAuthor = {
   id: string;
@@ -50,7 +63,7 @@ export type CommentWithAuthor = {
 //   3. scopes every write to the project/task it was authorized for.
 // IDs and project context sent by the client are never trusted on their own.
 
-export async function createTask(values: z.infer<typeof createTaskSchema>): Promise<ActionResult<{ task: Task }>> {
+export async function createTask(values: z.input<typeof createTaskSchema>): Promise<ActionResult<{ task: Task }>> {
   try {
     const input = createTaskSchema.parse(values);
     const ctx = await requireProjectAccess(input.projectId);
@@ -61,6 +74,7 @@ export async function createTask(values: z.infer<typeof createTaskSchema>): Prom
       .insert(task)
       .values({
         title: input.title,
+        description: input.description ?? null,
         dueDate: input.dueDate,
         order: input.order,
         projectId: ctx.project.id,
@@ -214,6 +228,62 @@ export async function updateTaskTitle(taskId: string, title: string): Promise<Ac
   }
 }
 
+export async function updateTaskDescription(
+  values: z.input<typeof updateTaskDescriptionSchema>,
+): Promise<ActionResult> {
+  try {
+    const input = updateTaskDescriptionSchema.parse(values);
+    const ctx = await requireTaskAccess(input.taskId);
+
+    await db
+      .update(task)
+      .set({ description: input.description })
+      .where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.description_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Failed to update description.');
+  }
+}
+
+/**
+ * Deletes one task (comments and assignees cascade). Any member of the
+ * workspace may delete, matching bulkDeleteTasks. The board's undo window
+ * is client-side: this is only called once it has passed.
+ */
+export async function deleteTask(values: z.input<typeof deleteTaskSchema>): Promise<ActionResult> {
+  try {
+    const input = deleteTaskSchema.parse(values);
+    const ctx = await requireTaskAccess(input.taskId);
+
+    await db.delete(task).where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.deleted',
+      projectId: ctx.project.id,
+      taskId: null,
+      metadata: { taskTitle: ctx.task.title },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Failed to delete task.');
+  }
+}
+
 export async function updateTaskPriority(
   taskId: string,
   priority: 'low' | 'medium' | 'high',
@@ -272,6 +342,7 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
     const ctx = await requireTaskAccess(input.taskId);
     const nextIds = [...new Set(input.assigneeIds)];
     await assertWorkspaceMembers(nextIds, ctx.workspace.id);
+    const taskLink = notificationLink(ctx);
 
     const actorId = ctx.session.user.id;
 
@@ -302,6 +373,7 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
           type: 'task_assigned' as const,
           actorName: ctx.session.user.name,
           taskTitle: ctx.task.title,
+          ...taskLink,
         })),
       );
     }
@@ -387,6 +459,7 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
     const text = commentBodySchema.parse(body);
     const actorId = ctx.session.user.id;
     await enforceRateLimit('comments', actorId);
+    const taskLink = notificationLink(ctx);
 
     const [newComment] = await db
       .insert(comment)
@@ -416,6 +489,7 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
               type: 'comment_mention' as const,
               actorName: ctx.session.user.name,
               taskTitle: ctx.task.title,
+              ...taskLink,
             })),
           );
         }

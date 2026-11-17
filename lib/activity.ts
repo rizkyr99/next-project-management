@@ -4,6 +4,7 @@ import { activityLog } from '@/db/schema';
 export type ActivityAction =
   | 'task.created'
   | 'task.title_changed'
+  | 'task.description_changed'
   | 'task.status_changed'
   | 'task.priority_changed'
   | 'task.due_date_changed'
@@ -12,9 +13,13 @@ export type ActivityAction =
   | 'task.comment_added'
   | 'task.deleted'
   | 'project.created'
+  | 'project.updated'
+  | 'project.deleted'
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'
+  | 'member.left'
+  | 'member.ownership_transferred'
   | 'member.role_changed';
 
 interface InsertActivityParams {

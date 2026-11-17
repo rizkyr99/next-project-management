@@ -8,6 +8,9 @@ import { TaskCardDueDate } from './task-card-due-date';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createTaskSchema } from '../schema';
+
+// The inline form only asks for a title; descriptions are added in the task sheet.
+const inlineTaskSchema = createTaskSchema.omit({ description: true });
 import z from 'zod';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { useParams } from 'next/navigation';
@@ -31,8 +34,8 @@ export function AddTaskInline({ statusId, onTaskCreated }: AddTaskInlineProps) {
   const params = useParams<{ projectId: string }>();
   const { projectId } = params;
 
-  const form = useForm<z.infer<typeof createTaskSchema>>({
-    resolver: zodResolver(createTaskSchema),
+  const form = useForm<z.infer<typeof inlineTaskSchema>>({
+    resolver: zodResolver(inlineTaskSchema),
     defaultValues: {
       title: '',
       dueDate: undefined,
@@ -42,7 +45,7 @@ export function AddTaskInline({ statusId, onTaskCreated }: AddTaskInlineProps) {
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof createTaskSchema>) => {
+  const onSubmit = async (values: z.infer<typeof inlineTaskSchema>) => {
     setShowInput(false);
 
     const result = await createTask(values);

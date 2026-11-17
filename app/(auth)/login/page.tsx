@@ -11,9 +11,9 @@ export const metadata: Metadata = { title: 'Log in' };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackURL?: string | string[] }>;
+  searchParams: Promise<{ callbackURL?: string | string[]; deleted?: string }>;
 }) {
-  const { callbackURL: raw } = await searchParams;
+  const { callbackURL: raw, deleted } = await searchParams;
   const callbackURL = safeCallbackPath(raw);
   const query = callbackURL === '/' ? '' : `?callbackURL=${encodeURIComponent(callbackURL)}`;
 
@@ -25,6 +25,11 @@ export default async function LoginPage({
         linkText='Register'
         linkHref={`/register${query}`}
       />
+      {deleted === '1' && (
+        <p role='status' className='rounded-md border bg-muted/50 px-3 py-2 text-sm'>
+          Your account has been deleted.
+        </p>
+      )}
       <LoginForm callbackURL={callbackURL} />
       <SocialLoginDivider />
       <SocialLoginButtons callbackURL={callbackURL} />

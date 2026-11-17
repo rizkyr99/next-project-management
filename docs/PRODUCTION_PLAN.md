@@ -233,7 +233,7 @@ The README says "enforced permission boundaries in every Server Action". Once P0
 **Done when**
 - [x] Hammering login from two different serverless instances is limited consistently. Verified against the real Upstash database: two separate Node processes each fired 15 concurrent requests at one key with a 20/min limit, and exactly **20 of 30** were allowed in total (10 and 10). The old in-memory limiter would have allowed all 30.
 
-*Implementation notes:* `lib/rate-limit.ts` uses an Upstash sliding window with a 1s timeout and **fails open**, logging to Sentry, so a Redis hiccup can't lock users out. Keys are prefixed per environment (`tide:<env>:rl:…`), so dev and preview runs sharing the free-tier database never touch production counters. Without credentials it falls back to in-memory. IP comes from `x-real-ip` (set by Vercel), never the client-controlled first `x-forwarded-for` entry. **Pre-existing bug found:** the proxy `matcher` excluded `/api/*`, so auth endpoints had **never** been rate limited. `/api/auth/:path*` is now matched. Limits: credential endpoints (sign-in, sign-up, password reset/change, verification email) 20/min per IP. Other `/api/auth` traffic (background session reads) 300/min per IP, so an office behind one NAT isn't locked out. Invites and resends 20/hour, comments 30/min, task creation 120/min, all per user. Password reset 5/hour per email waits for the reset flow (P3); the endpoint is already covered by the per-IP limit. *E2E note:* the suite's sign-ups now count against the real per-IP limit. If the suite grows past ~20 registrations a minute, give each test context its own `x-real-ip`.
+*Implementation notes:* `lib/rate-limit.ts` uses an Upstash sliding window with a 1s timeout and **fails open**, logging to Sentry, so a Redis hiccup can't lock users out. Keys are prefixed per environment (`tide:<env>:rl:…`), so dev and preview runs sharing the free-tier database never touch production counters. Without credentials it falls back to in-memory. IP comes from `x-real-ip` (set by Vercel), never the client-controlled first `x-forwarded-for` entry. **Pre-existing bug found:** the proxy `matcher` excluded `/api/*`, so auth endpoints had **never** been rate limited. `/api/auth/:path*` is now matched. Limits: credential endpoints (sign-in, sign-up, password reset/change, verification email) 20/min per IP. Other `/api/auth` traffic (background session reads) 300/min per IP, so an office behind one NAT isn't locked out. Invites and resends 20/hour, comments 30/min, task creation 120/min, all per user. Password reset 5/hour per email waits for the reset flow (P3); the endpoint is already covered by the per-IP limit. *E2E note:* done in P2.2. `registerAndLogin` gives each simulated user its own `x-real-ip`.
 
 ### P1.5 Environment hygiene
 
@@ -277,7 +277,7 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 5. Activity: `project.updated`, `project.deleted`.
 
 **Done when**
-- [ ] Renaming updates the sidebar and breadcrumbs without a reload. Deleting redirects to the workspace home and removes the project from the sidebar.
+- [x] Renaming updates the sidebar and breadcrumbs without a reload. Deleting redirects to the workspace home and removes the project from the sidebar. (`e2e/projects.spec.ts` proves no full reload with a window marker. There are no breadcrumbs, but the header, sidebar and `<title>` all update. The project description now shows under the title. `createProject` has persisted `description` since P0.5.)
 
 ### P2.2 Board column (status) management
 
@@ -290,8 +290,10 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 4. Add an optional `color` column on `task_status` for the column dot. Keep it small.
 
 **Done when**
-- [ ] Deleting a column with tasks prompts for a destination, and no task is lost.
-- [ ] Column order persists across reloads and for other users.
+- [x] Deleting a column with tasks prompts for a destination, and no task is lost.
+- [x] Column order persists across reloads and for other users. (`e2e/columns.spec.ts` covers add, inline rename, deleting the default column that holds a task (the destination becomes the default and the task is moved), keyboard reorder, and reload.)
+
+*Implementation notes:* `task.status_id` uses **`NO ACTION`**, not `RESTRICT`. Both refuse to delete a column that still holds tasks, which was verified on dev with `23503 foreign_key_violation`. But RESTRICT is checked immediately, even inside a cascade, so deleting a project (which cascades to columns and tasks in one statement) could fail. NO ACTION is checked at the end of the statement, and the project cascade was verified to leave 0 rows. `deleteStatus` moves tasks with a `CASE` on order (preserving their relative order, appended after the destination's tasks), reassigns the default and deletes, all in one `db.batch`. Other rules: at least one column, at most 20, and reorder must list exactly the project's columns. Any member can shape the board, since deleting a column never deletes tasks. **Accessibility:** columns reorder by drag (header grip) or keyboard (Space, then arrows, then Space). During a column drag, collision detection and keyboard stepping only consider columns; otherwise the tasks inside a neighbouring column swallowed each arrow press. **Hydration fix (P2.1):** the project header passed a server-rendered `<Button>` as a prop into the client menu, which intermittently caused a hydration mismatch (3 in 5 runs, then 0 in 5 after the fix). *E2E:* `registerAndLogin` gives each simulated user its own `x-real-ip` (198.18.0.0/15), so the suite's sign-ups don't trip the real 20/min per-IP limit when runs go back-to-back.
 
 ### P2.3 Task detail view
 
@@ -305,8 +307,10 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 5. Allow an optional `description` in `createTaskSchema`, and show a small "has description" icon on board cards.
 
 **Done when**
-- [ ] Opening a task from a notification, search or a pasted URL opens the right task.
-- [ ] `task-card.tsx` is under ~200 lines.
+- [x] Opening a task from search, activity, My tasks or a pasted URL opens the right task. Notifications follow in P2.5, which adds the `taskId`/`href` columns they need.
+- [x] `task-card.tsx` is under ~200 lines (now ~100; the sheet lives in `task-detail/`).
+
+**Notes:** delete uses a client-side 5 s undo window (the server delete runs only after it), so Undo needs no restore path. A link to a missing task shows "That task no longer exists." No task emails exist yet, so there were none to update.
 
 ### P2.4 Membership lifecycle
 
@@ -319,7 +323,9 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 4. Guard: the last owner can't leave or be demoted.
 
 **Done when**
-- [ ] Unit tests cover the last-owner guard and transfer.
+- [x] Unit tests cover the last-owner guard and transfer.
+
+**Notes:** a workspace has exactly one owner, so "last owner" means "the owner": they can't leave until they transfer, and the owner's role can't be changed (only moved by transfer). Transfer also refuses if the new owner's plan is already at its workspace limit, since `workspace.userId` counts toward it. Unassigning lives in `lib/membership.ts` and runs in the same batch as the membership delete.
 
 ### P2.5 Actionable notifications
 
@@ -330,6 +336,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 2. Clicking a notification marks it read and navigates there.
 3. Add an empty state, a "view all" page (`/notifications`) with pagination, and delete notifications older than 90 days in the P3.3 cron.
 
+**Status:** done. Migration `0005_notification_links` adds `workspace_id`, `project_id` and `task_id` (all `ON DELETE CASCADE`, so a notification never outlives what it links to), `href`, and a `(user_id, created_at desc)` index. Task notifications link to `?task=`; invites link to `/invites`. Rows from before the migration have no link (invite rows still fall back to `/invites`). `deleteExpiredNotifications()` in `lib/notifications.ts` is ready for the P3.3 cron to call.
+
 ### P2.6 Account deletion
 
 **Files:** `features/account/actions.ts`, `app/(dashboard)/settings/profile/page.tsx`
@@ -339,6 +347,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 2. Cancel the Stripe subscription (`stripe.subscriptions.cancel`) before deleting.
 3. Delete the user. Cascades handle the rest. Sign out and redirect to `/`.
 4. Required for Google OAuth verification and good practice for GDPR.
+
+**Status:** done. The delete button lives on the Account page (`/workspaces/:slug/account`, Danger zone); `/settings/profile`, a placeholder until now, forwards there. Confirmation is the account email plus the password for credential accounts (rate limited, 5 per 15 min). Workspaces the user owns alone are listed in the dialog and deleted with the account; shared ones block deletion and link to their settings. If the Stripe cancel fails, nothing is deleted.
 
 **Phase 2 exit criteria:** every entity a user can create, they can also edit and delete. Every notification is clickable.
 
