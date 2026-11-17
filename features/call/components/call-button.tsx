@@ -115,7 +115,10 @@ export function CallButton({ projectId, currentUserId, currentUserName }: CallBu
         ) : (
           <Button variant='outline' size='sm' onClick={joinCall} className='gap-1.5'>
             <Phone className='w-3.5 h-3.5' />
-            {idleParticipants.length > 0 ? `Join call (${idleParticipants.length})` : 'Start call'}
+            {/* Icon-only on phones; the label stays for screen readers. */}
+            <span className='sr-only sm:not-sr-only'>
+              {idleParticipants.length > 0 ? `Join call (${idleParticipants.length})` : 'Start call'}
+            </span>
           </Button>
         )}
       </div>

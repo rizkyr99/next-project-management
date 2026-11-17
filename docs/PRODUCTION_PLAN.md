@@ -502,6 +502,25 @@ Also collapse the project filter bar (P4.4) behind a single "Filters" button on 
 
 Continue the work on `feat/mobile-header-improvements`: the board scrolls horizontally with snap, the task sheet goes full-screen, touch targets are ≥ 44 px, and `TouchSensor` with a press delay is configured so scrolling doesn't start drags.
 
+**Status:** done.
+- **Board:** on phones, columns are 85vw wide (up to 320 px) and the board scrolls with snap, so the next column peeks in. From `sm` up there is no snap and columns stay 256 px.
+- **Dragging:** `MouseSensor` (5 px) and `TouchSensor` (250 ms press, 8 px tolerance) replace `PointerSensor`, so a swipe scrolls and a long press drags.
+- **Touch targets:** on coarse pointers, icon buttons and the sheet's Close button get an invisible hit area of at least 44 px, without changing the layout.
+- **Filters:** on phones, the three selects fold behind a "Filters (n)" toggle next to the search box.
+- **Smaller fixes:**
+  - The verify-email banner uses a one-line text on phones.
+  - "Start call" shrinks to its icon and keeps its accessible name.
+  - The setup checklist's action buttons drop below the step text.
+  - The task panel is already full-screen.
+- **Also fixed:** the task stream route no longer throws "Controller is already closed" when a client disconnects before the first snapshot.
+- **Tests:** `e2e/mobile.spec.ts` (390×844, touch) checks:
+  - no horizontal page scroll
+  - column widths
+  - the full-screen panel
+  - the filter toggle
+  - the icon-only call button
+  - the 44 px hit area
+
 **Phase 4 exit criteria:** a first-time visitor understands the product from `/`, can sign up, and sees a guided workspace. No raw error screens appear.
 
 ---

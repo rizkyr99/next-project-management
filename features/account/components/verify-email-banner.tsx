@@ -46,8 +46,11 @@ export function VerifyEmailBanner({ email }: { email: string }) {
       className='flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950/40 dark:text-amber-100'>
       <MailWarning className='size-4 shrink-0' />
       <p className='min-w-0 flex-1'>
-        Verify your email (<span className='font-medium'>{email}</span>) to receive invites and
-        notifications. Use “Resend email” to get a verification link.
+        <span className='sm:hidden'>Verify your email to get invites and notifications.</span>
+        <span className='hidden sm:inline'>
+          Verify your email (<span className='font-medium'>{email}</span>) to receive invites and
+          notifications. Use “Resend email” to get a verification link.
+        </span>
       </p>
       <ResendVerificationButton email={email} size='sm' />
     </div>

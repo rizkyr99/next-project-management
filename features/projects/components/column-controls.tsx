@@ -319,7 +319,7 @@ export function AddColumn({ projectId, columnCount }: { projectId: string; colum
     return (
       <Button
         variant='ghost'
-        className='w-64 shrink-0 justify-start text-muted-foreground border border-dashed'
+        className='w-[85vw] max-w-80 sm:w-64 shrink-0 snap-start justify-start text-muted-foreground border border-dashed'
         onClick={() => setOpen(true)}>
         <Plus />
         Add column
@@ -329,7 +329,7 @@ export function AddColumn({ projectId, columnCount }: { projectId: string; colum
 
   return (
     <form
-      className='w-64 shrink-0 rounded-lg bg-muted p-2 space-y-2'
+      className='w-[85vw] max-w-80 sm:w-64 shrink-0 snap-start rounded-lg bg-muted p-2 space-y-2'
       onSubmit={(e) => {
         e.preventDefault();
         submit();

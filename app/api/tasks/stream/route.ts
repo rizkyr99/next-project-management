@@ -17,6 +17,8 @@ export async function GET(request: Request) {
   }
 
   let intervalId: NodeJS.Timeout;
+  // The client can disconnect before the first snapshot resolves.
+  let closed = false;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -30,18 +32,23 @@ export async function GET(request: Request) {
         return `${row?.total ?? 0}:${row?.latest?.toISOString() ?? ''}`;
       };
 
-      getSnapshot().then((snap) => {
-        lastSnapshot = snap;
-        controller.enqueue(': keepalive\n\n');
-      });
+      getSnapshot()
+        .then((snap) => {
+          if (closed) return;
+          lastSnapshot = snap;
+          controller.enqueue(': keepalive\n\n');
+        })
+        .catch((err) => console.error('[SSE tasks] initial snapshot error:', err));
 
       intervalId = setInterval(async () => {
+        if (closed) return;
         try {
           controller.enqueue(': keepalive\n\n');
 
           const snap = await getSnapshot();
           if (snap !== lastSnapshot) {
             lastSnapshot = snap;
+            if (closed) return;
             const payload = JSON.stringify({ type: 'tasks_changed', projectId });
             controller.enqueue(`data: ${payload}\n\n`);
           }
@@ -52,6 +59,7 @@ export async function GET(request: Request) {
     },
 
     cancel() {
+      closed = true;
       clearInterval(intervalId);
     },
   });

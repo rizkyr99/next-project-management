@@ -99,14 +99,14 @@ export function OnboardingChecklist({
               )}>
               {step.done && <Check className='size-3.5' />}
             </span>
-            <div className='min-w-0 flex-1'>
+            <div className='min-w-0 flex-1 basis-[calc(100%-2.5rem)] sm:basis-0'>
               <p className={cn('text-sm font-medium', step.done && 'text-muted-foreground line-through')}>
                 {step.title}
                 <span className='sr-only'>{step.done ? ' (done)' : ' (to do)'}</span>
               </p>
               {!step.done && <p className='text-sm text-muted-foreground'>{step.body}</p>}
             </div>
-            {!step.done && step.action}
+            {!step.done && step.action && <div className='ml-10 sm:ml-0'>{step.action}</div>}
           </li>
         ))}
       </ol>
