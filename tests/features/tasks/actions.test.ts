@@ -443,6 +443,14 @@ describe('addComment', () => {
     expect(notified).toEqual(['user-2']);
   });
 
+  it('notifies only the longest matching member at each @ (not "Ada" for "@Ada Lovelace")', async () => {
+    const notified = await notifiedBy('@Ada Lovelace please review', [
+      ...members,
+      { id: 'user-4', name: 'Ada' },
+    ]);
+    expect(notified).toEqual(['user-3']);
+  });
+
   it('matches multi-word names case-insensitively', async () => {
     const notified = await notifiedBy('@ada lovelace please review', members);
     expect(notified).toEqual(['user-3']);

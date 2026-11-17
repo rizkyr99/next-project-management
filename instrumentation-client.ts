@@ -40,7 +40,11 @@ Sentry.init({
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
   const loadReplay = () =>
     Sentry.lazyLoadIntegration('replayIntegration')
-      .then((replayIntegration) => Sentry.addIntegration(replayIntegration()))
+      // Explicit privacy settings: /privacy promises that typed text and page
+      // content are masked in recordings (these are also Sentry's defaults).
+      .then((replayIntegration) =>
+        Sentry.addIntegration(replayIntegration({ maskAllText: true, maskAllInputs: true, blockAllMedia: true })),
+      )
       .catch(() => {
         // Blocked or offline: errors are still reported, just without replay.
       });

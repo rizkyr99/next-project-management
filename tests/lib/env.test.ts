@@ -80,6 +80,7 @@ describe('EMAIL_FROM', () => {
         ...valid,
         VERCEL_ENV: 'production',
         EMAIL_FROM: 'Tide <notifications@tide.ramarizdev.web.id>',
+        NEXT_PUBLIC_CONTACT_EMAIL: 'hello@tide.ramarizdev.web.id',
       }).ok,
     ).toBe(true);
   });
@@ -97,4 +98,20 @@ describe('EMAIL_FROM', () => {
       expect(checkServerEnv({ ...valid, EMAIL_FROM: from }).ok).toBe(false);
     },
   );
+});
+
+describe('NEXT_PUBLIC_CONTACT_EMAIL', () => {
+  const prod = { VERCEL_ENV: 'production', EMAIL_FROM: 'Tide <notifications@tide.ramarizdev.web.id>' };
+
+  it('is required in production (the legal pages name it as the contact)', () => {
+    const result = checkServerEnv({ ...valid, ...prod });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.problems.join('\n')).toContain('NEXT_PUBLIC_CONTACT_EMAIL');
+  });
+
+  it('must be an email address, and is optional outside production', () => {
+    expect(checkServerEnv({ ...valid, ...prod, NEXT_PUBLIC_CONTACT_EMAIL: 'not-an-email' }).ok).toBe(false);
+    expect(checkServerEnv({ ...valid, ...prod, NEXT_PUBLIC_CONTACT_EMAIL: 'hello@tide.ramarizdev.web.id' }).ok).toBe(true);
+    expect(checkServerEnv({ ...valid, VERCEL_ENV: 'preview' }).ok).toBe(true);
+  });
 });

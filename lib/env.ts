@@ -52,13 +52,22 @@ export const serverEnvSchema = z.object({
   // Set by Vercel: "production" | "preview" | "development".
   VERCEL_ENV: z.string().optional(),
 
-  // Optional. Shown on /privacy and /terms as the contact for privacy and
-  // legal requests.
+  // Shown on /privacy and /terms as the contact for privacy and legal
+  // requests. Required in production (see below); optional elsewhere.
   NEXT_PUBLIC_CONTACT_EMAIL: z.email().optional(),
 
   // Optional. Public base URL used in emails. Falls back to BETTER_AUTH_URL.
   NEXT_PUBLIC_APP_URL: z.url().optional(),
 }).superRefine((env, ctx) => {
+  // The legal pages name this as the way to reach the operator; without it
+  // they'd point to an address that isn't anywhere on the site.
+  if (env.VERCEL_ENV === 'production' && !env.NEXT_PUBLIC_CONTACT_EMAIL) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['NEXT_PUBLIC_CONTACT_EMAIL'],
+      message: 'required in production (contact address shown on /privacy and /terms)',
+    });
+  }
   if (env.VERCEL_ENV === 'production' && !env.EMAIL_FROM) {
     ctx.addIssue({
       code: 'custom',

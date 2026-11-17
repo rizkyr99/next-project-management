@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { mentionPattern } from '../mentions';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Pencil, Send, Trash2, X } from 'lucide-react';
@@ -35,22 +36,13 @@ function getInitials(name: string) {
     .join('');
 }
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 /**
- * Highlights @mentions of real workspace members only, with the same rule
- * the server uses to notify them (features/tasks/actions.ts: mentionsName):
- * case-insensitive, and the name must end at a non-word character. Longer
- * names win, so "@Ada Lovelace" isn't cut short by a member named "Ada".
+ * Highlights @mentions of real workspace members with the exact rule the
+ * server uses to notify them (features/tasks/mentions.ts).
  */
 export function renderBody(body: string, memberNames: string[]) {
-  const names = memberNames
-    .map((n) => n.trim())
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length)
-    .map(escapeRegExp);
-  if (names.length === 0) return body;
-  const pattern = new RegExp(`(@(?:${names.join('|')})(?!\\w))`, 'gi');
+  const pattern = mentionPattern(memberNames);
+  if (!pattern) return body;
   return body.split(pattern).map((part, i) =>
     i % 2 === 1 ? (
       <mark key={i} className='bg-primary/15 text-primary rounded px-0.5 font-medium not-italic'>
