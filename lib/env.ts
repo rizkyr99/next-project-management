@@ -52,6 +52,10 @@ export const serverEnvSchema = z.object({
   // Set by Vercel: "production" | "preview" | "development".
   VERCEL_ENV: z.string().optional(),
 
+  // Optional. Shown on /privacy and /terms as the contact for privacy and
+  // legal requests.
+  NEXT_PUBLIC_CONTACT_EMAIL: z.email().optional(),
+
   // Optional. Public base URL used in emails. Falls back to BETTER_AUTH_URL.
   NEXT_PUBLIC_APP_URL: z.url().optional(),
 }).superRefine((env, ctx) => {

@@ -9,6 +9,20 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display-face), var(--font-geist-sans), sans-serif;
+  --color-mist: var(--mist);
+  --color-mist-foreground: var(--mist-foreground);
+  --animate-rise: rise 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  /* Transform only, so the hero screenshot's LCP paint isn't delayed. */
+  @keyframes rise {
+    from {
+      transform: translateY(40px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,6 +63,10 @@
 
 :root {
   --radius: 0.65rem;
+  /* Marketing: the backdrop the product screenshots sit in. */
+  --mist: oklch(0.955 0.012 270);
+  /* Secondary text on mist; muted-foreground is too light there (AA). */
+  --mist-foreground: oklch(0.45 0.02 275);
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
@@ -83,6 +101,8 @@
 }
 
 .dark {
+  --mist: oklch(0.2 0.012 275);
+  --mist-foreground: oklch(0.78 0.012 275);
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.21 0.006 285.885);

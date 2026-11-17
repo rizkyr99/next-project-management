@@ -40,14 +40,17 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      // Next.js inline scripts + Stripe.js
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
+      // Next.js inline scripts, Stripe.js, and Sentry Replay (lazy-loaded)
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://browser.sentry-cdn.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' blob: data: https://lh3.googleusercontent.com",
       "font-src 'self'",
       // Stripe checkout iframe + Neon websockets
       "frame-src https://js.stripe.com https://hooks.stripe.com",
       "connect-src 'self' https://api.stripe.com",
+      // Sentry Session Replay compresses in a Web Worker built from a blob:
+      // URL. Without this the browser blocked it (console CSP error).
+      "worker-src 'self' blob:",
     ].join('; '),
   },
 ];
