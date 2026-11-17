@@ -46,9 +46,11 @@ import {
   bulkUpdateStatus,
   createTask,
   deleteComment,
+  deleteTask,
   getComments,
   reorderTasks,
   updateTaskAssignees,
+  updateTaskDescription,
   updateTaskStatus,
   updateTaskTitle,
 } from '@/features/tasks/actions';
@@ -244,6 +246,66 @@ describe('updateTaskTitle', () => {
     const result = await updateTaskTitle(TASK, '   ');
     expect(result.error).toMatch(/between 1 and 255/);
     expectNoWrites();
+  });
+});
+
+describe('updateTaskDescription', () => {
+  function captureSet() {
+    const set = vi.fn(() => chain(undefined));
+    db.update.mockReturnValue({ set });
+    return set;
+  }
+
+  it('rejects a task from another workspace', async () => {
+    vi.mocked(requireTaskAccess).mockImplementation(denied);
+    expect(await updateTaskDescription({ taskId: TASK, description: 'x' })).toEqual({ error: 'Not found.' });
+    expectNoWrites();
+  });
+
+  it('stores trimmed Markdown and logs the change', async () => {
+    const set = captureSet();
+    const result = await updateTaskDescription({ taskId: TASK, description: '  **Do** the thing  ' });
+    expect(result).toEqual({ success: true });
+    expect(set).toHaveBeenCalledWith({ description: '**Do** the thing' });
+    expect(revalidatePath).toHaveBeenCalledWith(`/workspaces/acme/projects/${PROJECT}`);
+    expect(insertActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'task.description_changed', taskId: TASK }),
+    );
+  });
+
+  it('clears the description when it is blank', async () => {
+    const set = captureSet();
+    await updateTaskDescription({ taskId: TASK, description: '   \n ' });
+    expect(set).toHaveBeenCalledWith({ description: null });
+  });
+
+  it('rejects descriptions over 10,000 characters', async () => {
+    const result = await updateTaskDescription({ taskId: TASK, description: 'a'.repeat(10_001) });
+    expect(result.error).toMatch(/10,000 characters/);
+    expectNoWrites();
+  });
+});
+
+describe('deleteTask', () => {
+  it('rejects a task from another workspace', async () => {
+    vi.mocked(requireTaskAccess).mockImplementation(denied);
+    expect(await deleteTask({ taskId: TASK })).toEqual({ error: 'Not found.' });
+    expectNoWrites();
+  });
+
+  it('rejects a malformed id without touching the database', async () => {
+    expect((await deleteTask({ taskId: 'nope' })).error).toBeDefined();
+    expect(requireTaskAccess).not.toHaveBeenCalled();
+    expectNoWrites();
+  });
+
+  it('deletes the task and logs it without a dangling task id', async () => {
+    db.delete.mockReturnValue(chain(undefined));
+    expect(await deleteTask({ taskId: TASK })).toEqual({ success: true });
+    expect(db.delete).toHaveBeenCalledOnce();
+    expect(insertActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'task.deleted', taskId: null, metadata: { taskTitle: 'Ship it' } }),
+    );
   });
 });
 

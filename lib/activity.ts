@@ -4,6 +4,7 @@ import { activityLog } from '@/db/schema';
 export type ActivityAction =
   | 'task.created'
   | 'task.title_changed'
+  | 'task.description_changed'
   | 'task.status_changed'
   | 'task.priority_changed'
   | 'task.due_date_changed'

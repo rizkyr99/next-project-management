@@ -6,6 +6,7 @@ import { FileText, FolderOpen, MessageSquare, Search } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { searchWorkspace, SearchResult } from '../actions';
+import { projectHref, taskHref } from '@/features/tasks/task-link';
 
 const icons: Record<SearchResult['type'], React.ReactNode> = {
   task: <FileText className='w-4 h-4 shrink-0 text-muted-foreground' />,
@@ -68,7 +69,11 @@ export function GlobalSearch() {
   const handleSelect = useCallback(
     (result: SearchResult) => {
       handleClose();
-      router.push(`/workspaces/${result.workspaceSlug}/projects/${result.projectId}`);
+      router.push(
+        result.taskId
+          ? taskHref(result.workspaceSlug, result.projectId, result.taskId)
+          : projectHref(result.workspaceSlug, result.projectId),
+      );
     },
     [router, handleClose],
   );

@@ -48,6 +48,7 @@ export default async function ActivityPage({
 
       <ActivityFeed
         workspaceId={currentWorkspace.id}
+        workspaceSlug={workspaceSlug}
         initialItems={items}
         initialNextCursor={nextCursor}
       />

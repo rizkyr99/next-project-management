@@ -1,7 +1,17 @@
 import z from 'zod';
 
+export const MAX_DESCRIPTION_LENGTH = 10_000;
+
+/** Trimmed Markdown; an empty description is stored as null. */
+const descriptionSchema = z
+  .string()
+  .trim()
+  .max(MAX_DESCRIPTION_LENGTH, `Description must be ${MAX_DESCRIPTION_LENGTH.toLocaleString('en-US')} characters or fewer.`)
+  .transform((value) => value || null);
+
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Task title is required').max(255, 'Title must be 255 characters or fewer'),
+  description: descriptionSchema.optional(),
   dueDate: z.date().optional(),
   order: z.number(),
   projectId: z.uuid(),
@@ -52,6 +62,13 @@ export const updateTaskTitleSchema = z.object({
     .min(1, 'Title must be between 1 and 255 characters.')
     .max(255, 'Title must be between 1 and 255 characters.'),
 });
+
+export const updateTaskDescriptionSchema = z.object({
+  taskId: z.uuid(),
+  description: descriptionSchema,
+});
+
+export const deleteTaskSchema = z.object({ taskId: z.uuid() });
 
 export const updateTaskPrioritySchema = z.object({
   taskId: z.uuid(),

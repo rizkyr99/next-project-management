@@ -32,6 +32,8 @@ import { TaskStatusSelect } from '@/features/tasks/components/task-status-select
 import { MoreHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { usePendingDeletes } from '@/features/tasks/pending-deletes';
+import { openTask } from '@/features/tasks/task-link';
 
 interface ListViewProps {
   workspaceMembers?: { id: string; name: string; email: string; image: string | null }[];
@@ -73,7 +75,9 @@ export function ListView({ project }: Readonly<ListViewProps>) {
   );
   const statusOptions = statuses.map((s) => ({ id: s.id, name: s.name }));
 
-  const [tasks, setTasks] = useState(initialTasks);
+  const [allTasks, setTasks] = useState(initialTasks);
+  const hidden = usePendingDeletes();
+  const tasks = hidden.size === 0 ? allTasks : allTasks.filter((t) => !hidden.has(t.id));
   const [taskStatusMap, setTaskStatusMap] = useState<Record<string, string>>(
     () => Object.fromEntries(initialTasks.map((t) => [t.id, t.statusId])),
   );
@@ -234,9 +238,12 @@ export function ListView({ project }: Readonly<ListViewProps>) {
                 onCheckedChange={() => toggleOne(task.id)}
                 aria-label={`Select ${task.title}`}
               />
-              <span className='text-sm font-medium truncate pr-4'>
+              <button
+                type='button'
+                onClick={() => openTask(task.id)}
+                className='text-sm font-medium truncate pr-4 text-left hover:underline'>
                 {task.title}
-              </span>
+              </button>
               <div>
                 <TaskStatusSelect
                   taskId={task.id}
