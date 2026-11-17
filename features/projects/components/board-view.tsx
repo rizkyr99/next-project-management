@@ -10,7 +10,6 @@ import { usePendingDeletes } from '@/features/tasks/pending-deletes';
 import { boardAnnouncements, boardInstructions } from './board-announcements';
 import { matchesFilters } from '@/features/tasks/filters';
 import { useTaskFilters } from '@/features/tasks/use-task-filters';
-import { useTaskStream } from '@/features/tasks/hooks/use-task-stream';
 import {
   closestCenter,
   DndContext,
@@ -89,7 +88,6 @@ interface BoardViewProps {
 }
 
 export function BoardView({ project, commentCountMap = {}, currentUserId = '' }: BoardViewProps) {
-  useTaskStream(project?.id ?? '');
   const [allStatuses, setStatuses] = useState(project?.statuses ?? []);
   // Tasks inside their undo window are hidden everywhere, drag logic included.
   const hidden = usePendingDeletes();
