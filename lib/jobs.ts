@@ -2,6 +2,7 @@ import 'server-only';
 import { db } from '@/db/drizzle';
 import { sql } from 'drizzle-orm';
 import { deleteExpiredNotifications } from '@/lib/notifications';
+import { APP_URL, sendDailyDigestEmail } from '@/lib/email';
 
 /** Reminder window. The job runs daily (Vercel Hobby crons), so look 48 h ahead. */
 export const DUE_SOON_WINDOW_HOURS = 48;
@@ -96,4 +97,105 @@ export async function runCleanup(now = new Date()): Promise<CleanupResult> {
     verificationsDeleted: verifications.rowCount ?? 0,
     notificationsDeleted,
   };
+}
+
+/** Items listed in a digest email; the rest are summarised as "…and N more". */
+const DIGEST_MAX_ITEMS = 10;
+
+function digestLine(n: {
+  type: string;
+  actorName: string | null;
+  taskTitle: string | null;
+  workspaceName: string | null;
+  dueLabel: string | null;
+}) {
+  switch (n.type) {
+    case 'task_assigned':
+      return `${n.actorName ?? 'Someone'} assigned you to ${n.taskTitle ?? 'a task'}`;
+    case 'comment_mention':
+      return `${n.actorName ?? 'Someone'} mentioned you in ${n.taskTitle ?? 'a task'}`;
+    case 'workspace_invite':
+      return `${n.actorName ?? 'Someone'} invited you to ${n.workspaceName ?? 'a workspace'}`;
+    case 'due_soon':
+      return `${n.taskTitle ?? 'A task'} is due ${n.dueLabel ?? 'soon'}`;
+    default:
+      return 'New notification';
+  }
+}
+
+export interface DigestResult {
+  /** Users whose digest window was processed this run. */
+  checked: number;
+  /** Digest emails actually sent (users with unread notifications). */
+  sent: number;
+}
+
+/**
+ * Opt-in daily digest (P3.4): unread notifications since the user's last
+ * digest (or the last 24 h), for verified users who turned it on.
+ *
+ * Each user is claimed by moving `digest_last_sent_at` to now in one
+ * statement (SKIP LOCKED, and only if the last one is 20 h+ old), so a
+ * retried or overlapping run can't email anyone twice.
+ */
+export async function sendDailyDigests(now = new Date()): Promise<DigestResult> {
+  const iso = now.toISOString();
+  const claimed = await db.execute<{ user_id: string; email: string; name: string; since: string }>(sql`
+    with due as (
+      select up.user_id, coalesce(up.digest_last_sent_at, ${iso}::timestamptz - interval '24 hours') as since
+      from user_preferences up
+      join "user" u on u.id = up.user_id
+      where up.email_digest
+        and u.email_verified
+        and (up.digest_last_sent_at is null or up.digest_last_sent_at < ${iso}::timestamptz - interval '20 hours')
+      for update of up skip locked
+    )
+    update user_preferences up
+    set digest_last_sent_at = ${iso}::timestamptz
+    from due join "user" u on u.id = due.user_id
+    where up.user_id = due.user_id
+    returning up.user_id, u.email, u.name, due.since
+  `);
+
+  let sent = 0;
+  for (const row of claimed.rows) {
+    const items = await db.execute<{
+      type: string;
+      actor_name: string | null;
+      task_title: string | null;
+      workspace_name: string | null;
+      due_label: string | null;
+      href: string | null;
+      total: number;
+    }>(sql`
+      select type, actor_name, task_title, workspace_name, due_label, href,
+             count(*) over ()::int as total
+      from notification
+      where user_id = ${row.user_id}
+        and read = false
+        and created_at > ${row.since}::timestamptz
+        and created_at <= ${iso}::timestamptz
+      order by created_at desc
+      limit ${DIGEST_MAX_ITEMS}
+    `);
+    const total = Number(items.rows[0]?.total ?? 0);
+    if (total === 0) continue;
+
+    const result = await sendDailyDigestEmail(row.email, {
+      name: row.name,
+      total,
+      items: items.rows.map((n) => ({
+        text: digestLine({
+          type: n.type,
+          actorName: n.actor_name,
+          taskTitle: n.task_title,
+          workspaceName: n.workspace_name,
+          dueLabel: n.due_label,
+        }),
+        url: `${APP_URL}${n.href && n.href.startsWith('/') && !n.href.startsWith('//') ? n.href : '/notifications'}`,
+      })),
+    });
+    if (result.sent) sent += 1;
+  }
+  return { checked: claimed.rows.length, sent };
 }

@@ -12,6 +12,9 @@ const db = vi.hoisted(() => ({
 vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
+vi.mock('@/lib/notification-emails', () => ({ emailTaskNotification: vi.fn() }));
+// after() needs a request scope; run the callback inline so it can be asserted.
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => fn() }));
 
 // Keep the real error classes and toActionError; stub the DB-backed checks so
 // each action can be tested against "allowed" and "denied" outcomes.
@@ -30,6 +33,7 @@ vi.mock('@/lib/authz', async (importOriginal) => {
 
 import { revalidatePath } from 'next/cache';
 import { insertActivity } from '@/lib/activity';
+import { emailTaskNotification } from '@/lib/notification-emails';
 import {
   AuthzError,
   UnauthenticatedError,
@@ -337,6 +341,13 @@ describe('task notifications link to the task', () => {
       }));
 
     expect(await updateTaskAssignees(TASK, ['user-2'])).toEqual({ success: true });
+    expect(emailTaskNotification).toHaveBeenCalledWith({
+      kind: 'assigned',
+      userIds: ['user-2'],
+      actorName: 'Alice',
+      taskTitle: 'Ship it',
+      href,
+    });
     expect(written).toEqual([
       expect.objectContaining({
         userId: 'user-2',
@@ -363,6 +374,9 @@ describe('task notifications link to the task', () => {
 
     await addComment(TASK, 'hi @Bob');
     expect(written).toEqual([expect.objectContaining({ type: 'comment_mention', taskId: TASK, href })]);
+    expect(emailTaskNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'mentioned', userIds: ['user-2'], href, excerpt: 'hi @Bob' }),
+    );
   });
 });
 

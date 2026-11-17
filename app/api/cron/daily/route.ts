@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 import { timingSafeEqual } from 'node:crypto';
-import { runCleanup, sendDueSoonReminders } from '@/lib/jobs';
+import { runCleanup, sendDailyDigests, sendDueSoonReminders } from '@/lib/jobs';
 
 export const dynamic = 'force-dynamic';
 // Plenty for these set-based statements; well under Hobby's function limit.
@@ -16,9 +16,10 @@ function authorized(request: Request) {
 }
 
 /**
- * Daily job (vercel.json, 08:00 UTC). Vercel Cron calls it with
+ * Daily job (vercel.json, 08:00 UTC): due-soon reminders, the opt-in email
+ * digest, and cleanup. Vercel Cron calls it with
  * `Authorization: Bearer $CRON_SECRET`. Each part runs independently, so one
- * failing doesn't skip the other.
+ * failing doesn't skip the others.
  */
 export async function GET(request: Request) {
   if (!authorized(request)) {
@@ -26,9 +27,15 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const [reminders, cleanup] = await Promise.allSettled([sendDueSoonReminders(now), runCleanup(now)]);
+  // Reminders first, so today's due-soon notifications make today's digest.
+  const reminders = await Promise.allSettled([sendDueSoonReminders(now)]).then(([r]) => r);
+  const [digests, cleanup] = await Promise.allSettled([sendDailyDigests(now), runCleanup(now)]);
 
-  for (const [job, outcome] of [['due-soon', reminders], ['cleanup', cleanup]] as const) {
+  for (const [job, outcome] of [
+    ['due-soon', reminders],
+    ['digest', digests],
+    ['cleanup', cleanup],
+  ] as const) {
     if (outcome.status === 'rejected') {
       console.error(`[cron] ${job} failed:`, outcome.reason);
       Sentry.captureException(outcome.reason, { tags: { area: 'cron', job } });
@@ -37,9 +44,10 @@ export async function GET(request: Request) {
 
   const body = {
     dueSoonReminders: reminders.status === 'fulfilled' ? reminders.value : null,
+    digests: digests.status === 'fulfilled' ? digests.value : null,
     cleanup: cleanup.status === 'fulfilled' ? cleanup.value : null,
   };
   console.info('[cron] daily', JSON.stringify(body));
-  const failed = reminders.status === 'rejected' || cleanup.status === 'rejected';
+  const failed = [reminders, digests, cleanup].some((o) => o.status === 'rejected');
   return Response.json(body, { status: failed ? 500 : 200 });
 }
