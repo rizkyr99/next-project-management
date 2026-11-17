@@ -277,7 +277,7 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 5. Activity: `project.updated`, `project.deleted`.
 
 **Done when**
-- [ ] Renaming updates the sidebar and breadcrumbs without a reload. Deleting redirects to the workspace home and removes the project from the sidebar.
+- [x] Renaming updates the sidebar and breadcrumbs without a reload. Deleting redirects to the workspace home and removes the project from the sidebar. (`e2e/projects.spec.ts` proves no full reload with a window marker. There are no breadcrumbs, but the header, sidebar and `<title>` all update. The project description now shows under the title. `createProject` has persisted `description` since P0.5.)
 
 ### P2.2 Board column (status) management
 

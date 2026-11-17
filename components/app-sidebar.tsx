@@ -18,6 +18,7 @@ import { Activity, CheckSquare, CreditCard, Home, List, Settings, Sparkles } fro
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
+import { ProjectActionsMenu } from '@/features/projects/components/project-actions-menu';
 import { cn } from '@/lib/utils';
 
 interface AppSidebarProps {
@@ -30,6 +31,7 @@ interface AppSidebarProps {
   projects: {
     id: string;
     name: string;
+    description: string | null;
   }[];
   atWorkspaceLimit?: boolean;
 }
@@ -38,6 +40,8 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
   const params = useParams<{ workspaceSlug: string; projectId: string }>();
   const { workspaceSlug, projectId } = params;
   const { isMobile, setOpenMobile } = useSidebar();
+  const role = workspaces.find((w) => w.slug === workspaceSlug)?.role;
+  const canDeleteProjects = role === 'owner' || role === 'admin';
 
   const closeSidebarOnMobile = () => {
     if (isMobile) setOpenMobile(false);
@@ -117,6 +121,7 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
                       <span>{project.name}</span>
                     </Link>
                   </SidebarMenuButton>
+                  <ProjectActionsMenu project={project} canDelete={canDeleteProjects} variant='sidebar' />
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

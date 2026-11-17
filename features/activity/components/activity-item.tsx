@@ -12,6 +12,8 @@ type ActivityAction =
   | 'task.comment_added'
   | 'task.deleted'
   | 'project.created'
+  | 'project.updated'
+  | 'project.deleted'
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'
@@ -60,6 +62,10 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return `deleted task ${task}`;
     case 'project.created':
       return `created project "${m.projectName ?? 'Untitled'}"`;
+    case 'project.updated':
+      return `renamed project "${m.from ?? '?'}" to "${m.to ?? '?'}"`;
+    case 'project.deleted':
+      return `deleted project "${m.projectName ?? 'Untitled'}"`;
     case 'member.invited':
       return `invited ${m.inviteEmail ?? 'someone'} as ${m.role ?? 'member'}`;
     case 'member.joined':
