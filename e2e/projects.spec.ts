@@ -50,7 +50,8 @@ test('rename and delete a project without reloading', async ({ page }) => {
 
   await expect(page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
   await expect(sidebar.getByRole('link', { name: 'Website Redesign' })).toHaveCount(0);
-  await expect(sidebar.getByText('No projects found.')).toBeVisible();
+  // The workspace's own "Getting started" project is still there (P4.3).
+  await expect(sidebar.getByRole('link', { name: 'Getting started' })).toBeVisible();
 
   // The old URL is gone.
   await page.goto(projectUrl);

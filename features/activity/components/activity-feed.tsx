@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { getWorkspaceActivity } from '../actions';
 import { ActivityItem } from './activity-item';
 import { taskHref } from '@/features/tasks/task-link';
+import { EmptyState } from '@/components/empty-state';
+import { History } from 'lucide-react';
 
 type ActivityRow = {
   id: string;
@@ -45,9 +47,9 @@ export function ActivityFeed({ workspaceId, workspaceSlug, initialItems, initial
 
   if (items.length === 0) {
     return (
-      <p className='text-sm text-muted-foreground py-8 text-center'>
-        No activity yet. Actions like creating tasks, inviting members, and changing statuses will appear here.
-      </p>
+      <EmptyState icon={History} title='No activity yet'>
+        Creating tasks, changing their status, commenting and inviting people all show up here.
+      </EmptyState>
     );
   }
 

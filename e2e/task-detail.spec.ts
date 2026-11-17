@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { registerAndLogin } from './helpers/auth';
+import { addTask } from './helpers/tasks';
 
 /** P2.3: the task sheet, its Markdown description, ?task= deep links, and delete with undo. */
 
@@ -21,6 +22,7 @@ test('task sheet: description, deep link and delete with undo', async ({ page })
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 15000 });
   const projectUrl = page.url();
+  await addTask(page, 'To Do', WELCOME);
 
   // Clicking a card opens the sheet and puts the task in the URL.
   const card = page.getByRole('button', { name: `Open task ${WELCOME}` });
@@ -31,9 +33,7 @@ test('task sheet: description, deep link and delete with undo', async ({ page })
   const taskUrl = page.url();
 
   // Markdown description: saved with Cmd/Ctrl+Enter, rendered sanitized.
-  // New projects seed the welcome task with a description.
-  await expect(sheet.getByTestId('task-description')).toContainText('default task');
-  await sheet.getByRole('button', { name: 'Edit description' }).click();
+  await sheet.getByRole('button', { name: 'Add a description…' }).click();
   await sheet.getByLabel('Description').fill(
     '**Ship** the [docs](https://example.com)\n\n<img src=x onerror="window.__xss=1">',
   );

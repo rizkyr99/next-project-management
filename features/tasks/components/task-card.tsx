@@ -12,6 +12,8 @@ import { formatShortDate, PersonAvatar, priorityConfig, type TaskData } from './
 interface TaskCardProps {
   task: TaskData;
   commentCount?: number;
+  /** While the board is filtered, cards open but can't be dragged. */
+  dragDisabled?: boolean;
 }
 
 /** The card's face. Also used, without drag behaviour, as the drag overlay. */
@@ -70,9 +72,10 @@ export const cardClassName =
  * A draggable board card. Clicking it (or pressing Enter) opens the task
  * sheet via `?task=`; Space picks it up for keyboard dragging.
  */
-export function TaskCard({ task, commentCount }: TaskCardProps) {
+export function TaskCard({ task, commentCount, dragDisabled = false }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
+    disabled: dragDisabled,
   });
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -88,8 +91,12 @@ export function TaskCard({ task, commentCount }: TaskCardProps) {
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      {...attributes}
-      {...listeners}
+      {...(dragDisabled
+        ? // Filtered: still a button that opens the task, just not draggable,
+          // so drop the "sortable"/disabled semantics and drag instructions.
+          { role: 'button', tabIndex: 0 }
+        : attributes)}
+      {...(dragDisabled ? {} : listeners)}
       onKeyDown={onKeyDown}
       onClick={() => openTask(task.id)}
       aria-label={`Open task ${task.title}`}

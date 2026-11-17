@@ -137,8 +137,9 @@ export function GlobalSearch() {
 
             <CommandList className='max-h-80 overflow-y-auto p-1'>
               {query.length >= 2 && !isPending && results.length === 0 && (
-                <CommandEmpty className='py-6 text-center text-sm text-muted-foreground'>
-                  No results for &ldquo;{query}&rdquo;
+                <CommandEmpty className='px-4 py-8 text-center text-sm text-muted-foreground'>
+                  <p className='font-medium text-foreground'>No results for &ldquo;{query}&rdquo;</p>
+                  <p className='mt-1'>Search looks in task titles and descriptions, project names and comments. Try fewer or different words.</p>
                 </CommandEmpty>
               )}
 

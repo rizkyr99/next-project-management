@@ -7,6 +7,7 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { listNotifications, markAllAsRead, markAsRead, type NotificationRow } from '../actions';
 import { NotificationItem } from './notification-item';
+import { EmptyState } from '@/components/empty-state';
 
 /** The full, paginated notification list on /notifications. */
 export function NotificationsList({
@@ -51,11 +52,9 @@ export function NotificationsList({
 
   if (items.length === 0) {
     return (
-      <div className='flex flex-col items-center gap-2 rounded-lg border py-16 text-center text-sm text-muted-foreground'>
-        <BellOff className='size-8' />
-        <p className='font-medium text-foreground'>No notifications</p>
-        <p>When someone assigns you a task, mentions you or invites you, it shows up here.</p>
-      </div>
+      <EmptyState icon={BellOff} title='No notifications' className='rounded-lg border py-16'>
+        When someone assigns you a task, mentions you or invites you, it shows up here.
+      </EmptyState>
     );
   }
 

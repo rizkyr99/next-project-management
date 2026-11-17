@@ -49,10 +49,16 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
 import { openTask } from '@/features/tasks/task-link';
+import { EmptyState } from '@/components/empty-state';
+import { matchesFilters, sortTasks } from '@/features/tasks/filters';
+import { useTaskFilters } from '@/features/tasks/use-task-filters';
+import { ariaSort, SortButton } from '@/features/tasks/components/sort-button';
+import { ListTodo } from 'lucide-react';
 
 type Priority = 'low' | 'medium' | 'high';
 
 interface TableViewProps {
+  currentUserId?: string;
   workspaceMembers?: { id: string; name: string; email: string; image: string | null }[];
   project?: {
     id: string;
@@ -120,7 +126,7 @@ function formatDate(date: Date | null) {
   return { label, isOverdue };
 }
 
-export function TableView({ project }: Readonly<TableViewProps>) {
+export function TableView({ project, currentUserId = '' }: Readonly<TableViewProps>) {
   const projectId = project?.id;
   const statuses = project?.statuses ?? [];
   const initialTasks = statuses.flatMap((status) =>
@@ -131,31 +137,55 @@ export function TableView({ project }: Readonly<TableViewProps>) {
   const [allTasks, setTasks] = useState(initialTasks);
   const hidden = usePendingDeletes();
   const tasks = hidden.size === 0 ? allTasks : allTasks.filter((t) => !hidden.has(t.id));
+  // Filters and sorting (URL state, shared with the board's filter bar).
+  const { filters, sort, active: filtering, setSort, clear: clearFilters } = useTaskFilters();
   const [taskStatusMap, setTaskStatusMap] = useState<Record<string, string>>(
     () => Object.fromEntries(initialTasks.map((t) => [t.id, t.statusId])),
   );
   const [rawSelectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // A task inside its undo window is hidden, so it must not stay selected
   // either: bulk actions would otherwise delete it behind Undo's back.
-  const selectedIds =
-    hidden.size === 0
-      ? rawSelectedIds
-      : new Set([...rawSelectedIds].filter((id) => !hidden.has(id)));
+  const statusOrder = Object.fromEntries(statuses.map((st, i) => [st.id, i]));
+  const withStatus = tasks.map((t) => ({ ...t, statusId: taskStatusMap[t.id] ?? t.statusId }));
+  const visible = sortTasks(
+    filtering ? withStatus.filter((t) => matchesFilters(t, filters, { currentUserId })) : withStatus,
+    sort,
+    statusOrder,
+  );
+  // Bulk actions only ever apply to what's on screen: tasks hidden by a
+  // filter or inside their undo window drop out of the selection.
+  const visibleIds = new Set(visible.map((t) => t.id));
+  const selectedIds = new Set([...rawSelectedIds].filter((id) => visibleIds.has(id)));
   const [isPending, setIsPending] = useState(false);
 
   if (!projectId || tasks.length === 0) {
     return (
-      <div className='flex-1 flex items-center justify-center text-muted-foreground text-sm'>
-        No tasks found.
-      </div>
+      <EmptyState icon={ListTodo} title='No tasks yet' className='flex-1'>
+        Add tasks from the Board view, at the bottom of any column.
+      </EmptyState>
+    );
+  }
+  if (visible.length === 0) {
+    return (
+      <EmptyState
+        icon={ListTodo}
+        title='No tasks match these filters'
+        className='flex-1'
+        action={
+          <Button size='sm' variant='outline' onClick={clearFilters}>
+            Clear filters
+          </Button>
+        }>
+        Try another assignee, priority or due date, or fewer words.
+      </EmptyState>
     );
   }
 
-  const allSelected = selectedIds.size === tasks.length;
+  const allSelected = selectedIds.size === visible.length;
   const someSelected = selectedIds.size > 0;
 
   const toggleAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(tasks.map((t) => t.id)));
+    setSelectedIds(allSelected ? new Set() : new Set(visible.map((t) => t.id)));
   };
 
   const toggleOne = (id: string) => {
@@ -282,16 +312,24 @@ export function TableView({ project }: Readonly<TableViewProps>) {
                   aria-label='Select all'
                 />
               </TableHead>
-              <TableHead>Task</TableHead>
-              <TableHead className='w-40'>Status</TableHead>
-              <TableHead className='w-32'>Priority</TableHead>
-              <TableHead className='w-36'>Due date</TableHead>
+              <TableHead aria-sort={ariaSort(sort, 'title')}>
+                <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
+              </TableHead>
+              <TableHead className='w-40' aria-sort={ariaSort(sort, 'status')}>
+                <SortButton label='Status' sortKey='status' sort={sort} setSort={setSort} />
+              </TableHead>
+              <TableHead className='w-32' aria-sort={ariaSort(sort, 'priority')}>
+                <SortButton label='Priority' sortKey='priority' sort={sort} setSort={setSort} />
+              </TableHead>
+              <TableHead className='w-36' aria-sort={ariaSort(sort, 'due')}>
+                <SortButton label='Due date' sortKey='due' sort={sort} setSort={setSort} />
+              </TableHead>
               <TableHead className='w-48'>Assignees</TableHead>
               <TableHead className='w-10' />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tasks.map((task) => {
+            {visible.map((task) => {
               const priority = priorityConfig[task.priority];
               const due = formatDate(task.dueDate);
 

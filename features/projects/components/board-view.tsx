@@ -7,6 +7,8 @@ import { BoardColumn, columnDragId } from '@/features/tasks/components/board-col
 import { cardClassName, TaskCardPreview } from '@/features/tasks/components/task-card';
 import type { TaskData } from '@/features/tasks/components/task-meta';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
+import { matchesFilters } from '@/features/tasks/filters';
+import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { useTaskStream } from '@/features/tasks/hooks/use-task-stream';
 import {
   closestCenter,
@@ -70,6 +72,7 @@ const boardKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
 };
 
 interface BoardViewProps {
+  currentUserId?: string;
   commentCountMap?: Record<string, number>;
   project?: {
     id: string;
@@ -83,7 +86,7 @@ interface BoardViewProps {
   };
 }
 
-export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
+export function BoardView({ project, commentCountMap = {}, currentUserId = '' }: BoardViewProps) {
   useTaskStream(project?.id ?? '');
   const [allStatuses, setStatuses] = useState(project?.statuses ?? []);
   // Tasks inside their undo window are hidden everywhere, drag logic included.
@@ -105,7 +108,30 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
   };
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+
+  // Take in fresh server data (our own saves, teammates' changes) without
+  // remounting, so open forms like "Add column" survive a refresh. During a
+  // drag the local order wins; the latest data is applied once it ends.
+  const [syncedProject, setSyncedProject] = useState(project);
+  if (project !== syncedProject && activeId === null && activeColumnId === null) {
+    setSyncedProject(project);
+    setStatuses(project?.statuses ?? []);
+  }
   const previousStatusesRef = useRef<typeof statuses | null>(null);
+
+  // Filters (URL state) only change what's shown. While they're on, cards
+  // can't be dragged: reordering a filtered subset would scramble the order
+  // of the hidden cards. Columns can still be reordered.
+  const { filters, active: filtering } = useTaskFilters();
+  const shown = useMemo(
+    () =>
+      filtering
+        ? statuses.map((s) => ({ ...s, tasks: s.tasks.filter((t) => matchesFilters(t, filters, { currentUserId })) }))
+        : statuses,
+    [statuses, filters, filtering, currentUserId],
+  );
+  const shownCount = shown.reduce((n, s) => n + s.tasks.length, 0);
+  const totalCount = statuses.reduce((n, s) => n + s.tasks.length, 0);
 
   const columnInfos: ColumnInfo[] = statuses.map((s) => ({
     id: s.id,
@@ -222,8 +248,21 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
     setStatuses(newStatuses);
   };
 
+  // A drop wins over any server data that arrived during the drag: that data
+  // predates the drop. The save's own revalidation brings the next snapshot.
+  const acceptCurrentProject = () => setSyncedProject(project);
+
+  /** Escape (or any cancelled drag): put everything back as it was. */
+  const handleDragCancel = () => {
+    if (activeId !== null && previousStatusesRef.current) setStatuses(previousStatusesRef.current);
+    previousStatusesRef.current = null;
+    setActiveId(null);
+    setActiveColumnId(null);
+  };
+
   const handleColumnDragEnd = async (event: DragEndEvent) => {
     setActiveColumnId(null);
+    acceptCurrentProject();
     const fromId = event.active.data.current?.statusId as string;
     if (!event.over) return;
     const from = statuses.findIndex((s) => s.id === fromId);
@@ -247,6 +286,7 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
     if (isColumnDrag(event)) return handleColumnDragEnd(event);
     const { active, over } = event;
     setActiveId(null);
+    acceptCurrentProject();
 
     if (!over) {
       if (previousStatusesRef.current) {
@@ -302,17 +342,24 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
   };
 
   return (
+    <>
+    {filtering && (
+      <div role='status' className='border-b bg-muted/40 px-4 py-2 text-sm'>
+        Showing {shownCount} of {totalCount} tasks. Dragging cards is off while filters are on.
+      </div>
+    )}
     <DndContext
       sensors={sensors}
       collisionDetection={boardCollisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}>
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}>
       <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
         <SortableContext
           items={statuses.map((s) => columnDragId(s.id))}
           strategy={horizontalListSortingStrategy}>
-        {statuses.map((status) => (
+        {shown.map((status) => (
           <BoardColumn
             key={status.id}
             id={status.id}
@@ -321,6 +368,7 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
             isDefault={Boolean(status.isDefault)}
             columns={columnInfos}
             tasks={status.tasks.map((t) => ({ ...t, commentCount: commentCountMap[t.id] ?? 0 }))}
+            filtering={filtering}
             onTaskCreated={(newTask) => handleTaskCreated(status.id, newTask)}
           />
         ))}
@@ -339,5 +387,6 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
         ) : null}
       </DragOverlay>
     </DndContext>
+    </>
   );
 }

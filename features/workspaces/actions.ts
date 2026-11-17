@@ -12,6 +12,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { isUniqueViolation } from '@/lib/db-errors';
 import { lockWorkspace, unassignFromWorkspaceTasks } from '@/lib/membership';
+import { gettingStartedQueries } from '@/lib/onboarding';
 import { workspaceFormSchema } from './schema';
 
 // Same rules as the client form, enforced again on the server.
@@ -54,6 +55,8 @@ export async function createWorkspace(
           userId,
         }),
         db.insert(member).values({ workspaceId, userId, role: 'owner' }),
+        // P4.3: every new workspace starts with a short guided project.
+        ...gettingStartedQueries(workspaceId),
       ]);
     } catch (error) {
       if (isUniqueViolation(error)) {

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { registerAndLogin } from './helpers/auth';
+import { addTask } from './helpers/tasks';
 
 /** P2.2: add, rename, delete (moving tasks) and reorder board columns. */
 
@@ -25,10 +26,11 @@ test('manage board columns without losing tasks', async ({ page }) => {
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}/, { timeout: 15000 });
 
-  // New projects start with To Do (default, holding the welcome task), In Progress, Done.
+  // New projects start empty with To Do (default), In Progress and Done.
   await expect.poll(() => columnOrder(page)).toEqual(['To Do', 'In Progress', 'Done']);
+  await expect(page.getByTestId('column-To Do').getByText('No tasks yet. Add the first one below.')).toBeVisible();
   const welcome = 'Welcome to your new project!';
-  await expect(page.getByTestId('column-To Do').getByText(welcome)).toBeVisible();
+  await addTask(page, 'To Do', welcome);
 
   // Add a column.
   await page.getByRole('button', { name: 'Add column' }).click();

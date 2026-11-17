@@ -5,8 +5,8 @@ import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { TaskActivity } from '@/features/activity/components/task-activity';
 import { Trash2 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
   updateTaskAssignees,
@@ -51,15 +51,26 @@ export function TaskDetailSheet({ projectId, statuses, members, currentUserId }:
     return null;
   }, [statuses, taskId, hidden]);
 
-  // A link to a task that isn't in this project (deleted, or a bad URL).
+  // A task id we can't find. It may be brand new (its card shows from the
+  // board's local update before the page data catches up), so refresh once
+  // first; only if it's still missing is it really gone (deleted, or a bad URL).
+  const router = useRouter();
+  const [isRefreshing, startRefresh] = useTransition();
+  const refreshedFor = useRef<string | null>(null);
   const reported = useRef<string | null>(null);
   useEffect(() => {
     if (!taskId || task || hidden.has(taskId)) return;
     if (reported.current === taskId) return;
+    if (refreshedFor.current !== taskId) {
+      refreshedFor.current = taskId;
+      startRefresh(() => router.refresh());
+      return;
+    }
+    if (isRefreshing) return;
     reported.current = taskId;
     toast.error('That task no longer exists.', { position: 'top-center' });
     closeTask();
-  }, [taskId, task, hidden]);
+  }, [taskId, task, hidden, isRefreshing, router]);
 
   const statusOptions = useMemo(() => statuses.map((s) => ({ id: s.id, name: s.name })), [statuses]);
 

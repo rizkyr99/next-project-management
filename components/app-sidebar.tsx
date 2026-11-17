@@ -105,7 +105,7 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
             <SidebarMenu>
               {projects.length === 0 && (
                 <div className='text-xs text-muted-foreground p-2'>
-                  No projects found.
+                  No projects yet. Use + to create one.
                 </div>
               )}
               {projects.map((project) => (

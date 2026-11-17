@@ -2,7 +2,7 @@
 
 
 import { db } from '@/db/drizzle';
-import { member, project, task, taskStatus, workspace } from '@/db/schema';
+import { member, project, taskStatus, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { and, eq } from 'drizzle-orm';
 import z from 'zod';
@@ -38,9 +38,10 @@ export async function createProject(
         return { error: 'Workspace not found.' };
       }
 
-      // IDs are generated up front so the project, its default columns and the
-      // welcome task can be written in one batch (a single transaction). A
-      // failure can never leave a project without columns.
+      // IDs are generated up front so the project and its default columns can
+      // be written in one batch (a single transaction). A failure can never
+      // leave a project without columns. New projects start empty; the guided
+      // tour lives in each workspace's "Getting started" project (P4.3).
       const projectId = crypto.randomUUID();
       const todoId = crypto.randomUUID();
 
@@ -59,13 +60,6 @@ export async function createProject(
           { name: 'In Progress', order: 2, projectId },
           { name: 'Done', order: 3, projectId },
         ]),
-        db.insert(task).values({
-          title: 'Welcome to your new project!',
-          description: 'This is a default task to help you get started.',
-          projectId,
-          statusId: todoId,
-          order: 1,
-        }),
       ]);
 
       await insertActivity({

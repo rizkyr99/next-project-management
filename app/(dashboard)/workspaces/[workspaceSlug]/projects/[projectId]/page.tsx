@@ -14,6 +14,7 @@ import { ProjectActionsMenu } from '@/features/projects/components/project-actio
 import type { Metadata } from 'next';
 import { createHash } from 'node:crypto';
 import { TaskDetailSheet } from '@/features/tasks/components/task-detail/task-detail-sheet';
+import { TaskFilterBar } from '@/features/tasks/components/task-filter-bar';
 
 type View = 'board' | 'list' | 'table';
 
@@ -104,9 +105,8 @@ export default async function ProjectIdPage({
       : [];
   const commentCountMap = Object.fromEntries(commentCounts.map((r) => [r.taskId, r.count]));
 
-  // The views keep local state (drag and drop, optimistic edits); remount
-  // them whenever the server data they show changes (columns, order, or any
-  // task field).
+  // The list and table keep local state (optimistic edits); remount them
+  // whenever the server data they show changes. The board syncs itself.
   const boardKey = createHash('sha1')
     .update(
       JSON.stringify(
@@ -152,17 +152,23 @@ export default async function ProjectIdPage({
           </div>
         </div>
         <Suspense>
-          <ViewSwitcher currentView={currentView} />
+          <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+            <ViewSwitcher currentView={currentView} />
+            <TaskFilterBar
+              members={workspaceMembers.map((m) => ({ id: m.id, name: m.name }))}
+              currentUserId={session.user.id}
+            />
+          </div>
         </Suspense>
       </div>
       {currentView === 'board' && (
-        <BoardView boardKey={boardKey} project={data} commentCountMap={commentCountMap} />
+        <BoardView project={data} commentCountMap={commentCountMap} currentUserId={session.user.id} />
       )}
       {currentView === 'list' && (
-        <ListView key={boardKey} project={data} workspaceMembers={workspaceMembers} />
+        <ListView key={boardKey} project={data} workspaceMembers={workspaceMembers} currentUserId={session.user.id} />
       )}
       {currentView === 'table' && (
-        <TableView key={boardKey} project={data} workspaceMembers={workspaceMembers} />
+        <TableView key={boardKey} project={data} workspaceMembers={workspaceMembers} currentUserId={session.user.id} />
       )}
       <Suspense>
         <TaskDetailSheet
