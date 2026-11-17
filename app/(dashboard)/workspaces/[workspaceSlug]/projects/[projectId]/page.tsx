@@ -131,7 +131,9 @@ export default async function ProjectIdPage({
       </div>
       {currentView === 'board' && (
         <BoardView
-          boardKey={allTaskIds.join(',')}
+          boardKey={`${data.statuses
+            .map((s) => `${s.id}:${s.name}:${s.color ?? ''}:${s.isDefault ? 1 : 0}`)
+            .join('|')}#${allTaskIds.join(',')}`}
           project={data}
           workspaceMembers={workspaceMembers}
           currentUserId={session.user.id}
