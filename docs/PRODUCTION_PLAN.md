@@ -582,6 +582,22 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
    - Stripe checkout with test clocks/test card (happy path).
 5. Coverage target: ≥ 80 % on `features/*/actions.ts` and `lib/authz.ts`. Report it in the PR summary.
 
+**Status:** done. The E2E job turns on once the Neon secret and variable are set.
+- **Workflow:**
+  - All jobs use `npm ci` and Node from `.nvmrc` (24), with the npm cache.
+  - A newer push cancels the run in progress.
+  - A new **Build** job runs `next build` with placeholder env. It catches invalid segment config, which tsc misses (see #53).
+- **E2E job (pull requests only):**
+  - Creates a Neon branch from the **dev** branch (never production), named `ci/pr-<n>-<run>`, expiring after a day.
+  - Runs `db:migrate`, then Playwright (Chromium, 2 workers, GitHub annotations).
+  - Uploads the HTML report on failure, then deletes the branch.
+  - Skips with a warning when `NEON_API_KEY` (secret) or `NEON_PROJECT_ID` (variable) is missing, as on fork PRs.
+- **Coverage:** `scripts/coverage-summary.mjs` writes a per-file table to the job summary. It fails the Unit Tests job below 80 %.
+  - Now 87.3 %, up from 70.4 %.
+  - New tests for billing, search, and workspace admin actions (update, remove member, change role, delete).
+- **Specs (step 4):** isolation, invites, columns, deep link and password reset already exist (`e2e/`).
+  - Stripe checkout is not covered: it needs real Stripe test keys and a webhook forwarder in CI. It's left for when billing goes live.
+
 ### P5.4 Content Security Policy
 
 **Files:** `next.config.ts`
