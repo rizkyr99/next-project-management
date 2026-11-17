@@ -8,7 +8,8 @@ vi.mock('resend', () => ({
   },
 }));
 
-import { emailFrom, isReservedTestAddress, sendWorkspaceInviteEmail } from '@/lib/email';
+import * as Sentry from '@sentry/nextjs';
+import { emailFrom, isReservedTestAddress, sendPasswordResetEmail, sendWorkspaceInviteEmail } from '@/lib/email';
 
 const invite = {
   inviterName: 'Ada',
@@ -57,5 +58,36 @@ describe('sendWorkspaceInviteEmail', () => {
     vi.stubEnv('EMAIL_FROM', '');
     expect(emailFrom()).toBe('Tide <onboarding@resend.dev>');
     vi.unstubAllEnvs();
+  });
+});
+
+describe('sendPasswordResetEmail', () => {
+  const reset = { name: 'Ada', resetUrl: 'https://tide.example.com/api/auth/reset-password/tok?callbackURL=%2Freset-password' };
+
+  it('never contacts Resend for reserved test addresses', async () => {
+    send.mockClear();
+    expect(await sendPasswordResetEmail({ ...reset, to: 'e2e@example.com' })).toEqual({ sent: false });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('sends the reset link in both the HTML and text parts', async () => {
+    send.mockClear();
+    send.mockResolvedValue({ data: { id: 'msg_2' }, error: null });
+    expect(await sendPasswordResetEmail({ ...reset, to: 'someone@gmail.com' })).toEqual({ sent: true });
+    const arg = send.mock.calls[0][0];
+    expect(arg.subject).toBe('Reset your Tide password');
+    // React escapes & in attributes; the link itself is intact.
+    expect(arg.html).toContain('https://tide.example.com/api/auth/reset-password/tok?callbackURL=%2Freset-password');
+    expect(arg.text).toContain(reset.resetUrl);
+    expect(arg.text).toContain('expires in 1 hour');
+  });
+
+  it('reports to Sentry instead of throwing when sending fails', async () => {
+    send.mockRejectedValue(new Error('network down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await sendPasswordResetEmail({ ...reset, to: 'someone@gmail.com' })).toEqual({ sent: false });
+    expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+      tags: { area: 'email', template: 'password-reset' },
+    });
   });
 });

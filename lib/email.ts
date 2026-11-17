@@ -4,6 +4,7 @@ import { render } from '@react-email/components';
 import { Resend } from 'resend';
 import { siteUrl } from '@/lib/site';
 import { WorkspaceInviteEmail, workspaceInviteText } from '@/emails/workspace-invite';
+import { PasswordResetEmail, passwordResetText } from '@/emails/password-reset';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -72,6 +73,43 @@ export async function sendWorkspaceInviteEmail({
   } catch (err) {
     console.error('[email] invite send failed:', err);
     Sentry.captureException(err, { tags: { area: 'email', template: 'workspace-invite' } });
+    return { sent: false };
+  }
+}
+
+/**
+ * Sends a password reset link. Never throws (the request endpoint answers
+ * the same way whether or not the address exists), but failures go to
+ * Sentry so a broken mail setup doesn't go unnoticed.
+ */
+export async function sendPasswordResetEmail({
+  to,
+  name,
+  resetUrl,
+}: {
+  to: string;
+  name: string;
+  resetUrl: string;
+}): Promise<{ sent: boolean }> {
+  if (isReservedTestAddress(to)) {
+    console.info('[email] skipped password reset to reserved test address');
+    return { sent: false };
+  }
+  const props = { name, resetUrl, appUrl: APP_URL };
+  try {
+    const html = await render(PasswordResetEmail(props));
+    const { error } = await resend.emails.send({
+      from: emailFrom(),
+      to,
+      subject: 'Reset your Tide password',
+      html,
+      text: passwordResetText(props),
+    });
+    if (error) throw new Error(`Resend: ${error.name ?? ''} ${error.message}`);
+    return { sent: true };
+  } catch (err) {
+    console.error('[email] password reset send failed:', err);
+    Sentry.captureException(err, { tags: { area: 'email', template: 'password-reset' } });
     return { sent: false };
   }
 }
