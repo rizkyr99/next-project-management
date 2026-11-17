@@ -31,6 +31,8 @@ interface BoardColumnProps {
   columns?: ColumnInfo[];
   onTaskCreated?: (task: NewTask) => void;
   tasks?: (TaskData & { commentCount?: number })[];
+  /** Filters are on: cards can't be dragged, and "empty" means no matches. */
+  filtering?: boolean;
 }
 
 export function BoardColumn({
@@ -41,6 +43,7 @@ export function BoardColumn({
   columns = [],
   onTaskCreated,
   tasks = [],
+  filtering = false,
 }: Readonly<BoardColumnProps>) {
   // The whole column is sortable horizontally (dragged by its header grip),
   // while the task list is the drop target for tasks, keyed by the status ID.
@@ -72,12 +75,12 @@ export function BoardColumn({
         strategy={verticalListSortingStrategy}>
         <div ref={setDropRef} className='space-y-1 min-h-2'>
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} commentCount={task.commentCount} />
+            <TaskCard key={task.id} task={task} commentCount={task.commentCount} dragDisabled={filtering} />
           ))}
           {/* Empty columns read as drop targets; only the default (where new
               tasks land) says what to do, so an empty board isn't repetitive. */}
           {tasks.length === 0 &&
-            (isDefault ? (
+            (isDefault && !filtering ? (
               <p className='rounded-md border border-dashed border-muted-foreground/25 px-2 py-4 text-center text-xs text-muted-foreground'>
                 No tasks yet. Add the first one below.
               </p>

@@ -7,6 +7,8 @@ import { BoardColumn, columnDragId } from '@/features/tasks/components/board-col
 import { cardClassName, TaskCardPreview } from '@/features/tasks/components/task-card';
 import type { TaskData } from '@/features/tasks/components/task-meta';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
+import { matchesFilters } from '@/features/tasks/filters';
+import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { useTaskStream } from '@/features/tasks/hooks/use-task-stream';
 import {
   closestCenter,
@@ -70,6 +72,7 @@ const boardKeyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
 };
 
 interface BoardViewProps {
+  currentUserId?: string;
   commentCountMap?: Record<string, number>;
   project?: {
     id: string;
@@ -83,7 +86,7 @@ interface BoardViewProps {
   };
 }
 
-export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
+export function BoardView({ project, commentCountMap = {}, currentUserId = '' }: BoardViewProps) {
   useTaskStream(project?.id ?? '');
   const [allStatuses, setStatuses] = useState(project?.statuses ?? []);
   // Tasks inside their undo window are hidden everywhere, drag logic included.
@@ -115,6 +118,20 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
     setStatuses(project?.statuses ?? []);
   }
   const previousStatusesRef = useRef<typeof statuses | null>(null);
+
+  // Filters (URL state) only change what's shown. While they're on, cards
+  // can't be dragged: reordering a filtered subset would scramble the order
+  // of the hidden cards. Columns can still be reordered.
+  const { filters, active: filtering } = useTaskFilters();
+  const shown = useMemo(
+    () =>
+      filtering
+        ? statuses.map((s) => ({ ...s, tasks: s.tasks.filter((t) => matchesFilters(t, filters, { currentUserId })) }))
+        : statuses,
+    [statuses, filters, filtering, currentUserId],
+  );
+  const shownCount = shown.reduce((n, s) => n + s.tasks.length, 0);
+  const totalCount = statuses.reduce((n, s) => n + s.tasks.length, 0);
 
   const columnInfos: ColumnInfo[] = statuses.map((s) => ({
     id: s.id,
@@ -311,6 +328,12 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
   };
 
   return (
+    <>
+    {filtering && (
+      <div role='status' className='border-b bg-muted/40 px-4 py-2 text-sm'>
+        Showing {shownCount} of {totalCount} tasks. Dragging cards is off while filters are on.
+      </div>
+    )}
     <DndContext
       sensors={sensors}
       collisionDetection={boardCollisionDetection}
@@ -321,7 +344,7 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
         <SortableContext
           items={statuses.map((s) => columnDragId(s.id))}
           strategy={horizontalListSortingStrategy}>
-        {statuses.map((status) => (
+        {shown.map((status) => (
           <BoardColumn
             key={status.id}
             id={status.id}
@@ -330,6 +353,7 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
             isDefault={Boolean(status.isDefault)}
             columns={columnInfos}
             tasks={status.tasks.map((t) => ({ ...t, commentCount: commentCountMap[t.id] ?? 0 }))}
+            filtering={filtering}
             onTaskCreated={(newTask) => handleTaskCreated(status.id, newTask)}
           />
         ))}
@@ -348,5 +372,6 @@ export function BoardView({ project, commentCountMap = {} }: BoardViewProps) {
         ) : null}
       </DragOverlay>
     </DndContext>
+    </>
   );
 }
