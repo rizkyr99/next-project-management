@@ -471,6 +471,12 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 3. In list and table views, columns can be sorted.
 4. Filter on the client (data is already loaded per project). Revisit if projects exceed ~1 000 tasks.
 
+**Status:** done.
+- **Filter bar:** text, assignee (Anyone / Me / Unassigned / a member), priority and due date (overdue, this week, none). The pure logic lives in `features/tasks/filters.ts`.
+- **URL state:** filters are kept in the URL via `history.replaceState`, so there's no server round trip, and switching views keeps them.
+- **Board:** shows "N of M" while filtered, and disables card dragging (columns still reorder), because reordering a subset would scramble the hidden cards.
+- **List and table:** filter, then sort by task, status, priority and due date (`?sort=…&dir=…`). Bulk selection only covers visible tasks.
+
 ### P4.5 Accessibility pass
 
 **Steps**
@@ -480,6 +486,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 4. Add `@axe-core/playwright` to the E2E suite for the main pages.
 
 ### P4.6 Mobile pass
+
+Also collapse the project filter bar (P4.4) behind a single "Filters" button on phones; today its four controls wrap onto three rows.
 
 Continue the work on `feat/mobile-header-improvements`: the board scrolls horizontally with snap, the task sheet goes full-screen, touch targets are ≥ 44 px, and `TouchSensor` with a press delay is configured so scrolling doesn't start drags.
 

@@ -34,8 +34,14 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
 import { openTask } from '@/features/tasks/task-link';
+import { EmptyState } from '@/components/empty-state';
+import { matchesFilters, sortTasks } from '@/features/tasks/filters';
+import { useTaskFilters } from '@/features/tasks/use-task-filters';
+import { SortButton } from '@/features/tasks/components/sort-button';
+import { ListTodo } from 'lucide-react';
 
 interface ListViewProps {
+  currentUserId?: string;
   workspaceMembers?: { id: string; name: string; email: string; image: string | null }[];
   project?: {
     id: string;
@@ -45,6 +51,9 @@ interface ListViewProps {
       tasks: {
         id: string;
         title: string;
+        description?: string | null;
+        priority: 'low' | 'medium' | 'high';
+        dueDate?: Date | null;
         assignees: {
           user: {
             id: string;
@@ -67,7 +76,7 @@ function getInitials(name: string) {
     .join('');
 }
 
-export function ListView({ project }: Readonly<ListViewProps>) {
+export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps>) {
   const projectId = project?.id;
   const statuses = project?.statuses ?? [];
   const initialTasks = statuses.flatMap((status) =>
@@ -78,34 +87,58 @@ export function ListView({ project }: Readonly<ListViewProps>) {
   const [allTasks, setTasks] = useState(initialTasks);
   const hidden = usePendingDeletes();
   const tasks = hidden.size === 0 ? allTasks : allTasks.filter((t) => !hidden.has(t.id));
+  // Filters and sorting (URL state, shared with the board's filter bar).
+  const { filters, sort, active: filtering, setSort, clear: clearFilters } = useTaskFilters();
   const [taskStatusMap, setTaskStatusMap] = useState<Record<string, string>>(
     () => Object.fromEntries(initialTasks.map((t) => [t.id, t.statusId])),
   );
   const [rawSelectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // A task inside its undo window is hidden, so it must not stay selected
   // either: bulk actions would otherwise delete it behind Undo's back.
-  const selectedIds =
-    hidden.size === 0
-      ? rawSelectedIds
-      : new Set([...rawSelectedIds].filter((id) => !hidden.has(id)));
+  const statusOrder = Object.fromEntries(statuses.map((st, i) => [st.id, i]));
+  const withStatus = tasks.map((t) => ({ ...t, statusId: taskStatusMap[t.id] ?? t.statusId }));
+  const visible = sortTasks(
+    filtering ? withStatus.filter((t) => matchesFilters(t, filters, { currentUserId })) : withStatus,
+    sort,
+    statusOrder,
+  );
+  // Bulk actions only ever apply to what's on screen: tasks hidden by a
+  // filter or inside their undo window drop out of the selection.
+  const visibleIds = new Set(visible.map((t) => t.id));
+  const selectedIds = new Set([...rawSelectedIds].filter((id) => visibleIds.has(id)));
   const [isPending, setIsPending] = useState(false);
 
   if (!projectId || tasks.length === 0) {
     return (
-      <div className='flex-1 flex items-center justify-center text-muted-foreground text-sm'>
-        No tasks found.
-      </div>
+      <EmptyState icon={ListTodo} title='No tasks yet' className='flex-1'>
+        Add tasks from the Board view, at the bottom of any column.
+      </EmptyState>
+    );
+  }
+  if (visible.length === 0) {
+    return (
+      <EmptyState
+        icon={ListTodo}
+        title='No tasks match these filters'
+        className='flex-1'
+        action={
+          <Button size='sm' variant='outline' onClick={clearFilters}>
+            Clear filters
+          </Button>
+        }>
+        Try another assignee, priority or due date, or fewer words.
+      </EmptyState>
     );
   }
 
-  const allSelected = selectedIds.size === tasks.length;
+  const allSelected = selectedIds.size === visible.length;
   const someSelected = selectedIds.size > 0;
 
   const toggleAll = () => {
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(tasks.map((t) => t.id)));
+      setSelectedIds(new Set(visible.map((t) => t.id)));
     }
   };
 
@@ -230,12 +263,12 @@ export function ListView({ project }: Readonly<ListViewProps>) {
               aria-label='Select all'
               className='mt-0.5'
             />
-            <span>Task</span>
-            <span>Status</span>
+            <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
+            <SortButton label='Status' sortKey='status' sort={sort} setSort={setSort} />
             <span>Assignees</span>
             <span />
           </div>
-          {tasks.map((task) => (
+          {visible.map((task) => (
             <div
               key={task.id}
               className='group grid grid-cols-[32px_1fr_160px_200px_40px] px-4 py-2 items-center hover:bg-muted/30 transition-colors'>
