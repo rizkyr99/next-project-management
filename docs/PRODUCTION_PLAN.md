@@ -592,6 +592,9 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
   - Runs `db:migrate`, then Playwright (Chromium, 2 workers, GitHub annotations).
   - Uploads the HTML report on failure, then deletes the branch.
   - Skips with a warning when `NEON_API_KEY` (secret) or `NEON_PROJECT_ID` (variable) is missing, as on fork PRs.
+- **Build fixes the new jobs exposed:**
+  - **Lock file:** the npm bundled with Node 24.11.1 rejected `package-lock.json`, so `.nvmrc` moves to 24.22.3.
+  - **Fonts:** builds failed when Google Fonts served URLs Turbopack couldn't map. Geist, Geist Mono and Schibsted Grotesk are now self-hosted (`app/fonts/`, latin, variable weight) through `next/font/local`.
 - **Coverage:** `scripts/coverage-summary.mjs` writes a per-file table to the job summary. It fails the Unit Tests job below 80 %.
   - Now 87.3 %, up from 70.4 %.
   - New tests for billing, search, and workspace admin actions (update, remove member, change role, delete).
