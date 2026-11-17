@@ -134,7 +134,13 @@ export function TableView({ project }: Readonly<TableViewProps>) {
   const [taskStatusMap, setTaskStatusMap] = useState<Record<string, string>>(
     () => Object.fromEntries(initialTasks.map((t) => [t.id, t.statusId])),
   );
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [rawSelectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // A task inside its undo window is hidden, so it must not stay selected
+  // either: bulk actions would otherwise delete it behind Undo's back.
+  const selectedIds =
+    hidden.size === 0
+      ? rawSelectedIds
+      : new Set([...rawSelectedIds].filter((id) => !hidden.has(id)));
   const [isPending, setIsPending] = useState(false);
 
   if (!projectId || tasks.length === 0) {

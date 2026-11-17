@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { chain } from '../../helpers/db-mock';
 
-const db = vi.hoisted(() => ({ select: vi.fn(), delete: vi.fn() }));
+const db = vi.hoisted(() => ({ select: vi.fn(), delete: vi.fn(), batch: vi.fn() }));
 const verify = vi.hoisted(() => vi.fn());
 const cancel = vi.hoisted(() => vi.fn());
 const jar = vi.hoisted(() => ({ getAll: vi.fn(), delete: vi.fn() }));
@@ -39,6 +39,8 @@ beforeEach(() => {
   vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
   vi.mocked(getOwnedWorkspaces).mockResolvedValue([]);
   db.delete.mockReturnValue(chain(undefined));
+  db.select.mockReturnValue(chain([])); // the FOR UPDATE lock on owned workspaces
+  db.batch.mockResolvedValue([[], [{ id: 'u1' }]]); // [lock, delete returning]
   jar.getAll.mockReturnValue([
     { name: 'better-auth.session_token' },
     { name: '__Secure-better-auth.session_data' },
@@ -97,8 +99,8 @@ describe('deleteAccount', () => {
     await deleteAccount({ email: 'ada@example.com', password: 'right' });
 
     expect(cancel).toHaveBeenCalledWith('sub_1');
-    expect(cancel.mock.invocationCallOrder[0]).toBeLessThan(db.delete.mock.invocationCallOrder[0]);
-    expect(db.delete).toHaveBeenCalledOnce();
+    expect(cancel.mock.invocationCallOrder[0]).toBeLessThan(db.batch.mock.invocationCallOrder[0]);
+    expect(db.batch).toHaveBeenCalledOnce();
     expect(jar.delete.mock.calls.map((c) => c[0])).toEqual([
       'better-auth.session_token',
       '__Secure-better-auth.session_data',
@@ -120,13 +122,25 @@ describe('deleteAccount', () => {
     selects({ sub: { id: 'sub_1', status: 'active' } });
     cancel.mockRejectedValue(Object.assign(new Error('No such subscription'), { code: 'resource_missing' }));
     await deleteAccount({ email: 'ada@example.com' });
-    expect(db.delete).toHaveBeenCalledOnce();
+    expect(db.batch).toHaveBeenCalledOnce();
   });
 
   it('skips Stripe for canceled or free subscriptions', async () => {
     selects({ sub: { id: 'sub_1', status: 'canceled' } });
     await deleteAccount({ email: 'ada@example.com' });
     expect(cancel).not.toHaveBeenCalled();
-    expect(db.delete).toHaveBeenCalledOnce();
+    expect(db.batch).toHaveBeenCalledOnce();
+  });
+
+  it('re-checks under lock: someone joined meanwhile, so nothing is deleted', async () => {
+    selects({});
+    const team = { id: 'w1', name: 'Team', slug: 'team', otherMembers: 1 };
+    vi.mocked(getOwnedWorkspaces).mockResolvedValueOnce([]).mockResolvedValueOnce([team]);
+    db.batch.mockResolvedValue([[{ id: 'w1' }], []]);
+
+    const result = await deleteAccount({ email: 'ada@example.com' });
+    expect(result?.blockingWorkspaces).toEqual([team]);
+    expect(jar.delete).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });

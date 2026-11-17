@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { Check, GripVertical, MoreHorizontal, Palette, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { useRef, useState, useTransition, type HTMLAttributes } from 'react';
 import { toast } from 'sonner';
+import { useResetOnOpen } from '@/hooks/use-reset-on-open';
 import { MAX_STATUSES_PER_PROJECT } from '../schema';
 import { createStatus, deleteStatus, setDefaultStatus, updateStatus } from '../status-actions';
 import { STATUS_COLORS, STATUS_COLOR_KEYS, statusDotClass, type StatusColor } from '../status-colors';
@@ -219,10 +220,7 @@ function DeleteColumnDialog({
   const [target, setTarget] = useState<string>('');
   const [isPending, startTransition] = useTransition();
 
-  const handleOpenChange = (next: boolean) => {
-    if (next) setTarget(others[0]?.id ?? '');
-    onOpenChange(next);
-  };
+  useResetOnOpen(open, () => setTarget(others[0]?.id ?? ''));
 
   const remove = () =>
     startTransition(async () => {
@@ -245,7 +243,7 @@ function DeleteColumnDialog({
     });
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete column</DialogTitle>

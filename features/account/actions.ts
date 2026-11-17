@@ -1,13 +1,13 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { account, subscription, user } from '@/db/schema';
+import { account, member, subscription, user, workspace } from '@/db/schema';
 import { getOwnedWorkspaces, type OwnedWorkspace } from '@/lib/account';
 import { auth } from '@/lib/auth';
 import { requireSession, toActionError } from '@/lib/authz';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { stripe } from '@/lib/stripe';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -152,7 +152,32 @@ export async function deleteAccount(
 
     // Deleting the user cascades to its session rows; also drop the auth
     // cookies so the browser doesn't keep sending a dead token.
-    await db.delete(user).where(eq(user.id, userId));
+    // Final check under lock: lock every workspace they own, then delete
+    // only if none has another member. A member who joined since the check
+    // above (their insert's foreign-key lock conflicts with ours) is seen
+    // here, so a workspace someone else now uses is never cascade-deleted.
+    const [, deleted] = await db.batch([
+      db.select({ id: workspace.id }).from(workspace).where(eq(workspace.userId, userId)).for('update'),
+      db
+        .delete(user)
+        .where(
+          and(
+            eq(user.id, userId),
+            sql`not exists (
+              select 1 from ${member}
+              join ${workspace} on ${workspace.id} = ${member.workspaceId}
+              where ${workspace.userId} = ${userId} and ${member.userId} <> ${userId}
+            )`,
+          ),
+        )
+        .returning({ id: user.id }),
+    ]);
+    if (deleted.length === 0) {
+      return {
+        error: 'You own workspaces that other people use. Transfer ownership or delete them first.',
+        blockingWorkspaces: (await getOwnedWorkspaces(userId)).filter((w) => w.otherMembers > 0),
+      };
+    }
     const jar = await cookies();
     for (const { name } of jar.getAll()) {
       if (/^(__Secure-)?better-auth\./.test(name)) jar.delete(name);
