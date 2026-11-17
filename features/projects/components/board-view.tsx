@@ -7,6 +7,7 @@ import { BoardColumn, columnDragId } from '@/features/tasks/components/board-col
 import { cardClassName, TaskCardPreview } from '@/features/tasks/components/task-card';
 import type { TaskData } from '@/features/tasks/components/task-meta';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
+import { boardAnnouncements, boardInstructions } from './board-announcements';
 import { matchesFilters } from '@/features/tasks/filters';
 import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { useTaskStream } from '@/features/tasks/hooks/use-task-stream';
@@ -18,7 +19,8 @@ import {
   DragOverlay,
   DragStartEvent,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   useSensor,
   useSensors,
@@ -133,6 +135,12 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
   const shownCount = shown.reduce((n, s) => n + s.tasks.length, 0);
   const totalCount = statuses.reduce((n, s) => n + s.tasks.length, 0);
 
+  const announcements = useMemo(() => {
+    const tasks = new Map(statuses.flatMap((s) => s.tasks.map((t) => [t.id, t.title] as const)));
+    const columns = new Map(statuses.map((s) => [s.id, s.name] as const));
+    return boardAnnouncements({ taskName: (id) => tasks.get(id), columnName: (id) => columns.get(id) });
+  }, [statuses]);
+
   const columnInfos: ColumnInfo[] = statuses.map((s) => ({
     id: s.id,
     name: s.name,
@@ -152,7 +160,10 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
     .find((t) => t.id === activeId);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // Mouse: drag after moving 5px. Touch: press and hold 250ms first, so a
+    // swipe across the board scrolls instead of picking up a card (P4.6).
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: boardKeyboardCoordinates,
     }),
@@ -354,8 +365,10 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}>
-      <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
+      onDragCancel={handleDragCancel}
+      accessibility={{ announcements, screenReaderInstructions: boardInstructions }}>
+      {/* Phones: one column at a time with the next peeking in, snapping as you swipe. */}
+      <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto snap-x snap-mandatory scroll-px-4 sm:snap-none'>
         <SortableContext
           items={statuses.map((s) => columnDragId(s.id))}
           strategy={horizontalListSortingStrategy}>

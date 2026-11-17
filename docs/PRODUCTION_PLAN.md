@@ -485,11 +485,41 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 3. Check focus is restored after closing dialogs, every icon-only button has an `aria-label`, and colour contrast meets AA in both themes (priority badges especially).
 4. Add `@axe-core/playwright` to the E2E suite for the main pages.
 
+**Status:** done.
+- **Automated checks:** `e2e/a11y.spec.ts` runs axe (WCAG 2.1 A/AA) on 6 public pages, and on 13 app screens in both light and dark mode. Set `A11Y_OUT=file.jsonl` to dump the failing nodes while fixing.
+- **What it found, now fixed:**
+  - 30+ unlabelled buttons and comboboxes: row menus, status selects in list and table, comment send/edit/delete.
+  - An unnamed progress bar on create-workspace.
+  - Contrast: `--muted-foreground` darkened to 0.5 L so it clears 4.5:1 on grey surfaces too; the dark-mode upgrade card; the Danger zone tab.
+  - Auth links that relied on colour alone, now brand colour plus underline.
+- **Drag and drop:** dnd-kit announcements use task and column names instead of ids, and there are clear instructions.
+- **Focus:** closing the task panel returns focus to the card or row that opened it.
+- **Not in scope:** a manual screen-reader walkthrough (VoiceOver/NVDA) is still worth doing before a public launch.
+
 ### P4.6 Mobile pass
 
 Also collapse the project filter bar (P4.4) behind a single "Filters" button on phones; today its four controls wrap onto three rows.
 
 Continue the work on `feat/mobile-header-improvements`: the board scrolls horizontally with snap, the task sheet goes full-screen, touch targets are ≥ 44 px, and `TouchSensor` with a press delay is configured so scrolling doesn't start drags.
+
+**Status:** done.
+- **Board:** on phones, columns are 85vw wide (up to 320 px) and the board scrolls with snap, so the next column peeks in. From `sm` up there is no snap and columns stay 256 px.
+- **Dragging:** `MouseSensor` (5 px) and `TouchSensor` (250 ms press, 8 px tolerance) replace `PointerSensor`, so a swipe scrolls and a long press drags.
+- **Touch targets:** on coarse pointers, icon buttons and the sheet's Close button get an invisible hit area of at least 44 px, without changing the layout.
+- **Filters:** on phones, the three selects fold behind a "Filters (n)" toggle next to the search box.
+- **Smaller fixes:**
+  - The verify-email banner uses a one-line text on phones.
+  - "Start call" shrinks to its icon and keeps its accessible name.
+  - The setup checklist's action buttons drop below the step text.
+  - The task panel is already full-screen.
+- **Also fixed:** the task stream route no longer throws "Controller is already closed" when a client disconnects before the first snapshot.
+- **Tests:** `e2e/mobile.spec.ts` (390×844, touch) checks:
+  - no horizontal page scroll
+  - column widths
+  - the full-screen panel
+  - the filter toggle
+  - the icon-only call button
+  - the 44 px hit area
 
 **Phase 4 exit criteria:** a first-time visitor understands the product from `/`, can sign up, and sees a guided workspace. No raw error screens appear.
 

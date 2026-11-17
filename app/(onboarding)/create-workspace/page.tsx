@@ -21,7 +21,7 @@ export default function CreateWorkspace() {
             <span className='text-sm font-medium'>Step 1 of 2</span>
             <span className='text-sm font-medium'>Workspace Setup</span>
           </div>
-          <Progress value={(step / totalSteps) * 100} />
+          <Progress value={(step / totalSteps) * 100} aria-label='Workspace setup progress' />
         </div>
         <div className='space-y-4'>
           <div className='size-12 bg-primary/25 flex items-center justify-center rounded-full mx-auto'>

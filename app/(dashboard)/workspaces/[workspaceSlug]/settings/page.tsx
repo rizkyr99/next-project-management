@@ -123,7 +123,7 @@ export default async function WorkspaceSettingsPage({
                 {members.length}
               </span>
             </TabsTrigger>
-            <TabsTrigger value='danger' className='text-destructive data-[state=active]:text-destructive'>
+            <TabsTrigger value='danger' className='text-red-700 data-[state=active]:text-red-700 dark:text-red-400 dark:data-[state=active]:text-red-400'>
               Danger zone
             </TabsTrigger>
           </TabsList>

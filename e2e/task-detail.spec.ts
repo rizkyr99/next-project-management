@@ -53,6 +53,8 @@ test('task sheet: description, deep link and delete with undo', async ({ page })
   // Escape closes the sheet and drops the param; the card shows the description icon.
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
+  // Focus goes back to the card that opened it (P4.5).
+  await expect(card).toBeFocused();
   await expect(page).toHaveURL(projectUrl);
   await expect(card.getByLabel('Has description')).toBeVisible();
 

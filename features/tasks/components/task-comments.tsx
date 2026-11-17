@@ -219,6 +219,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     variant='ghost'
                     size='icon'
                     className='size-6'
+                    aria-label='Edit comment'
                     onClick={() => { setEditingId(c.id); setEditBody(c.body); }}>
                     <Pencil className='size-3' />
                   </Button>
@@ -226,6 +227,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     variant='ghost'
                     size='icon'
                     className='size-6 text-destructive hover:text-destructive'
+                    aria-label='Delete comment'
                     disabled={deleteMutation.isPending}
                     onClick={() => deleteMutation.mutate(c.id)}>
                     <Trash2 className='size-3' />
@@ -276,6 +278,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
         <Button
           size='icon'
           className='absolute bottom-2 right-2 size-6'
+          aria-label='Send comment'
           disabled={!body.trim() || addMutation.isPending}
           onClick={() => { if (body.trim()) addMutation.mutate(body); }}>
           <Send className='size-3' />

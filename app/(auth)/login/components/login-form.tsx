@@ -101,7 +101,7 @@ export function LoginForm({ callbackURL = '/' }: { callbackURL?: string }) {
                   <Label htmlFor='rememberMe'>Remember me</Label>
                   <Link
                     href='/forgot-password'
-                    className='ml-auto text-sm text-blue-500 hover:underline'>
+                    className='ml-auto text-sm font-medium text-primary underline underline-offset-4'>
                     Forgot password?
                   </Link>
                 </div>

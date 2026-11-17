@@ -79,12 +79,12 @@ test('filter the board and list by assignee, priority, due date and text; sort t
   await page.getByRole('button', { name: 'List' }).click();
   await expect(page).toHaveURL(/view=list/);
   await expect(page).toHaveURL(/due=overdue/);
-  await expect(page.getByRole('button', { name: 'Fix login bug' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Archive old tickets' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Fix login bug', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Archive old tickets', exact: true })).toHaveCount(0);
 
   // Clear, then sort the list by task name.
   await page.getByRole('button', { name: 'Clear filters' }).first().click();
-  await expect(page.getByRole('button', { name: 'Plan offsite' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Plan offsite', exact: true })).toBeVisible();
   await page.getByRole('button', { name: /^Sort by Task/ }).click();
   await expect(page).toHaveURL(/sort=title/);
   const listTitles = () =>
