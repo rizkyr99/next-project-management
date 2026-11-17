@@ -72,7 +72,10 @@ test('manage board columns without losing tasks', async ({ page }) => {
   };
   await grip.focus();
   await step('Space');
+  // Screen readers hear names, not internal ids (P4.5).
+  await expect(announcer).toHaveText('Picked up Column QA.');
   await step('ArrowLeft');
+  await expect(announcer).toHaveText('Column QA is over column Done.');
   await step('ArrowLeft');
   // The board reorders optimistically; wait for the server action to finish
   // saving before reloading, or the reload can cancel it.

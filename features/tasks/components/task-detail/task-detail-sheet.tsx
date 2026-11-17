@@ -74,10 +74,36 @@ export function TaskDetailSheet({ projectId, statuses, members, currentUserId }:
 
   const statusOptions = useMemo(() => statuses.map((s) => ({ id: s.id, name: s.name })), [statuses]);
 
+  // The sheet opens from a card or row, not a Dialog trigger, so Radix can't
+  // return focus on its own: remember what was focused when it opened and go
+  // back there when it closes (WCAG 2.4.3).
+  const openerRef = useRef<HTMLElement | null>(null);
+  const isOpen = task !== null;
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) setWasOpen(isOpen);
+  useEffect(() => {
+    if (isOpen && !wasOpen && document.activeElement instanceof HTMLElement) {
+      openerRef.current = document.activeElement;
+    }
+  }, [isOpen, wasOpen]);
+
   return (
     <Sheet open={task !== null} onOpenChange={(open) => !open && closeTask()}>
       <SheetContent
         aria-describedby={undefined}
+        onOpenAutoFocus={() => {
+          if (!openerRef.current && document.activeElement instanceof HTMLElement) {
+            openerRef.current = document.activeElement;
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          const opener = openerRef.current;
+          openerRef.current = null;
+          if (opener?.isConnected) {
+            event.preventDefault();
+            opener.focus();
+          }
+        }}
         className='w-full sm:max-w-xl gap-0 overflow-y-auto'>
         {task && (
           <TaskDetailBody

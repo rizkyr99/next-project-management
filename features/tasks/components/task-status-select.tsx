@@ -12,6 +12,8 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 interface TaskStatusSelectProps {
+  /** Accessible name, e.g. \"Status of Write launch plan\". */
+  label?: string;
   taskId: string;
   projectId: string;
   currentStatusId: string;
@@ -25,6 +27,7 @@ export function TaskStatusSelect({
   currentStatusId,
   statuses,
   onStatusChange,
+  label = 'Status',
 }: Readonly<TaskStatusSelectProps>) {
   const [isPending, setIsPending] = useState(false);
 
@@ -49,7 +52,7 @@ export function TaskStatusSelect({
 
   return (
     <Select value={currentStatusId} onValueChange={handleChange} disabled={isPending}>
-      <SelectTrigger className='h-7 w-fit gap-1 border-none shadow-none px-2 text-xs font-medium bg-secondary rounded-md'>
+      <SelectTrigger aria-label={label} className='h-7 w-fit gap-1 border-none shadow-none px-2 text-xs font-medium bg-secondary rounded-md'>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

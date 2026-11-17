@@ -285,6 +285,7 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
               </button>
               <div>
                 <TaskStatusSelect
+                    label={`Status of ${task.title}`}
                   taskId={task.id}
                   projectId={projectId}
                   currentStatusId={taskStatusMap[task.id] ?? task.statusId}
@@ -321,7 +322,8 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
                     <Button
                       variant='ghost'
                       size='icon'
-                      className='size-7 opacity-0 group-hover:opacity-100 transition-opacity'>
+                      aria-label={`${task.title} options`}
+                      className='size-7 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity'>
                       <MoreHorizontal className='size-4' />
                     </Button>
                   </DropdownMenuTrigger>

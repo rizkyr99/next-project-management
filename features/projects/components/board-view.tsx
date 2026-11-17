@@ -7,6 +7,7 @@ import { BoardColumn, columnDragId } from '@/features/tasks/components/board-col
 import { cardClassName, TaskCardPreview } from '@/features/tasks/components/task-card';
 import type { TaskData } from '@/features/tasks/components/task-meta';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
+import { boardAnnouncements, boardInstructions } from './board-announcements';
 import { matchesFilters } from '@/features/tasks/filters';
 import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { useTaskStream } from '@/features/tasks/hooks/use-task-stream';
@@ -132,6 +133,12 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
   );
   const shownCount = shown.reduce((n, s) => n + s.tasks.length, 0);
   const totalCount = statuses.reduce((n, s) => n + s.tasks.length, 0);
+
+  const announcements = useMemo(() => {
+    const tasks = new Map(statuses.flatMap((s) => s.tasks.map((t) => [t.id, t.title] as const)));
+    const columns = new Map(statuses.map((s) => [s.id, s.name] as const));
+    return boardAnnouncements({ taskName: (id) => tasks.get(id), columnName: (id) => columns.get(id) });
+  }, [statuses]);
 
   const columnInfos: ColumnInfo[] = statuses.map((s) => ({
     id: s.id,
@@ -354,7 +361,8 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}>
+      onDragCancel={handleDragCancel}
+      accessibility={{ announcements, screenReaderInstructions: boardInstructions }}>
       <div className='flex-1 flex items-start gap-4 p-4 overflow-x-auto'>
         <SortableContext
           items={statuses.map((s) => columnDragId(s.id))}

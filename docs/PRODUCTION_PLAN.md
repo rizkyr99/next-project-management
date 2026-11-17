@@ -485,6 +485,17 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 3. Check focus is restored after closing dialogs, every icon-only button has an `aria-label`, and colour contrast meets AA in both themes (priority badges especially).
 4. Add `@axe-core/playwright` to the E2E suite for the main pages.
 
+**Status:** done.
+- **Automated checks:** `e2e/a11y.spec.ts` runs axe (WCAG 2.1 A/AA) on 6 public pages, and on 13 app screens in both light and dark mode. Set `A11Y_OUT=file.jsonl` to dump the failing nodes while fixing.
+- **What it found, now fixed:**
+  - 30+ unlabelled buttons and comboboxes: row menus, status selects in list and table, comment send/edit/delete.
+  - An unnamed progress bar on create-workspace.
+  - Contrast: `--muted-foreground` darkened to 0.5 L so it clears 4.5:1 on grey surfaces too; the dark-mode upgrade card; the Danger zone tab.
+  - Auth links that relied on colour alone, now brand colour plus underline.
+- **Drag and drop:** dnd-kit announcements use task and column names instead of ids, and there are clear instructions.
+- **Focus:** closing the task panel returns focus to the card or row that opened it.
+- **Not in scope:** a manual screen-reader walkthrough (VoiceOver/NVDA) is still worth doing before a public launch.
+
 ### P4.6 Mobile pass
 
 Also collapse the project filter bar (P4.4) behind a single "Filters" button on phones; today its four controls wrap onto three rows.

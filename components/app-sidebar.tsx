@@ -135,7 +135,7 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
             className='flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm hover:bg-primary/10 transition-colors'>
             <Sparkles className='size-4 text-primary mt-0.5 shrink-0' />
             <div>
-              <p className='font-medium text-primary leading-tight'>Workspace limit reached</p>
+              <p className='font-medium text-primary leading-tight dark:text-indigo-300'>Workspace limit reached</p>
               <p className='text-xs text-muted-foreground mt-0.5'>Upgrade your plan to create more workspaces.</p>
             </div>
           </Link>

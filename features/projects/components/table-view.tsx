@@ -354,6 +354,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
 
                   <TableCell>
                     <TaskStatusSelect
+                    label={`Status of ${task.title}`}
                       taskId={task.id}
                       projectId={projectId}
                       currentStatusId={taskStatusMap[task.id] ?? task.statusId}
@@ -416,7 +417,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                     <AlertDialog>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant='ghost' size='icon' className='size-7'>
+                          <Button variant='ghost' size='icon' className='size-7' aria-label={`${task.title} options`}>
                             <MoreHorizontal className='size-4' />
                           </Button>
                         </DropdownMenuTrigger>
