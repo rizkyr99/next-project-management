@@ -33,7 +33,7 @@ test('unverified users see a banner until they verify', async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/workspaces/${slug}`), { timeout: 15000 });
 
   const banner = page.getByRole('region', { name: 'Email verification' });
-  await expect(banner).toContainText('Verify your email to receive invites and notifications');
+  await expect(banner).toContainText('to receive invites and notifications');
   await expect(banner).toContainText(email);
 
   // Resend works (and is rate limited by the proxy like other auth calls).

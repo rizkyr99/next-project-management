@@ -2,7 +2,7 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { updateEmailPreferences } from '../preferences';
 
@@ -12,7 +12,9 @@ export interface EmailPreferences {
   emailDigest: boolean;
 }
 
-const OPTIONS: { key: keyof EmailPreferences; label: string; hint: string }[] = [
+type Key = keyof EmailPreferences;
+
+const OPTIONS: { key: Key; label: string; hint: string }[] = [
   { key: 'emailOnAssign', label: 'When someone assigns me a task', hint: 'Sent right away.' },
   { key: 'emailOnMention', label: 'When someone @mentions me in a comment', hint: 'Sent right away.' },
   {
@@ -22,32 +24,46 @@ const OPTIONS: { key: keyof EmailPreferences; label: string; hint: string }[] = 
   },
 ];
 
-/** Each checkbox saves on change, optimistically, and reverts if saving fails. */
-export function EmailPreferencesForm({ initial, disabled }: { initial: EmailPreferences; disabled: boolean }) {
+/**
+ * Each checkbox saves on change, optimistically. While its save is in flight
+ * that checkbox is disabled, so a failed save can only roll back to the last
+ * confirmed value, never over a newer click.
+ */
+export function EmailPreferencesForm({ initial }: { initial: EmailPreferences }) {
   const [prefs, setPrefs] = useState(initial);
-  const [, startTransition] = useTransition();
+  const [saving, setSaving] = useState<Partial<Record<Key, boolean>>>({});
 
-  const toggle = (key: keyof EmailPreferences, value: boolean) => {
+  const toggle = async (key: Key, value: boolean) => {
+    const confirmed = prefs[key];
     setPrefs((p) => ({ ...p, [key]: value }));
-    startTransition(async () => {
+    setSaving((s) => ({ ...s, [key]: true }));
+    let error: string | undefined;
+    try {
       const result = await updateEmailPreferences({ [key]: value });
-      if (result.error !== undefined) {
-        setPrefs((p) => ({ ...p, [key]: !value }));
-        toast.error(result.error, { position: 'top-center' });
-        return;
-      }
-      toast.success('Preferences saved', { position: 'top-center' });
-    });
+      error = result.error;
+    } catch {
+      // e.g. the session expired since the page loaded.
+      error = 'Could not save. Please sign in again and retry.';
+    } finally {
+      setSaving((s) => ({ ...s, [key]: false }));
+    }
+    if (error !== undefined) {
+      setPrefs((p) => ({ ...p, [key]: confirmed }));
+      toast.error(error, { position: 'top-center' });
+      return;
+    }
+    toast.success('Preferences saved', { position: 'top-center' });
   };
 
   return (
-    <fieldset disabled={disabled} className='space-y-4 disabled:opacity-60'>
+    <fieldset className='space-y-4'>
       <legend className='sr-only'>Email notifications</legend>
       {OPTIONS.map(({ key, label, hint }) => (
         <div key={key} className='flex items-start gap-3'>
           <Checkbox
             id={`pref-${key}`}
             checked={prefs[key]}
+            disabled={saving[key]}
             onCheckedChange={(v) => toggle(key, v === true)}
             className='mt-0.5'
           />

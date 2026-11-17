@@ -30,16 +30,21 @@ export function ForgotPasswordForm() {
     }
     setError(null);
     setPending(true);
-    const { error: apiError } = await authClient.requestPasswordReset({
-      email: parsed.data,
-      redirectTo: '/reset-password',
-    });
-    setPending(false);
-    if (apiError) {
-      setError(apiError.message || 'Something went wrong. Please try again.');
-      return;
+    try {
+      const { error: apiError } = await authClient.requestPasswordReset({
+        email: parsed.data,
+        redirectTo: '/reset-password',
+      });
+      if (apiError) {
+        setError(apiError.message || 'Something went wrong. Please try again.');
+        return;
+      }
+      setSentTo(parsed.data);
+    } catch {
+      setError('Could not reach Tide. Check your connection and try again.');
+    } finally {
+      setPending(false);
     }
-    setSentTo(parsed.data);
   };
 
   if (sentTo) {

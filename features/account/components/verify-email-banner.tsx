@@ -11,7 +11,12 @@ export function ResendVerificationButton({ email, size = 'default' }: { email: s
 
   const resend = async () => {
     setState('sending');
-    const { error } = await authClient.sendVerificationEmail({ email, callbackURL: '/email-verified' });
+    let error: { message?: string } | null = null;
+    try {
+      ({ error } = await authClient.sendVerificationEmail({ email, callbackURL: '/email-verified' }));
+    } catch {
+      error = { message: 'Could not reach Tide. Check your connection and try again.' };
+    }
     if (error) {
       setState('idle');
       toast.error(error.message || 'Could not send the email. Please try again.', { position: 'top-center' });
@@ -41,8 +46,8 @@ export function VerifyEmailBanner({ email }: { email: string }) {
       className='flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-amber-50 px-4 py-2 text-sm text-amber-950 dark:bg-amber-950/40 dark:text-amber-100'>
       <MailWarning className='size-4 shrink-0' />
       <p className='min-w-0 flex-1'>
-        Verify your email to receive invites and notifications. We sent a link to{' '}
-        <span className='font-medium'>{email}</span>.
+        Verify your email (<span className='font-medium'>{email}</span>) to receive invites and
+        notifications. Use “Resend email” to get a verification link.
       </p>
       <ResendVerificationButton email={email} size='sm' />
     </div>

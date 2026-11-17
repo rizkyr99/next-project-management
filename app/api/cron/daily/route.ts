@@ -27,9 +27,10 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  // Reminders first, so today's due-soon notifications make today's digest.
+  // Reminders first; the digest takes its cutoff from the database clock
+  // after they're written, so today's reminders make today's digest.
   const reminders = await Promise.allSettled([sendDueSoonReminders(now)]).then(([r]) => r);
-  const [digests, cleanup] = await Promise.allSettled([sendDailyDigests(now), runCleanup(now)]);
+  const [digests, cleanup] = await Promise.allSettled([sendDailyDigests(), runCleanup(now)]);
 
   for (const [job, outcome] of [
     ['due-soon', reminders],

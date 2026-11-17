@@ -342,6 +342,9 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
   try {
     const input = updateTaskAssigneesSchema.parse({ taskId, assigneeIds });
     const ctx = await requireTaskAccess(input.taskId);
+    // Before any write: assigning can email people, so toggling someone on
+    // and off must not become a way to flood their inbox.
+    await enforceRateLimit('assignees', ctx.session.user.id);
     const nextIds = [...new Set(input.assigneeIds)];
     await assertWorkspaceMembers(nextIds, ctx.workspace.id);
     const taskLink = notificationLink(ctx);

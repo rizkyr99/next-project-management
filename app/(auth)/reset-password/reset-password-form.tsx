@@ -30,14 +30,19 @@ export function ResetPasswordForm({ token }: { token: string }) {
     }
     setError(null);
     setPending(true);
-    const { error: apiError } = await authClient.resetPassword({ newPassword: password, token });
-    setPending(false);
-    if (apiError) {
-      if (apiError.code === 'INVALID_TOKEN') setExpired(true);
-      setError(apiError.message || 'Something went wrong. Please try again.');
-      return;
+    try {
+      const { error: apiError } = await authClient.resetPassword({ newPassword: password, token });
+      if (apiError) {
+        if (apiError.code === 'INVALID_TOKEN') setExpired(true);
+        setError(apiError.message || 'Something went wrong. Please try again.');
+        return;
+      }
+      router.replace('/login?reset=1');
+    } catch {
+      setError('Could not reach Tide. Check your connection and try again.');
+    } finally {
+      setPending(false);
     }
-    router.replace('/login?reset=1');
   };
 
   if (expired) {

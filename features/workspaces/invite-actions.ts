@@ -323,14 +323,9 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
         };
       }
 
-      // The emailed token proves they read this mailbox, and the invite's
-      // address matched theirs (evaluateInvite), so that's a verification.
-      if ('token' in ref && !session.user.emailVerified) {
-        await db
-          .update(user)
-          .set({ emailVerified: true })
-          .where(and(eq(user.id, session.user.id), sql`lower(${user.email}) = ${invite.email.toLowerCase()}`));
-      }
+      // Accepting does NOT verify the email: the inviter also sees the invite
+      // link, so the token doesn't prove the invitee reads this mailbox.
+      // Verification only comes from Better Auth's own emailed link.
 
       await insertActivity({
         workspaceId: invite.workspaceId,

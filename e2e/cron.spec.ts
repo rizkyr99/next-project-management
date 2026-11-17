@@ -97,10 +97,17 @@ test('due-soon reminders: once per due date, not for done or far-off tasks, plus
   await sql`update "user" set email_verified = true where id = ${userId}`;
   const afterVerify = await run();
   expect(afterVerify.digests.checked).toBeGreaterThanOrEqual(1);
+  // A test address can't receive mail, so the send "fails" and the window is
+  // released for the next run instead of being skipped.
+  expect(await digestAt()).toBeNull();
+
+  // With nothing unread there's nothing to send: the cursor moves and stays.
+  await sql`update notification set read = true where user_id = ${userId}`;
+  await run();
   const firstDigest = await digestAt();
   expect(firstDigest).not.toBeNull();
   await run(); // within 20 h: not processed again
-  expect((await digestAt()).toISOString()).toBe(new Date(firstDigest).toISOString());
+  expect(new Date(await digestAt()).toISOString()).toBe(new Date(firstDigest).toISOString());
 
   // The reminder shows in the bell and opens the task.
   await page.goto(`/workspaces/${slug}`);
