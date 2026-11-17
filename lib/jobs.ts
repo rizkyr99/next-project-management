@@ -134,68 +134,101 @@ export interface DigestResult {
  * Opt-in daily digest (P3.4): unread notifications since the user's last
  * digest (or the last 24 h), for verified users who turned it on.
  *
- * Each user is claimed by moving `digest_last_sent_at` to now in one
- * statement (SKIP LOCKED, and only if the last one is 20 h+ old), so a
- * retried or overlapping run can't email anyone twice.
+ * Each user is claimed by moving `digest_last_sent_at` to the database's
+ * `now()` in one statement (SKIP LOCKED, and only if the last one is 20 h+
+ * old), so overlapping runs can't email anyone twice. That same `now()` is
+ * the digest's cutoff: it's read after the due-soon reminders were inserted,
+ * so today's reminders are always included.
+ *
+ * If building or sending a user's digest fails, their cursor is moved back
+ * (compare-and-set), so the window is retried on the next run instead of
+ * being skipped. One user's failure never stops the others.
  */
-export async function sendDailyDigests(now = new Date()): Promise<DigestResult> {
-  const iso = now.toISOString();
-  const claimed = await db.execute<{ user_id: string; email: string; name: string; since: string }>(sql`
+export async function sendDailyDigests(): Promise<DigestResult> {
+  const claimed = await db.execute<{
+    user_id: string;
+    email: string;
+    name: string;
+    since: string;
+    prev: string | null;
+    cutoff: string;
+  }>(sql`
     with due as (
-      select up.user_id, coalesce(up.digest_last_sent_at, ${iso}::timestamptz - interval '24 hours') as since
+      select up.user_id, up.digest_last_sent_at as prev,
+             coalesce(up.digest_last_sent_at, now() - interval '24 hours') as since
       from user_preferences up
       join "user" u on u.id = up.user_id
       where up.email_digest
         and u.email_verified
-        and (up.digest_last_sent_at is null or up.digest_last_sent_at < ${iso}::timestamptz - interval '20 hours')
+        and (up.digest_last_sent_at is null or up.digest_last_sent_at < now() - interval '20 hours')
       for update of up skip locked
     )
     update user_preferences up
-    set digest_last_sent_at = ${iso}::timestamptz
+    set digest_last_sent_at = now()
     from due join "user" u on u.id = due.user_id
     where up.user_id = due.user_id
-    returning up.user_id, u.email, u.name, due.since
+    returning up.user_id, u.email, u.name, due.since, due.prev, up.digest_last_sent_at as cutoff
   `);
 
   let sent = 0;
   for (const row of claimed.rows) {
-    const items = await db.execute<{
-      type: string;
-      actor_name: string | null;
-      task_title: string | null;
-      workspace_name: string | null;
-      due_label: string | null;
-      href: string | null;
-      total: number;
-    }>(sql`
-      select type, actor_name, task_title, workspace_name, due_label, href,
-             count(*) over ()::int as total
-      from notification
-      where user_id = ${row.user_id}
-        and read = false
-        and created_at > ${row.since}::timestamptz
-        and created_at <= ${iso}::timestamptz
-      order by created_at desc
-      limit ${DIGEST_MAX_ITEMS}
-    `);
-    const total = Number(items.rows[0]?.total ?? 0);
-    if (total === 0) continue;
+    let delivered = false;
+    try {
+      const items = await db.execute<{
+        type: string;
+        actor_name: string | null;
+        task_title: string | null;
+        workspace_name: string | null;
+        due_label: string | null;
+        href: string | null;
+        total: number;
+      }>(sql`
+        select type, actor_name, task_title, workspace_name, due_label, href,
+               count(*) over ()::int as total
+        from notification
+        where user_id = ${row.user_id}
+          and read = false
+          and created_at > ${row.since}::timestamptz
+          and created_at <= ${row.cutoff}::timestamptz
+        order by created_at desc
+        limit ${DIGEST_MAX_ITEMS}
+      `);
+      const total = Number(items.rows[0]?.total ?? 0);
+      if (total === 0) continue; // nothing to send: keep the cursor moved
 
-    const result = await sendDailyDigestEmail(row.email, {
-      name: row.name,
-      total,
-      items: items.rows.map((n) => ({
-        text: digestLine({
-          type: n.type,
-          actorName: n.actor_name,
-          taskTitle: n.task_title,
-          workspaceName: n.workspace_name,
-          dueLabel: n.due_label,
-        }),
-        url: `${APP_URL}${n.href && n.href.startsWith('/') && !n.href.startsWith('//') ? n.href : '/notifications'}`,
-      })),
-    });
-    if (result.sent) sent += 1;
+      const result = await sendDailyDigestEmail(row.email, {
+        name: row.name,
+        total,
+        items: items.rows.map((n) => ({
+          text: digestLine({
+            type: n.type,
+            actorName: n.actor_name,
+            taskTitle: n.task_title,
+            workspaceName: n.workspace_name,
+            dueLabel: n.due_label,
+          }),
+          url: `${APP_URL}${n.href && n.href.startsWith('/') && !n.href.startsWith('//') ? n.href : '/notifications'}`,
+        })),
+      });
+      delivered = result.sent;
+      if (delivered) sent += 1;
+    } catch (error) {
+      console.error('[cron] digest failed for a user:', error);
+    }
+    if (!delivered) await releaseDigestClaim(row.user_id, row.cutoff, row.prev);
   }
   return { checked: claimed.rows.length, sent };
+}
+
+/** Puts a user's digest cursor back, unless something else has moved it since. */
+async function releaseDigestClaim(userId: string, claimedAt: string, prev: string | null) {
+  try {
+    await db.execute(sql`
+      update user_preferences
+      set digest_last_sent_at = ${prev}::timestamptz
+      where user_id = ${userId} and digest_last_sent_at = ${claimedAt}::timestamptz
+    `);
+  } catch (error) {
+    console.error('[cron] could not release digest claim:', error);
+  }
 }

@@ -60,7 +60,7 @@ export default async function NotificationSettingsPage() {
           <CardDescription>Sent to {session.user.email}.</CardDescription>
         </CardHeader>
         <CardContent>
-          <EmailPreferencesForm initial={prefs} disabled={false} />
+          <EmailPreferencesForm initial={prefs} />
         </CardContent>
       </Card>
     </div>

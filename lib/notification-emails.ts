@@ -22,6 +22,7 @@ export async function emailRecipients(userIds: string[], kind: TaskEmailKind) {
 }
 
 const MAX_EXCERPT = 280;
+const SEND_SPACING_MS = 150;
 
 /**
  * Emails the assignment or mention to everyone who wants it. Meant to run in
@@ -48,17 +49,19 @@ export async function emailTaskNotification({
     const recipients = await emailRecipients(userIds, kind);
     const trimmed =
       excerpt && excerpt.length > MAX_EXCERPT ? `${excerpt.slice(0, MAX_EXCERPT - 1)}…` : excerpt;
-    await Promise.all(
-      recipients.map((r) =>
-        sendTaskNotificationEmail(r.email, {
-          kind,
-          actorName,
-          taskTitle,
-          excerpt: trimmed,
-          taskUrl: `${APP_URL}${href}`,
-        }),
-      ),
-    );
+    // One at a time, spaced out: Resend allows ~10 requests/second per team,
+    // and a 429 would silently drop the email.
+    for (const [i, r] of recipients.entries()) {
+      if (i > 0) await new Promise((resolve) => setTimeout(resolve, SEND_SPACING_MS));
+      const { sent } = await sendTaskNotificationEmail(r.email, {
+        kind,
+        actorName,
+        taskTitle,
+        excerpt: trimmed,
+        taskUrl: `${APP_URL}${href}`,
+      });
+      if (!sent) console.warn(`[email] ${kind} email not sent to one recipient`);
+    }
   } catch (error) {
     console.error('[email] task notification emails failed:', error);
   }
