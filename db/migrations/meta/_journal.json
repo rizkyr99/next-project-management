@@ -43,6 +43,13 @@
       "when": 1794882707491,
       "tag": "0005_notification_links",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794890546151,
+      "tag": "0006_due_soon_reminders",
+      "breakpoints": true
     }
   ]
 }

@@ -388,6 +388,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 4. Also clean up: expire `pending` invites past `expiresAt`, delete stale `webrtc_signal` rows (> 1 h) and `call_participant` rows with `lastSeen` > 2 min, and delete notifications older than 90 days.
 5. Note: Vercel Hobby limits crons to once per day. Hourly needs Pro, or else use daily due-soon checks with a 48 h window.
 
+**Status:** done, as one daily job: `/api/cron/daily` at 08:00 UTC (`vercel.json`), with a 48 h due-soon window because the project is on Hobby. Reminders are idempotent through `task_assignee.due_soon_notified_for` (migration 0006), and moving a due date re-arms them. Reminders go only to current members, and skip tasks in the project's last column. Cleanup expires pending invites, deletes `webrtc_signal` older than 1 h and `call_participant` not seen for 2 min, deletes expired `verification` rows (reset tokens), and deletes notifications older than 90 days. The daily digest email (step 3) moves to P3.4, since it needs the preferences. **Deploy:** set `CRON_SECRET` in Vercel (production); without it the route refuses every call.
+
 ### P3.4 Notification preferences
 
 **Steps**
