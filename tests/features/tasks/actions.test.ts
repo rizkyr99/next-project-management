@@ -109,9 +109,9 @@ function expectNoWrites() {
 describe('createTask', () => {
   const input = { title: 'Task', order: 0, projectId: PROJECT, statusId: STATUS };
 
-  it('throws Unauthorized when there is no session', async () => {
+  it('returns a session-expired message when there is no session', async () => {
     vi.mocked(requireProjectAccess).mockRejectedValue(new UnauthenticatedError());
-    await expect(createTask(input)).rejects.toThrow('Unauthorized');
+    expect(await createTask(input)).toEqual({ error: 'Your session has expired. Log in again to continue.' });
     expectNoWrites();
   });
 

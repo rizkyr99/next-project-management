@@ -77,7 +77,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(target, request.url));
   }
 
-  if (!isAuthPage && !isPublicPage && !session) {
+  // Server action calls (POSTs with a Next-Action header) are never
+  // redirected: the browser expects an action response, not a login page
+  // ("An unexpected response was received from the server"). Every action
+  // checks the session itself and answers with a "session expired" message.
+  const isServerAction = request.method === 'POST' && request.headers.has('next-action');
+
+  if (!isAuthPage && !isPublicPage && !session && !isServerAction) {
     const login = new URL('/login', request.url);
     if (pathname !== '/') {
       login.searchParams.set('callbackURL', `${pathname}${request.nextUrl.search}`);

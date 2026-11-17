@@ -28,9 +28,11 @@ export function UpdateProfileForm({ defaultName }: { defaultName: string }) {
 
   const onSubmit = async (values: z.infer<typeof schema>) => {
     const result = await updateProfile(values);
-    if (result?.success) {
-      toast.success('Profile updated', { position: 'top-center' });
+    if ('error' in result) {
+      toast.error(result.error, { position: 'top-center' });
+      return;
     }
+    toast.success('Profile updated', { position: 'top-center' });
   };
 
   return (

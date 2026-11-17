@@ -48,8 +48,12 @@ export function CreateProjectDialog() {
 
   const onSubmit = async (values: z.infer<typeof createProjectSchema>) => {
     const result = await createProject(values);
-    if (result?.error || !result.project) {
-      toast.error(result?.error ?? 'Failed to create project.', { position: 'top-center' });
+    if ('error' in result && result.error !== undefined) {
+      toast.error(result.error, { position: 'top-center' });
+      return;
+    }
+    if (!('project' in result) || !result.project) {
+      toast.error('Failed to create project.', { position: 'top-center' });
       return;
     }
 

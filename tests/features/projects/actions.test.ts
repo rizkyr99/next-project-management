@@ -39,11 +39,9 @@ function captureInserts() {
 }
 
 describe('createProject', () => {
-  it('throws Unauthorized without a session', async () => {
+  it('returns a session-expired message without a session', async () => {
     vi.mocked(auth.api.getSession).mockResolvedValue(null);
-    await expect(createProject({ workspaceSlug: 'acme', name: 'Site' })).rejects.toThrow(
-      'Unauthorized',
-    );
+    expect(await createProject({ workspaceSlug: 'acme', name: 'Site' })).toEqual({ error: 'Your session has expired. Log in again to continue.' });
   });
 
   it('rejects invalid input without touching the database', async () => {

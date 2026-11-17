@@ -438,6 +438,14 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 3. `loading.tsx` skeletons for project, my-tasks, activity and settings, matching the real layouts so content doesn't jump when it loads.
 4. Server actions: replace `throw new Error('Unauthorized')` with returned errors, and show every `{ ok: false }` as a toast. No action should surface the generic Next.js "An error occurred in the Server Components render".
 
+**Status:** done.
+- **404s:** a global `app/not-found.tsx`, and an in-app one inside the workspace shell with "Back to workspace".
+- **Error boundaries:** `error.tsx` for the workspace and project routes (shared `RouteError`: Sentry, "Try again", a way out, the error digest). `global-error.tsx` replaces Next's bare default.
+- **Loading:** skeletons matched to each page (workspace home, project board, my tasks, activity, settings) replace the spinner.
+- **Server actions:** `runAction()` wraps the 10 actions that used to throw, and `toActionError` returns *"Your session has expired. Log in again to continue."* instead of rethrowing.
+- **Proxy:** it no longer redirects server-action POSTs to `/login`. That redirect produced "An unexpected response was received from the server". Every action checks the session itself; this was audited.
+- **Callers:** they now toast returned errors (profile, delete workspace, billing).
+
 ### P4.3 Onboarding and empty states
 
 **Steps**

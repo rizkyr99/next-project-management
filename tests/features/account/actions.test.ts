@@ -17,7 +17,7 @@ vi.mock('@/lib/rate-limit', async (importOriginal) => {
 });
 vi.mock('@/lib/account', () => ({ getOwnedWorkspaces: vi.fn() }));
 vi.mock('next/headers', () => ({ headers: vi.fn(() => new Headers()), cookies: vi.fn(async () => jar) }));
-vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
+vi.mock('next/navigation', () => ({ redirect: vi.fn(), unstable_rethrow: vi.fn() }));
 
 import { auth } from '@/lib/auth';
 import { getOwnedWorkspaces } from '@/lib/account';

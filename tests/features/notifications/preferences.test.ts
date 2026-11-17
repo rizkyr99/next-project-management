@@ -34,6 +34,7 @@ describe('updateEmailPreferences', () => {
 
   it('requires a session', async () => {
     vi.mocked(auth.api.getSession).mockResolvedValue(null);
-    await expect(updateEmailPreferences({ emailDigest: true })).rejects.toThrow('Unauthorized');
+    expect(await updateEmailPreferences({ emailDigest: true })).toEqual({ error: 'Your session has expired. Log in again to continue.' });
+    expect(db.insert).not.toHaveBeenCalled();
   });
 });
