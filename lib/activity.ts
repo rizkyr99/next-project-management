@@ -18,6 +18,8 @@ export type ActivityAction =
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'
+  | 'member.left'
+  | 'member.ownership_transferred'
   | 'member.role_changed';
 
 interface InsertActivityParams {

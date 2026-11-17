@@ -323,7 +323,9 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 4. Guard: the last owner can't leave or be demoted.
 
 **Done when**
-- [ ] Unit tests cover the last-owner guard and transfer.
+- [x] Unit tests cover the last-owner guard and transfer.
+
+**Notes:** a workspace has exactly one owner, so "last owner" means "the owner": they can't leave until they transfer, and the owner's role can't be changed (only moved by transfer). Transfer also refuses if the new owner's plan is already at its workspace limit, since `workspace.userId` counts toward it. Unassigning lives in `lib/membership.ts` and runs in the same batch as the membership delete.
 
 ### P2.5 Actionable notifications
 
