@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { registerAndLogin } from './helpers/auth';
+import { addTask } from './helpers/tasks';
 import { testDb } from './helpers/db';
 
 /** P2.5: a notification opens what it's about, and is marked read on the way. */
@@ -39,6 +40,7 @@ test('an assignment notification opens the task and is marked read', async ({ br
   await owner.page.getByLabel('Name').fill('Launch');
   await owner.page.getByRole('button', { name: 'Create project' }).click();
   await expect(owner.page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 15000 });
+  await addTask(owner.page, 'To Do', WELCOME);
 
   // The owner assigns the member from the task sheet.
   await owner.page.getByRole('button', { name: `Open task ${WELCOME}` }).click();

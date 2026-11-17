@@ -453,6 +453,16 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 2. Design empty states for: no projects, empty column, no tasks assigned (my-tasks), no activity, no search results, no notifications. Each one gets an illustration/icon, a sentence and a primary action.
 3. Add a first-run checklist on the workspace home: create project → add task → invite teammate. Dismissible, and the completion state is derived from data rather than stored separately.
 
+**Status:** done.
+- **Getting started:** every new workspace gets a "Getting started" project (`lib/onboarding.ts`), written in the same batch as the workspace. It has 7 tasks, each teaching one thing. New projects now start empty.
+- **Checklist:** owners and admins see it on the workspace home. Completion is derived from the activity log (the seed logs none, so it counts *your* first project and task) and from members or pending invites. "Hide" is kept in a cookie, so it never flashes, and the checklist disappears once all three steps are done.
+- **Empty states:** a shared `EmptyState` for workspace projects, My tasks (and filtered-empty), activity, search and the notifications page. Empty board columns get a hint in the default column only.
+- **Related fixes:**
+  - The board no longer remounts on every data refresh, so open forms survive a refresh.
+  - The task panel refreshes once before reporting "no longer exists", so a just-created task opens.
+
+**Noticed, not changed:** brand-new free users see "Workspace limit reached" in the sidebar straight away, because the Free plan allows one workspace. Worth softening in a billing pass.
+
 ### P4.4 Board filtering and sorting
 
 **Steps**

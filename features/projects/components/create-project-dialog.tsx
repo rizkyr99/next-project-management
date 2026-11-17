@@ -31,7 +31,17 @@ import { createProject } from '../actions';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
-export function CreateProjectDialog() {
+/**
+ * "New project" dialog. The sidebar shows it as its "+" action; empty states
+ * and the first-run checklist use the regular button variant.
+ */
+export function CreateProjectDialog({
+  variant = 'sidebar',
+  label = 'Create a project',
+}: {
+  variant?: 'sidebar' | 'button';
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   const params = useParams<{ workspaceSlug: string }>();
   const { workspaceSlug } = params;
@@ -66,10 +76,17 @@ export function CreateProjectDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <SidebarGroupAction>
-          <Plus />
-          <span className='sr-only'>Add project</span>
-        </SidebarGroupAction>
+        {variant === 'sidebar' ? (
+          <SidebarGroupAction>
+            <Plus />
+            <span className='sr-only'>Add project</span>
+          </SidebarGroupAction>
+        ) : (
+          <Button size='sm'>
+            <Plus />
+            {label}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

@@ -1,14 +1,21 @@
 import { db } from '@/db/drizzle';
 import {
+  activityLog,
   member,
   project,
   task,
   taskStatus,
   user,
+  workspaceInvite,
 } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
+import { cookies } from 'next/headers';
+import { EmptyState } from '@/components/empty-state';
+import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
+import { checklistCookie, type ChecklistState } from '@/features/workspaces/checklist';
+import { OnboardingChecklist } from '@/features/workspaces/components/onboarding-checklist';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -66,6 +73,35 @@ export default async function WorkspaceHomePage({
       .where(eq(member.workspaceId, currentWorkspace.id)),
   ]);
 
+  // First-run checklist (owners and admins, who can invite): completion is
+  // read from data, never stored. The seeded "Getting started" project logs
+  // no activity, so these count the user's own first project and task.
+  const canManage = currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin';
+  const checklistHidden = (await cookies()).get(checklistCookie(currentWorkspace.id))?.value === '1';
+  let checklist: ChecklistState | null = null;
+  if (canManage && !checklistHidden) {
+    const [[activity], [pendingInvites]] = await Promise.all([
+      db
+        .select({
+          projects: sql<number>`count(*) filter (where ${activityLog.action} = 'project.created')::int`,
+          tasks: sql<number>`count(*) filter (where ${activityLog.action} = 'task.created')::int`,
+        })
+        .from(activityLog)
+        .where(eq(activityLog.workspaceId, currentWorkspace.id)),
+      db
+        .select({ n: count() })
+        .from(workspaceInvite)
+        .where(and(eq(workspaceInvite.workspaceId, currentWorkspace.id), eq(workspaceInvite.status, 'pending'))),
+    ]);
+    const state: ChecklistState = {
+      createdProject: (activity?.projects ?? 0) > 0,
+      addedTask: (activity?.tasks ?? 0) > 0,
+      invitedTeammate: members.length > 1 || (pendingInvites?.n ?? 0) > 0,
+    };
+    // Once everything is done, it gets out of the way by itself.
+    if (!(state.createdProject && state.addedTask && state.invitedTeammate)) checklist = state;
+  }
+
   const taskCountMap = Object.fromEntries(
     taskCountsRaw.map((r) => [r.projectId, r.count]),
   );
@@ -86,6 +122,15 @@ export default async function WorkspaceHomePage({
           .
         </p>
       </div>
+
+      {checklist && (
+        <OnboardingChecklist
+          workspaceId={currentWorkspace.id}
+          workspaceSlug={workspaceSlug}
+          taskHref={projects[0] ? `/workspaces/${workspaceSlug}/projects/${projects[0].id}` : null}
+          state={checklist}
+        />
+      )}
 
       <div className='grid gap-4 sm:grid-cols-3'>
         <Card>
@@ -132,11 +177,12 @@ export default async function WorkspaceHomePage({
 
         {projects.length === 0 ? (
           <Card className='border-dashed'>
-            <CardContent className='flex flex-col items-center justify-center py-10 text-center text-sm text-muted-foreground gap-1'>
-              <Briefcase className='size-8 mb-2 opacity-30' />
-              <p className='font-medium'>No projects yet</p>
-              <p>Create your first project from the sidebar.</p>
-            </CardContent>
+            <EmptyState
+              icon={Briefcase}
+              title='No projects yet'
+              action={<CreateProjectDialog variant='button' label='Create a project' />}>
+              A project holds a board of tasks: a launch, a client, a sprint.
+            </EmptyState>
           </Card>
         ) : (
           <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
