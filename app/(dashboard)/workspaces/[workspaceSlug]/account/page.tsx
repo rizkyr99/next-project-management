@@ -16,6 +16,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { UpdateProfileForm } from '@/features/account/components/update-profile-form';
 import { ChangePasswordForm } from '@/features/account/components/change-password-form';
+import { DeleteAccountSection } from '@/features/account/components/delete-account-section';
+import { getOwnedWorkspaces } from '@/lib/account';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Account' };
@@ -35,6 +37,7 @@ export default async function AccountPage() {
     .where(eq(accountTable.userId, session.user.id));
 
   const hasPassword = accounts.some((a) => a.providerId === 'credential');
+  const ownedWorkspaces = await getOwnedWorkspaces(session.user.id);
   const providers = accounts.map((a) => a.providerId);
 
   const initials = (currentUser.name || currentUser.email || 'U')
@@ -145,6 +148,23 @@ export default async function AccountPage() {
               })}
             </span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Danger zone */}
+      <Card className='border-destructive/40'>
+        <CardHeader>
+          <CardTitle className='text-destructive'>Delete account</CardTitle>
+          <CardDescription>
+            Permanently delete your account and everything only you own.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DeleteAccountSection
+            email={currentUser.email}
+            hasPassword={hasPassword}
+            ownedWorkspaces={ownedWorkspaces}
+          />
         </CardContent>
       </Card>
     </div>
