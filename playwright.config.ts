@@ -32,7 +32,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    // CI runs against a production build (built beforehand): the dev server
+    // compiles each page on first visit, which made CI slow and flaky.
+    command: process.env.E2E_SERVER === 'start' ? 'npm run start' : 'npm run dev',
     url: 'http://localhost:3000',
     // Never reuse an already-running server: it may point at a different
     // (e.g. production) database than the one global-setup verified.

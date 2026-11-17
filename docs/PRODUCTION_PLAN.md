@@ -587,11 +587,14 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
   - All jobs use `npm ci` and Node from `.nvmrc` (24), with the npm cache.
   - A newer push cancels the run in progress.
   - A new **Build** job runs `next build` with placeholder env. It catches invalid segment config, which tsc misses (see #53).
-- **E2E job (pull requests only):**
-  - Creates a Neon branch from the **dev** branch (never production), named `ci/pr-<n>-<run>`, expiring after a day.
-  - Runs `db:migrate`, then Playwright (Chromium, 2 workers, GitHub annotations).
-  - Uploads the HTML report on failure, then deletes the branch.
-  - Skips with a warning when `NEON_API_KEY` (secret) or `NEON_PROJECT_ID` (variable) is missing, as on fork PRs.
+- **E2E workflow (`e2e.yml`):**
+  - **When it runs:** always on release PRs into `main`. On other PRs only with the `e2e` label, because it's slower than the 1-minute checks.
+  - **Shards:** 3 in parallel. Each shard creates its own Neon branch from the **dev** branch (never production), expiring after a day.
+  - **Each shard:** runs `db:migrate`, builds, and runs Playwright against `next start`. It uploads its report on failure, then deletes its branch.
+  - **Why a production build:** the dev server compiled pages on first visit, which made CI slow (10+ min) and caused timeout failures.
+  - **Sentry:** `NEXT_PUBLIC_SENTRY_DISABLED` keeps CI's production build from reporting to it.
+  - **The daily-job spec:** runs last in shard 3, on that shard's own branch.
+  - **Ubuntu 24.04:** Playwright has no browser builds for 26.04 yet.
 - **Build fixes the new jobs exposed:**
   - **Lock file:** the npm bundled with Node 24.11.1 rejected `package-lock.json`, so `.nvmrc` moves to 24.22.3.
   - **Fonts:** builds failed when Google Fonts served URLs Turbopack couldn't map. Geist, Geist Mono and Schibsted Grotesk are now self-hosted (`app/fonts/`, latin, variable weight) through `next/font/local`.
