@@ -366,6 +366,8 @@ All new actions here must use the Phase 0 `require*` helpers and Zod validation 
 3. Add a "Forgot password?" link on the login form. Rate limit per P1.4.
 4. Revoke other sessions on reset (`revokeSessionsOnPasswordReset: true`).
 
+**Status:** done. Links expire after 1 hour and work once. The email is sent after the response (`after()`), so "account exists" and "no account" answer equally fast. Both pages are public in `proxy.ts`. Google-only accounts can use the flow to add a password, since they prove mailbox ownership.
+
 ### P3.2 Email verification
 
 **Steps**

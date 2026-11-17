@@ -54,8 +54,13 @@ export async function proxy(request: NextRequest) {
   // Invite links must open for logged-out people too: the page itself offers
   // sign-in / sign-up and carries them back via ?callbackURL. The share image
   // must be reachable by link-preview crawlers, which are never logged in.
+  // Password reset pages work whether or not someone is signed in (a reset
+  // link opened in a logged-in browser must still reach the form).
   const isPublicPage =
-    pathname.startsWith('/invite/') || pathname.startsWith('/opengraph-image');
+    pathname.startsWith('/invite/') ||
+    pathname.startsWith('/opengraph-image') ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password';
 
   if (isAuthPage && session) {
     const target = safeCallbackPath(request.nextUrl.searchParams.get('callbackURL'));
