@@ -12,8 +12,8 @@ async function columnOrder(page: Page) {
 
 test('manage board columns without losing tasks', async ({ page }) => {
   test.setTimeout(60_000);
-  // Column checks allow 15 s: a live refresh (P5.1) that started before a
-  // change can briefly show the older board until the next poll corrects it.
+  // Column checks allow 15 s: Next runs a server action after any page
+  // refresh already in flight (e.g. a live update), which is slow on CI.
   const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   await registerAndLogin(page, `cols+${stamp}@example.com`, 'Column Owner');
 
