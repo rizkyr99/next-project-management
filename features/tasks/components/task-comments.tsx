@@ -35,10 +35,24 @@ function getInitials(name: string) {
     .join('');
 }
 
-function renderBody(body: string) {
-  const parts = body.split(/(@\w[\w\s]*)/g);
-  return parts.map((part, i) =>
-    part.startsWith('@') ? (
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Highlights @mentions of real workspace members only, with the same rule
+ * the server uses to notify them (features/tasks/actions.ts: mentionsName):
+ * case-insensitive, and the name must end at a non-word character. Longer
+ * names win, so "@Ada Lovelace" isn't cut short by a member named "Ada".
+ */
+export function renderBody(body: string, memberNames: string[]) {
+  const names = memberNames
+    .map((n) => n.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp);
+  if (names.length === 0) return body;
+  const pattern = new RegExp(`(@(?:${names.join('|')})(?!\\w))`, 'gi');
+  return body.split(pattern).map((part, i) =>
+    i % 2 === 1 ? (
       <mark key={i} className='bg-primary/15 text-primary rounded px-0.5 font-medium not-italic'>
         {part}
       </mark>
@@ -51,6 +65,7 @@ function renderBody(body: string) {
 export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCommentsProps) {
   const queryClient = useQueryClient();
   const queryKey = ['comments', taskId];
+  const memberNames = workspaceMembers.map((m) => m.name);
 
   const { data: comments = [] } = useQuery({
     queryKey,
@@ -202,7 +217,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     </div>
                   </div>
                 ) : (
-                  <p className='text-sm mt-0.5 break-words'>{renderBody(c.body)}</p>
+                  <p className='text-sm mt-0.5 break-words'>{renderBody(c.body, memberNames)}</p>
                 )}
               </div>
 

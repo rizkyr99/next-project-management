@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { PLAN_DETAILS, type PlanName } from './plans';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
   apiVersion: '2026-03-25.dahlia',
@@ -6,20 +7,20 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
 
 export const PLANS = {
   free: {
-    maxWorkspaces: 1,
+    maxWorkspaces: PLAN_DETAILS.free.maxWorkspaces,
     priceId: null,
   },
   pro: {
-    maxWorkspaces: 5,
+    maxWorkspaces: PLAN_DETAILS.pro.maxWorkspaces,
     priceId: process.env.STRIPE_PRO_PRICE_ID ?? '',
   },
   business: {
-    maxWorkspaces: null,
+    maxWorkspaces: PLAN_DETAILS.business.maxWorkspaces,
     priceId: process.env.STRIPE_BUSINESS_PRICE_ID ?? '',
   },
 } as const;
 
-export type PlanName = keyof typeof PLANS;
+export type { PlanName };
 
 export function getPlanFromPriceId(priceId: string): PlanName {
   for (const [name, plan] of Object.entries(PLANS)) {

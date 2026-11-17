@@ -43,17 +43,17 @@ export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
             </span>
           )}
           {assignees.length > 0 && (
-            <div className='flex items-center -space-x-2'>
+            <div className='flex items-center -space-x-1'>
               {assignees.slice(0, 3).map((a) => (
                 <PersonAvatar
                   key={a.id}
                   person={a}
-                  className='size-5 border-2 border-background'
-                  fallbackClassName='text-[9px]'
+                  className='size-6 border-2 border-card'
+                  fallbackClassName='text-[9px] font-medium'
                 />
               ))}
               {assignees.length > 3 && (
-                <span className='text-xs pl-3'>+{assignees.length - 3}</span>
+                <span className='text-xs pl-2'>+{assignees.length - 3}</span>
               )}
             </div>
           )}
