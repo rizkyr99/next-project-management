@@ -1,4 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
+import { REACTIONS } from '../features/tasks/reaction-kinds';
 import {
   pgTable,
   text,
@@ -407,8 +408,7 @@ export const commentRelations = relations(comment, ({ one }) => ({
   author: one(user, { fields: [comment.authorId], references: [user.id] }),
 }));
 
-/** The reactions people can leave on a comment (a quick "seen" or "approved"). */
-export const REACTIONS = ['thumbs_up', 'check', 'eyes'] as const;
+// The reactions people can leave on a comment: features/tasks/reaction-kinds.ts.
 export const reactionEnum = pgEnum('reaction', REACTIONS);
 
 /** One row per person, comment and reaction: reacting again removes it. */

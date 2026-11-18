@@ -9,7 +9,8 @@ import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { emailTaskNotification } from '@/lib/notification-emails';
 import { db } from '@/db/drizzle';
-import { comment, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
+import { comment, commentReaction, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
+import { REACTIONS, type Reaction, type ReactionSummary } from './reaction-kinds';
 import { insertActivity } from '@/lib/activity';
 import { mentionedNames } from './mentions';
 import { taskHref } from './task-link';
@@ -59,6 +60,8 @@ export type CommentWithAuthor = {
   createdAt: Date;
   updatedAt: Date | null;
   author: { id: string; name: string; image: string | null };
+  /** Absent on a comment that was just posted (it has none yet). */
+  reactions?: ReactionSummary[];
 };
 
 // Every action below:
@@ -453,7 +456,33 @@ export async function getComments(taskId: string): Promise<ActionResult<{ commen
       .where(eq(comment.taskId, ctx.task.id))
       .orderBy(asc(comment.createdAt));
 
-    return { comments: rows };
+    // Reactions on these comments, summarised per comment and kind.
+    const reactionRows =
+      rows.length > 0
+        ? await db
+            .select({
+              commentId: commentReaction.commentId,
+              reaction: commentReaction.reaction,
+              userId: commentReaction.userId,
+              name: userTable.name,
+            })
+            .from(commentReaction)
+            .innerJoin(userTable, eq(userTable.id, commentReaction.userId))
+            .where(inArray(commentReaction.commentId, rows.map((r) => r.id)))
+            .orderBy(asc(commentReaction.createdAt))
+        : [];
+    const me = ctx.session.user.id;
+    const comments = rows.map((row) => ({
+      ...row,
+      reactions: REACTIONS.flatMap((reaction): ReactionSummary[] => {
+        const who = reactionRows.filter((r) => r.commentId === row.id && r.reaction === reaction);
+        return who.length === 0
+          ? []
+          : [{ reaction, count: who.length, mine: who.some((r) => r.userId === me), names: who.map((r) => r.name) }];
+      }),
+    }));
+
+    return { comments };
   } catch (error) {
     return toActionError(error, 'Failed to load comments.');
   }
@@ -573,5 +602,35 @@ export async function deleteComment(commentId: string): Promise<ActionResult> {
     return { success: true };
   } catch (error) {
     return toActionError(error, 'Failed to delete comment.');
+  }
+}
+
+const reactionSchema = z.object({ commentId: z.uuid(), reaction: z.enum(REACTIONS) });
+
+/**
+ * Add the reaction if I haven't, remove it if I have. Anyone who can see the
+ * task can react to its comments.
+ */
+export async function toggleReaction(commentId: string, reaction: Reaction): Promise<ActionResult<{ reacted: boolean }>> {
+  try {
+    const input = reactionSchema.parse({ commentId, reaction });
+    const ctx = await requireCommentAccess(input.commentId);
+    await enforceRateLimit('reactions', ctx.session.user.id);
+    const mine = and(
+      eq(commentReaction.commentId, ctx.comment.id),
+      eq(commentReaction.userId, ctx.session.user.id),
+      eq(commentReaction.reaction, input.reaction),
+    );
+
+    const removed = await db.delete(commentReaction).where(mine).returning({ commentId: commentReaction.commentId });
+    if (removed.length > 0) return { reacted: false };
+
+    await db
+      .insert(commentReaction)
+      .values({ commentId: ctx.comment.id, userId: ctx.session.user.id, reaction: input.reaction })
+      .onConflictDoNothing();
+    return { reacted: true };
+  } catch (error) {
+    return toActionError(error, 'Could not update the reaction.');
   }
 }
