@@ -19,18 +19,20 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
 import { SidebarMenuAction } from '@/components/ui/sidebar';
 import { unstable_rethrow } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useResetOnOpen } from '@/hooks/use-reset-on-open';
-import { deleteProject, updateProject } from '../actions';
+import { deleteProject, setProjectFavorite, updateProject } from '../actions';
 
 export interface ProjectSummary {
   id: string;
   name: string;
   description: string | null;
+  /** Starred by me (sidebar only; the header doesn't offer favourites). */
+  favorite?: boolean;
 }
 
 /**
@@ -49,6 +51,12 @@ export function ProjectActionsMenu({
   variant: 'header' | 'sidebar';
 }) {
   const [dialog, setDialog] = useState<'edit' | 'delete' | null>(null);
+  const [, startFavorite] = useTransition();
+  const toggleFavorite = () =>
+    startFavorite(async () => {
+      const result = await setProjectFavorite(project.id, !project.favorite);
+      if (result.error !== undefined) toast.error(result.error, { position: 'top-center' });
+    });
   const align = variant === 'sidebar' ? 'start' : 'end';
   const trigger: ReactNode =
     variant === 'sidebar' ? (
@@ -65,7 +73,13 @@ export function ProjectActionsMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-        <DropdownMenuContent align={align} className='w-44'>
+        <DropdownMenuContent align={align} className='w-48'>
+          {project.favorite !== undefined && (
+            <DropdownMenuItem onSelect={toggleFavorite}>
+              {project.favorite ? <StarOff /> : <Star />}
+              {project.favorite ? 'Remove from favourites' : 'Add to favourites'}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => setDialog('edit')}>
             <Pencil />
             Edit details

@@ -14,7 +14,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { Activity, CheckSquare, CreditCard, Home, List, Settings, Sparkles } from 'lucide-react';
+import { Activity, CheckSquare, CreditCard, Home, List, Settings, Sparkles, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { LinkPending } from './link-pending';
@@ -33,6 +33,8 @@ interface AppSidebarProps {
     id: string;
     name: string;
     description: string | null;
+    /** When I starred it; null if not a favourite. */
+    favoritedAt: Date | null;
   }[];
   atWorkspaceLimit?: boolean;
 }
@@ -77,6 +79,29 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
     },
   ];
 
+  // Starred projects get their own group at the top, in the order starred.
+  const favorites = projects
+    .filter((p) => p.favoritedAt)
+    .sort((a, b) => new Date(a.favoritedAt!).getTime() - new Date(b.favoritedAt!).getTime());
+  const others = projects.filter((p) => !p.favoritedAt);
+
+  const renderProject = (project: AppSidebarProps['projects'][number], favorite: boolean) => (
+    <SidebarMenuItem key={project.id}>
+      <SidebarMenuButton asChild>
+        <Link
+          href={`/workspaces/${workspaceSlug}/projects/${project.id}`}
+          onClick={closeSidebarOnMobile}
+          aria-current={projectId === project.id ? 'page' : undefined}
+          className={cn(projectId === project.id && 'bg-muted font-medium')}>
+          {favorite ? <Star className='fill-current text-amber-500' /> : <List />}
+          <span>{project.name}</span>
+          <LinkPending />
+        </Link>
+      </SidebarMenuButton>
+      <ProjectActionsMenu project={{ ...project, favorite }} canDelete={canDeleteProjects} variant='sidebar' />
+    </SidebarMenuItem>
+  );
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -104,34 +129,27 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {favorites.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Favourites</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu aria-label='Favourite projects'>
+                {favorites.map((project) => renderProject(project, true))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           <SidebarGroupLabel>Projects</SidebarGroupLabel>
           <CreateProjectDialog />
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu aria-label='Projects'>
               {projects.length === 0 && (
                 <div className='text-xs text-muted-foreground p-2'>
                   No projects yet. Use + to create one.
                 </div>
               )}
-              {projects.map((project) => (
-                <SidebarMenuItem key={project.id}>
-                  <SidebarMenuButton asChild>
-                    <Link
-                      href={`/workspaces/${workspaceSlug}/projects/${project.id}`}
-                      onClick={closeSidebarOnMobile}
-                      aria-current={projectId === project.id ? 'page' : undefined}
-                      className={cn(
-                        projectId === project.id && 'bg-muted font-medium'
-                      )}>
-                      <List />
-                      <span>{project.name}</span>
-                      <LinkPending />
-                    </Link>
-                  </SidebarMenuButton>
-                  <ProjectActionsMenu project={project} canDelete={canDeleteProjects} variant='sidebar' />
-                </SidebarMenuItem>
-              ))}
+              {others.map((project) => renderProject(project, false))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
