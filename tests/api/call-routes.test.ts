@@ -68,12 +68,7 @@ describe('POST /api/call/join', () => {
     expect((await join(post({ projectId: 'nope' }))).status).toBe(400);
   });
 
-  it('adds a member to the call', async () => {
-    db.select.mockReturnValue(chain([]));
-    db.insert.mockReturnValue(chain(undefined));
-    expect((await join(post({ projectId: PROJECT }))).status).toBe(200);
-    expect(db.insert).toHaveBeenCalledOnce();
-  });
+  // Taking a place and the size limit: tests/api/call-join.test.ts.
 });
 
 describe('POST /api/call/leave', () => {

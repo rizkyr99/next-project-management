@@ -1,15 +1,12 @@
 'use client';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, PhoneOff, Video, VideoOff } from 'lucide-react';
 import { VideoTile } from './video-tile';
 import { RemoteStream } from '../hooks/use-webrtc';
-
-interface Participant {
-  userId: string;
-  name: string;
-  image: string | null;
-}
+import type { Participant } from '../hooks/use-call-stream';
+import { MAX_CALL_PARTICIPANTS } from '../schema';
 
 interface CallRoomProps {
   localStream: MediaStream | null;
@@ -41,7 +38,12 @@ export function CallRoom({
   return (
     <div className='fixed bottom-4 right-4 z-50 w-80 bg-background border rounded-xl shadow-2xl overflow-hidden flex flex-col'>
       <div className='p-2 border-b flex items-center justify-between'>
-        <span className='text-sm font-medium'>Call · {participants.length} participant{participants.length !== 1 ? 's' : ''}</span>
+        <span className='text-sm font-medium'>
+          Call · {participants.length} of {MAX_CALL_PARTICIPANTS}
+        </span>
+        <Badge variant='secondary' title='Calls are new. Video may not connect on some networks.'>
+          Beta
+        </Badge>
       </div>
 
       <div className='p-2 flex flex-col gap-2 max-h-96 overflow-y-auto'>
