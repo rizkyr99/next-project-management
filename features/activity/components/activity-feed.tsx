@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { getWorkspaceActivity } from '../actions';
+import { getWorkspaceActivity, type ActivityFilters } from '../actions';
 import { ActivityItem } from './activity-item';
 import { taskHref } from '@/features/tasks/task-link';
 import { EmptyState } from '@/components/empty-state';
@@ -24,9 +24,11 @@ interface ActivityFeedProps {
   workspaceSlug: string;
   initialItems: ActivityRow[];
   initialNextCursor: string | null;
+  /** The filters the first page was loaded with; later pages use the same. */
+  filters?: ActivityFilters;
 }
 
-export function ActivityFeed({ workspaceId, workspaceSlug, initialItems, initialNextCursor }: ActivityFeedProps) {
+export function ActivityFeed({ workspaceId, workspaceSlug, initialItems, initialNextCursor, filters = {} }: ActivityFeedProps) {
   const [items, setItems] = useState<ActivityRow[]>(initialItems);
   const [cursor, setCursor] = useState<string | null>(initialNextCursor);
   const [loading, setLoading] = useState(false);
@@ -35,7 +37,7 @@ export function ActivityFeed({ workspaceId, workspaceSlug, initialItems, initial
     if (!cursor) return;
     setLoading(true);
     try {
-      const res = await getWorkspaceActivity(workspaceId, cursor);
+      const res = await getWorkspaceActivity(workspaceId, cursor, filters);
       setItems((prev) => [...prev, ...(res.items as ActivityRow[])]);
       setCursor(res.nextCursor);
     } catch {
@@ -44,6 +46,14 @@ export function ActivityFeed({ workspaceId, workspaceSlug, initialItems, initial
       setLoading(false);
     }
   };
+
+  if (items.length === 0 && (filters.projectId || filters.actorId)) {
+    return (
+      <EmptyState icon={History} title='No activity matches these filters'>
+        Choose another project or person, or show all activity.
+      </EmptyState>
+    );
+  }
 
   if (items.length === 0) {
     return (
