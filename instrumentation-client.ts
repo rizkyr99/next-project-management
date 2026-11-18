@@ -3,6 +3,12 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
+import { config as zodConfig } from "zod";
+
+// Zod v4 checks whether it may compile validators with `new Function`. Our
+// CSP forbids eval, so that check is a violation on every page with a form
+// (and Zod falls back anyway). Skip the check. Runs before any schema loads.
+zodConfig({ jitless: true });
 
 Sentry.init({
   // Only production builds report. Local dev and E2E runs used to send every

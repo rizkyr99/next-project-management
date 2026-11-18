@@ -631,6 +631,22 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
 3. Add the missing allowances: the Sentry tunnel (`/monitoring` is same-origin, fine), Vercel Speed Insights (`https://va.vercel-scripts.com`), TURN/STUN in `connect-src` if needed, and Google avatars (already allowed).
 4. Ship as `Content-Security-Policy-Report-Only` for a week with Sentry's CSP report endpoint, then enforce.
 
+**Status:** steps 1–3 done; step 4 in progress (Report-Only shipped, enforce after a quiet week).
+- **Enforced now** (`lib/csp.ts` → `next.config.ts`):
+  - no `'unsafe-eval'` outside `next dev`;
+  - added `object-src 'none'`, `base-uri 'self'` and `frame-ancestors 'self'`.
+- **Strict policy, Report-Only** (`proxy.ts`, pages only), with reports going to Sentry's CSP endpoint (`report-uri` and `Reporting-Endpoints`):
+  - **Dynamic pages:** a new nonce per request and `'strict-dynamic'`, with no `'unsafe-inline'` for scripts. The nonce also goes on the request's CSP header, which is where Next reads it to mark its own scripts.
+  - **Static pages** (`STATIC_PAGES`: `/`, `/pricing`, `/privacy`, `/terms`, `/forgot-password`, `/create-workspace`): built once, so no nonce. They keep `'unsafe-inline'` and contain no user content. A nonce would have made the marketing pages dynamic.
+  - **next-themes' inline script:** allowed by hash (`THEME_SCRIPT_HASH`). It's rendered from the root layout, which can't read the nonce without making every page dynamic.
+  - **Not sent by `next dev`:** its theme script hashes differently.
+- **Found along the way:** Zod v4 probes `new Function("")` to decide whether to compile validators. That's a CSP violation on every page with a form. The client now sets `jitless: true` (`instrumentation-client.ts`), so it never probes.
+- **Known gap before enforcing:** the root 404 for an unknown URL. It's static and gets the nonce policy, and it only affects logged-in users, because logged-out visitors go to log in. Making it dynamic makes every page dynamic (tried). Either accept that it renders without scripts there (its links still work), or give it its own policy.
+- **Tests (`e2e/csp.spec.ts`, production build only):**
+  - inline scripts without the nonce must match a hash in the policy; the failure message prints the new hash;
+  - static pages get no nonce, and dynamic pages get a new one each time;
+  - public pages, sign-up, workspace, board, theme switch, settings, billing and notifications produce no violations.
+
 ### P5.5 Observability and operations
 
 **Steps**
