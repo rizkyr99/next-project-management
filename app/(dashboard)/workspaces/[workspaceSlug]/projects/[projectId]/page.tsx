@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import { TaskDetailSheet } from '@/features/tasks/components/task-detail/task-detail-sheet';
 import { TaskFilterBar } from '@/features/tasks/components/task-filter-bar';
 import { ProjectLiveUpdates } from '@/features/tasks/components/project-live-updates';
+import { RememberProject } from '@/features/search/components/remember-project';
 import { projectSnapshot } from '@/features/tasks/snapshot';
 
 
@@ -125,6 +126,7 @@ export default async function ProjectIdPage({
   return (
     <div className='h-full flex flex-col'>
       <ProjectLiveUpdates projectId={data.id} snapshot={snapshot} />
+      <RememberProject workspaceSlug={workspaceSlug} projectId={data.id} name={data.name} />
       <div className='px-4 py-2 space-y-2 border-b'>
         <div className='flex items-start justify-between gap-4'>
           <div className='min-w-0'>
@@ -167,6 +169,7 @@ export default async function ProjectIdPage({
       <Suspense>
         <TaskDetailSheet
           projectId={data.id}
+          projectName={data.name}
           statuses={data.statuses}
           members={workspaceMembers}
           currentUserId={session.user.id}

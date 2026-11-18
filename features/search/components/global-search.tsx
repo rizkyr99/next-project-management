@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { SHORTCUT_EVENTS, emit, goToTarget } from '@/lib/shortcuts';
+import { useRecent } from '../recent';
+import { Clock } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { searchWorkspace, SearchResult } from '../actions';
@@ -124,6 +126,7 @@ export function GlobalSearch() {
       : { id: 'theme', label: 'Switch to dark theme', keywords: 'theme dark mode appearance', icon: <Moon className={iconClass} />, run: () => setTheme('dark') },
     { id: 'shortcuts', label: 'Keyboard shortcuts', keywords: 'keyboard shortcuts keys help', icon: <Keyboard className={iconClass} />, keys: ['?'], run: () => emit(SHORTCUT_EVENTS.openShortcuts) },
   ];
+  const recent = useRecent(workspaceSlug);
   const q = query.trim().toLowerCase();
   const shownActions = q ? actions.filter((a) => `${a.label} ${a.keywords}`.toLowerCase().includes(q)) : actions;
   const runAction = (action: Action) => {
@@ -189,6 +192,36 @@ export function GlobalSearch() {
             </div>
 
             <CommandList className='max-h-80 overflow-y-auto p-1'>
+              {query.length < 2 && recent.length > 0 && (
+                <CommandGroup
+                  heading='Recent'
+                  className='[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground'>
+                  {recent.map((item) => (
+                    <CommandItem
+                      key={`${item.type}-${item.id}`}
+                      value={`recent-${item.type}-${item.id}`}
+                      onSelect={() => {
+                        handleClose();
+                        router.push(
+                          item.type === 'task'
+                            ? taskHref(workspaceSlug, item.projectId, item.id)
+                            : projectHref(workspaceSlug, item.projectId),
+                        );
+                      }}
+                      className='flex items-center gap-3 px-2 py-2 rounded-md cursor-pointer aria-selected:bg-accent'>
+                      {item.type === 'task' ? icons.task : icons.project}
+                      <div className='flex flex-col min-w-0'>
+                        <span className='text-sm truncate'>{item.title}</span>
+                        <span className='text-xs text-muted-foreground truncate'>
+                          {item.type === 'task' ? item.projectName : 'Project'}
+                        </span>
+                      </div>
+                      <Clock className='ml-auto size-3.5 shrink-0 text-muted-foreground/60' aria-hidden />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+
               {shownActions.length > 0 && (
                 <CommandGroup
                   heading='Actions'
