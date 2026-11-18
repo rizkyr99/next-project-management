@@ -1,9 +1,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
-import { ArrowDown, ArrowRight, ArrowUp } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { priorityConfig, type Priority } from '../priority';
 
-export type Priority = 'low' | 'medium' | 'high';
+export { priorityConfig, type Priority };
 
 export interface Person {
   id: string;
@@ -23,15 +22,6 @@ export interface TaskData {
   /** Client-only: just added, still being saved. Not openable or draggable yet. */
   pending?: boolean;
 }
-
-export const priorityConfig: Record<
-  Priority,
-  { label: string; icon: ReactNode; variant: 'default' | 'secondary' | 'outline' | 'destructive' }
-> = {
-  high: { label: 'High', icon: <ArrowUp className='size-3' />, variant: 'destructive' },
-  medium: { label: 'Medium', icon: <ArrowRight className='size-3' />, variant: 'secondary' },
-  low: { label: 'Low', icon: <ArrowDown className='size-3' />, variant: 'outline' },
-};
 
 export function getInitials(source: string) {
   return source

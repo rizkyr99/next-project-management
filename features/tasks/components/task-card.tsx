@@ -27,10 +27,12 @@ export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
     <>
       <div className='text-sm font-medium leading-snug'>{task.title}</div>
       <div className='flex items-center gap-1.5 flex-wrap'>
-        <Badge variant={p.variant} className='gap-1 text-xs font-normal px-1.5 py-0'>
-          {p.icon}
-          {p.label}
-        </Badge>
+        {task.priority !== 'none' && (
+          <Badge variant={p.variant} className='gap-1 text-xs font-normal px-1.5 py-0'>
+            {p.icon}
+            {p.label}
+          </Badge>
+        )}
         {dueDate && (
           <span className={cn('text-xs', isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
             {formatShortDate(dueDate)}

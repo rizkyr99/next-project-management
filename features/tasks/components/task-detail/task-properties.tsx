@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarIcon, Target, Users, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { PersonAvatar, priorityConfig, type Person, type Priority } from '../task-meta';
+import { PersonAvatar, type Person } from '../task-meta';
+import { PRIORITIES, priorityConfig, type Priority } from '../../priority';
 import { AssigneePicker } from './assignee-picker';
 import { DatePicker } from './date-picker';
 
@@ -66,9 +67,14 @@ export function TaskProperties({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='high'>High</SelectItem>
-            <SelectItem value='medium'>Medium</SelectItem>
-            <SelectItem value='low'>Low</SelectItem>
+            {PRIORITIES.map((p) => (
+              <SelectItem key={p} value={p}>
+                <span className='flex items-center gap-2'>
+                  {priorityConfig[p].icon}
+                  {priorityConfig[p].label}
+                </span>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Row>

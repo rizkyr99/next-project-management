@@ -20,13 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowDown, ArrowRight, ArrowUp, CheckSquare } from 'lucide-react';
+import { CheckSquare } from 'lucide-react';
+import { PRIORITIES, priorityConfig, type Priority } from '../priority';
 import Link from 'next/link';
 import { useState } from 'react';
 import { projectHref, taskHref } from '../task-link';
 import { dueGroup, groupByDue } from '../due-groups';
 
-type Priority = 'low' | 'medium' | 'high';
 
 interface MyTask {
   id: string;
@@ -44,15 +44,6 @@ interface MyTasksViewProps {
   tasks: MyTask[];
   workspaceSlug: string;
 }
-
-const priorityConfig: Record<
-  Priority,
-  { label: string; icon: React.ReactNode; variant: 'default' | 'secondary' | 'outline' | 'destructive' }
-> = {
-  high: { label: 'High', icon: <ArrowUp className='size-3' />, variant: 'destructive' },
-  medium: { label: 'Medium', icon: <ArrowRight className='size-3' />, variant: 'secondary' },
-  low: { label: 'Low', icon: <ArrowDown className='size-3' />, variant: 'outline' },
-};
 
 function formatDate(date: Date | null) {
   if (!date) return null;
@@ -108,9 +99,11 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='all' className='text-xs'>All priorities</SelectItem>
-            <SelectItem value='high' className='text-xs'>High</SelectItem>
-            <SelectItem value='medium' className='text-xs'>Medium</SelectItem>
-            <SelectItem value='low' className='text-xs'>Low</SelectItem>
+            {PRIORITIES.map((p) => (
+              <SelectItem key={p} value={p} className='text-xs'>
+                {priorityConfig[p].label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 

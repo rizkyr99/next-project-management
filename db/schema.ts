@@ -23,7 +23,8 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
 ]);
 
 export const roleEnum = pgEnum('role', ['owner', 'admin', 'member']);
-export const priorityEnum = pgEnum('priority', ['low', 'medium', 'high']);
+// Values come from features/tasks/priority.tsx (none … urgent).
+export const priorityEnum = pgEnum('priority', ['none', 'low', 'medium', 'high', 'urgent']);
 export const notificationTypeEnum = pgEnum('notification_type', [
   'task_assigned',
   'workspace_invite',
@@ -249,6 +250,8 @@ export const task = pgTable(
     description: text('description'),
     priority: priorityEnum('priority').default('medium').notNull(),
     dueDate: timestamp('due_date', { withTimezone: true }),
+    // False: due on that day (shown without a time). True: due at that time.
+    dueHasTime: boolean('due_has_time').default(false).notNull(),
     order: integer('order').notNull(),
     projectId: text('project_id')
       .notNull()
@@ -403,6 +406,44 @@ export const commentRelations = relations(comment, ({ one }) => ({
   task: one(task, { fields: [comment.taskId], references: [task.id] }),
   author: one(user, { fields: [comment.authorId], references: [user.id] }),
 }));
+
+/** The reactions people can leave on a comment (a quick "seen" or "approved"). */
+export const REACTIONS = ['thumbs_up', 'check', 'eyes'] as const;
+export const reactionEnum = pgEnum('reaction', REACTIONS);
+
+/** One row per person, comment and reaction: reacting again removes it. */
+export const commentReaction = pgTable(
+  'comment_reaction',
+  {
+    commentId: text('comment_id')
+      .notNull()
+      .references(() => comment.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    reaction: reactionEnum('reaction').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.commentId, table.userId, table.reaction] }),
+    index('comment_reaction_commentId_idx').on(table.commentId),
+  ],
+);
+
+/** Projects a person pinned to the top of their sidebar. */
+export const projectFavorite = pgTable(
+  'project_favorite',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.projectId] })],
+);
 
 export const activityLog = pgTable(
   'activity_log',

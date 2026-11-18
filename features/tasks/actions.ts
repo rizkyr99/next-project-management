@@ -1,5 +1,7 @@
 'use server';
 
+import type { Priority } from './priority';
+
 import { enforceRateLimit } from '@/lib/rate-limit';
 import z from 'zod';
 import { and, asc, eq, inArray } from 'drizzle-orm';
@@ -289,7 +291,7 @@ export async function deleteTask(values: z.input<typeof deleteTaskSchema>): Prom
 
 export async function updateTaskPriority(
   taskId: string,
-  priority: 'low' | 'medium' | 'high',
+  priority: Priority,
 ): Promise<ActionResult> {
   try {
     const input = updateTaskPrioritySchema.parse({ taskId, priority });

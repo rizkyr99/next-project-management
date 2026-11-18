@@ -1,5 +1,7 @@
 'use client';
 
+import { priorityConfig, type Priority } from '@/features/tasks/priority';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,9 +41,6 @@ import {
 import { bulkDeleteTasks, bulkUpdateStatus } from '@/features/tasks/actions';
 import { TaskStatusSelect } from '@/features/tasks/components/task-status-select';
 import {
-  ArrowDown,
-  ArrowRight,
-  ArrowUp,
   MoreHorizontal,
   Trash2,
 } from 'lucide-react';
@@ -55,7 +54,6 @@ import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { ariaSort, SortButton } from '@/features/tasks/components/sort-button';
 import { ListTodo } from 'lucide-react';
 
-type Priority = 'low' | 'medium' | 'high';
 
 interface TableViewProps {
   currentUserId?: string;
@@ -82,27 +80,6 @@ interface TableViewProps {
     }[];
   };
 }
-
-const priorityConfig: Record<
-  Priority,
-  { label: string; icon: React.ReactNode; variant: 'default' | 'secondary' | 'outline' | 'destructive' }
-> = {
-  high: {
-    label: 'High',
-    icon: <ArrowUp className='size-3' />,
-    variant: 'destructive',
-  },
-  medium: {
-    label: 'Medium',
-    icon: <ArrowRight className='size-3' />,
-    variant: 'secondary',
-  },
-  low: {
-    label: 'Low',
-    icon: <ArrowDown className='size-3' />,
-    variant: 'outline',
-  },
-};
 
 function getInitials(name: string) {
   return name

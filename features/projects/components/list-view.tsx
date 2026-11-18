@@ -1,5 +1,7 @@
 'use client';
 
+import type { Priority } from '@/features/tasks/priority';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,7 +54,7 @@ interface ListViewProps {
         id: string;
         title: string;
         description?: string | null;
-        priority: 'low' | 'medium' | 'high';
+        priority: Priority;
         dueDate?: Date | null;
         assignees: {
           user: {
