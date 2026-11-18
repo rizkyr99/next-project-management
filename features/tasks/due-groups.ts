@@ -1,3 +1,5 @@
+import { PRIORITY_RANK, type Priority } from './priority';
+
 /**
  * Group tasks by when they're due, for "My tasks": what's late, what's for
  * today, the rest of this week, later, and undated. Calendar days in the
@@ -14,9 +16,8 @@ export const DUE_GROUPS = [
 
 export type DueGroupKey = (typeof DUE_GROUPS)[number]['key'];
 
-type Dated = { dueDate: Date | string | null; priority: 'low' | 'medium' | 'high' };
+type Dated = { dueDate: Date | string | null; priority: Priority };
 
-const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 
 export function dueGroup(dueDate: Date | string | null, now = new Date()): DueGroupKey {
   if (!dueDate) return 'none';
@@ -40,7 +41,7 @@ export function groupByDue<T extends Dated>(tasks: T[], now = new Date()) {
     tasks: byKey.get(g.key)!.sort(
       (a, b) =>
         (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) - (b.dueDate ? new Date(b.dueDate).getTime() : Infinity) ||
-        PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority],
+        PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority],
     ),
   }));
 }

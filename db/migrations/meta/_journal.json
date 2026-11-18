@@ -64,6 +64,13 @@
       "when": 1794987684535,
       "tag": "0008_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794993600625,
+      "tag": "0009_priorities_reactions_favorites",
+      "breakpoints": true
     }
   ]
 }

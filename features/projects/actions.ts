@@ -2,7 +2,7 @@
 
 
 import { db } from '@/db/drizzle';
-import { member, project, taskStatus, workspace } from '@/db/schema';
+import { member, project, taskStatus, workspace, projectFavorite } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { and, eq } from 'drizzle-orm';
 import z from 'zod';
@@ -142,4 +142,26 @@ export async function deleteProject(
 
   revalidatePath(`/workspaces/${slug}`, 'layout');
   redirect(`/workspaces/${slug}`);
+}
+
+const favoriteSchema = z.object({ projectId: z.uuid(), favorite: z.boolean() });
+
+/** Star or unstar a project for myself: starred ones sit at the top of my sidebar. */
+export async function setProjectFavorite(projectId: string, favorite: boolean): Promise<ActionResult> {
+  try {
+    const input = favoriteSchema.parse({ projectId, favorite });
+    const ctx = await requireProjectAccess(input.projectId);
+    const userId = ctx.session.user.id;
+    if (input.favorite) {
+      await db.insert(projectFavorite).values({ userId, projectId: ctx.project.id }).onConflictDoNothing();
+    } else {
+      await db
+        .delete(projectFavorite)
+        .where(and(eq(projectFavorite.userId, userId), eq(projectFavorite.projectId, ctx.project.id)));
+    }
+    revalidatePath(`/workspaces/${ctx.workspace.slug}`, 'layout');
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Could not update favourites.');
+  }
 }
