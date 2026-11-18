@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Check, GripVertical, MoreHorizontal, Palette, Pencil, Plus, Star, Trash2 } from 'lucide-react';
+import { Check, ChevronsLeft, GripVertical, MoreHorizontal, Palette, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { useRef, useState, useTransition, type HTMLAttributes } from 'react';
 import { toast } from 'sonner';
 import { useResetOnOpen } from '@/hooks/use-reset-on-open';
@@ -64,10 +64,13 @@ export function ColumnHeader({
   column,
   columns,
   dragHandleProps,
+  onCollapse,
 }: {
   column: ColumnInfo;
   columns: ColumnInfo[];
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
+  /** Fold the column into a narrow strip (a display preference). */
+  onCollapse?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(column.name);
@@ -180,6 +183,12 @@ export function ColumnHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' className='w-48'>
+            {onCollapse && (
+              <DropdownMenuItem onSelect={onCollapse}>
+                <ChevronsLeft />
+                Collapse column
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={startRename}>
               <Pencil />
               Rename
