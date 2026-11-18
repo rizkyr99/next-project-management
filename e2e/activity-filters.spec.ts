@@ -39,7 +39,15 @@ test('activity can be filtered by project and person, and the filter is in the U
   await expect(page.getByRole('combobox', { name: 'Project' })).toHaveText('Website');
   await expect(feed.getByText('Logo sketches')).toHaveCount(0);
 
-  // By person, across all projects.
+  // By person, across all projects, changing both filters quickly (as on a
+  // slow connection, the first change hasn't landed when the second is made).
+  await page.route(
+    (url) => url.pathname.endsWith('/activity'),
+    async (route) => {
+      if (route.request().headers()['rsc'] === '1') await new Promise((r) => setTimeout(r, 1500));
+      await route.fallback();
+    },
+  );
   await page.getByRole('combobox', { name: 'Project' }).click();
   await page.getByRole('option', { name: 'All projects' }).click();
   await page.getByRole('combobox', { name: 'Person' }).click();
