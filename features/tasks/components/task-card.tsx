@@ -75,8 +75,22 @@ export const cardClassName =
 export function TaskCard({ task, commentCount, dragDisabled = false }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
-    disabled: dragDisabled,
+    disabled: dragDisabled || task.pending,
   });
+
+  // Just added and still saving: shown, but it has no ID to open or move yet.
+  if (task.pending) {
+    return (
+      <div
+        ref={setNodeRef}
+        aria-busy='true'
+        aria-label={`Saving task ${task.title}`}
+        data-testid='task-saving'
+        className={cn(cardClassName, 'opacity-60 cursor-progress')}>
+        <TaskCardPreview task={task} commentCount={commentCount} />
+      </div>
+    );
+  }
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter') {

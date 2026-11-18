@@ -19,6 +19,8 @@ type Comment = {
   createdAt: Date;
   updatedAt: Date | null;
   author: CommentAuthor;
+  /** Client-only: posted, still saving. */
+  pending?: boolean;
 };
 
 interface TaskCommentsProps {
@@ -73,43 +75,100 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Every change shows at once; if the server refuses it, the list is put
+  // back as it was (and a post's text returns to the box), with the reason.
+  const me = workspaceMembers.find((m) => m.id === currentUserId);
+  const snapshot = async () => {
+    await queryClient.cancelQueries({ queryKey });
+    return queryClient.getQueryData<Comment[]>(queryKey) ?? [];
+  };
+  const setComments = (update: (prev: Comment[]) => Comment[]) =>
+    queryClient.setQueryData<Comment[]>(queryKey, (prev) => update(prev ?? []));
+  const failed = (error: string, previous: Comment[]) => {
+    queryClient.setQueryData(queryKey, previous);
+    toast.error(error, { position: 'top-center' });
+  };
+  const NETWORK_ERROR = 'Could not reach the server. Check your connection and try again.';
+
   const addMutation = useMutation({
-    mutationFn: (text: string) => addComment(taskId, text),
-    onSuccess: (res) => {
-      if ('error' in res) {
-        toast.error(res.error, { position: 'top-center' });
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey });
+    mutationFn: ({ text }: { text: string; pendingId: string }) => addComment(taskId, text),
+    onMutate: async ({ text, pendingId }) => {
+      const previous = await snapshot();
+      setComments((prev) => [
+        ...prev,
+        {
+          id: pendingId,
+          body: text,
+          createdAt: new Date(),
+          updatedAt: null,
+          author: { id: currentUserId, name: me?.name ?? 'You', image: me?.image ?? null },
+          pending: true,
+        },
+      ]);
       setBody('');
       setMentionSearch(null);
+      return { previous };
+    },
+    onSuccess: (res, { text, pendingId }, ctx) => {
+      if ('error' in res) {
+        failed(res.error ?? 'Something went wrong. Please try again.', ctx.previous);
+        setBody(text);
+        return;
+      }
+      setComments((prev) => prev.map((c) => (c.id === pendingId ? res.comment : c)));
+    },
+    onError: (_err, { text }, ctx) => {
+      if (ctx) failed(NETWORK_ERROR, ctx.previous);
+      setBody(text);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ commentId, text }: { commentId: string; text: string }) =>
       updateComment(commentId, text),
-    onSuccess: (res) => {
-      if ('error' in res) {
-        toast.error(res.error, { position: 'top-center' });
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey });
+    onMutate: async ({ commentId, text }) => {
+      const previous = await snapshot();
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, body: text, updatedAt: new Date() } : c)),
+      );
       setEditingId(null);
       setEditBody('');
+      return { previous };
+    },
+    onSuccess: (res, { commentId, text }, ctx) => {
+      if ('error' in res) {
+        failed(res.error ?? 'Something went wrong. Please try again.', ctx.previous);
+        // Reopen the edit with what was typed.
+        setEditingId(commentId);
+        setEditBody(text);
+      }
+    },
+    onError: (_err, { commentId, text }, ctx) => {
+      if (ctx) failed(NETWORK_ERROR, ctx.previous);
+      setEditingId(commentId);
+      setEditBody(text);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (commentId: string) => deleteComment(commentId),
-    onSuccess: (res) => {
-      if ('error' in res) {
-        toast.error(res.error, { position: 'top-center' });
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey });
+    onMutate: async (commentId) => {
+      const previous = await snapshot();
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      return { previous };
+    },
+    onSuccess: (res, _id, ctx) => {
+      if ('error' in res) failed(res.error ?? 'Something went wrong. Please try again.', ctx.previous);
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx) failed(NETWORK_ERROR, ctx.previous);
     },
   });
+
+  const post = () => {
+    const text = body.trim();
+    if (text) addMutation.mutate({ text, pendingId: `pending-${crypto.randomUUID()}` });
+  };
 
   const handleBodyChange = (value: string) => {
     setBody(value);
@@ -153,7 +212,10 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
       {comments.length > 0 && (
         <div className='space-y-3'>
           {comments.map((c) => (
-            <div key={c.id} className='flex gap-2.5'>
+            <div
+              key={c.id}
+              className={c.pending ? 'flex gap-2.5 opacity-60' : 'flex gap-2.5'}
+              aria-busy={c.pending || undefined}>
               <Avatar className='size-7 shrink-0 mt-0.5'>
                 {c.author.image && (
                   <AvatarImage src={c.author.image} alt={c.author.name} />
@@ -195,7 +257,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                       <Button
                         size='sm'
                         className='h-6 text-xs'
-                        disabled={updateMutation.isPending}
+                        disabled={!editBody.trim()}
                         onClick={() => updateMutation.mutate({ commentId: c.id, text: editBody })}>
                         Save
                       </Button>
@@ -213,7 +275,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                 )}
               </div>
 
-              {c.author.id === currentUserId && editingId !== c.id && (
+              {c.author.id === currentUserId && editingId !== c.id && !c.pending && (
                 <div className='flex items-start gap-0.5 shrink-0'>
                   <Button
                     variant='ghost'
@@ -228,7 +290,6 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     size='icon'
                     className='size-6 text-destructive hover:text-destructive'
                     aria-label='Delete comment'
-                    disabled={deleteMutation.isPending}
                     onClick={() => deleteMutation.mutate(c.id)}>
                     <Trash2 className='size-3' />
                   </Button>
@@ -270,7 +331,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
             if (mentionSearch !== null && filteredMembers.length > 0) return;
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              if (body.trim()) addMutation.mutate(body);
+              post();
             }
           }}
           className='min-h-[72px] resize-none text-sm pr-10'
@@ -279,8 +340,8 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
           size='icon'
           className='absolute bottom-2 right-2 size-6'
           aria-label='Send comment'
-          disabled={!body.trim() || addMutation.isPending}
-          onClick={() => { if (body.trim()) addMutation.mutate(body); }}>
+          disabled={!body.trim()}
+          onClick={() => { post(); }}>
           <Send className='size-3' />
         </Button>
       </div>

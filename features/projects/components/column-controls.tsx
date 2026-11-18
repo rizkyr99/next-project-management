@@ -75,8 +75,37 @@ export function ColumnHeader({
   const [isPending, startTransition] = useTransition();
   const cancelled = useRef(false);
 
+  // A rename or colour change shows at once. It applies over the column as it
+  // was when the change was made; once the server's version of the column
+  // arrives (or the save fails), the column is shown as the server has it.
+  const [pendingEdit, setPendingEdit] = useState<{
+    base: ColumnInfo;
+    edit: Partial<Pick<ColumnInfo, 'name' | 'color'>>;
+  } | null>(null);
+  const shown =
+    pendingEdit && pendingEdit.base.name === column.name && pendingEdit.base.color === column.color
+      ? { ...column, ...pendingEdit.edit }
+      : column;
+
+  const applyEdit = async (
+    edit: Partial<Pick<ColumnInfo, 'name' | 'color'>>,
+    save: () => Promise<{ error?: string }>,
+  ) => {
+    setPendingEdit({ base: column, edit });
+    let result: { error?: string };
+    try {
+      result = await save();
+    } catch {
+      result = { error: 'Could not reach the server. Check your connection and try again.' };
+    }
+    if (result.error !== undefined) {
+      setPendingEdit(null);
+      toast.error(result.error, { position: 'top-center' });
+    }
+  };
+
   const startRename = () => {
-    setDraft(column.name);
+    setDraft(shown.name);
     cancelled.current = false;
     setEditing(true);
   };
@@ -84,16 +113,12 @@ export function ColumnHeader({
   const commitRename = () => {
     setEditing(false);
     const name = draft.trim();
-    if (cancelled.current || !name || name === column.name) return;
-    startTransition(async () => {
-      toastResult(await updateStatus({ statusId: column.id, name }));
-    });
+    if (cancelled.current || !name || name === shown.name) return;
+    void applyEdit({ name }, () => updateStatus({ statusId: column.id, name }));
   };
 
   const setColor = (color: StatusColor | null) =>
-    startTransition(async () => {
-      toastResult(await updateStatus({ statusId: column.id, color }));
-    });
+    void applyEdit({ color }, () => updateStatus({ statusId: column.id, color }));
 
   const makeDefault = () =>
     startTransition(async () => {
@@ -105,11 +130,11 @@ export function ColumnHeader({
       <button
         type='button'
         className='-ml-1 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-grab active:cursor-grabbing focus-visible:outline-2 touch-none'
-        aria-label={`Reorder column ${column.name}`}
+        aria-label={`Reorder column ${shown.name}`}
         {...dragHandleProps}>
         <GripVertical className='size-3.5' />
       </button>
-      <span className={cn('size-2 rounded-full shrink-0', statusDotClass(column.color))} aria-hidden />
+      <span className={cn('size-2 rounded-full shrink-0', statusDotClass(shown.color))} aria-hidden />
       {editing ? (
         <Input
           value={draft}
@@ -133,7 +158,7 @@ export function ColumnHeader({
           onDoubleClick={startRename}
           className='min-w-0 truncate text-left text-sm font-medium uppercase text-muted-foreground'
           title='Double-click to rename'>
-          {column.name}
+          {shown.name}
         </button>
       )}
       {!editing && (
@@ -150,7 +175,7 @@ export function ColumnHeader({
               size='icon'
               className='size-7 text-muted-foreground'
               disabled={isPending}
-              aria-label={`Column ${column.name} options`}>
+              aria-label={`Column ${shown.name} options`}>
               <MoreHorizontal className='size-4' />
             </Button>
           </DropdownMenuTrigger>
@@ -168,13 +193,13 @@ export function ColumnHeader({
                 <DropdownMenuItem onSelect={() => setColor(null)}>
                   <span className='size-2.5 rounded-full bg-muted-foreground/40' />
                   None
-                  {!column.color && <Check className='ml-auto' />}
+                  {!shown.color && <Check className='ml-auto' />}
                 </DropdownMenuItem>
                 {STATUS_COLOR_KEYS.map((key) => (
                   <DropdownMenuItem key={key} onSelect={() => setColor(key)}>
                     <span className={cn('size-2.5 rounded-full', STATUS_COLORS[key])} />
                     <span className='capitalize'>{key}</span>
-                    {column.color === key && <Check className='ml-auto' />}
+                    {shown.color === key && <Check className='ml-auto' />}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuSubContent>

@@ -16,21 +16,44 @@ import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { useParams } from 'next/navigation';
 import { createTask } from '../actions';
 import { toast } from 'sonner';
+import type { TaskData } from './task-meta';
+import { SHORTCUT_EVENTS, takeAddTaskRequest } from '@/lib/shortcuts';
 
-interface AddTaskInlineProps {
-  statusId: string;
-  onTaskCreated?: (task: {
-    id: string;
-    title: string;
-    priority: 'low' | 'medium' | 'high';
-    dueDate: Date | null;
-    assignees: [];
-  }) => void;
+/**
+ * A new task is shown at once, marked as saving, before the server replies
+ * (`onAdding`); then it's swapped for the saved task (`onCreated`) or taken
+ * away again if saving failed (`onFailed`), with the form reopened so
+ * nothing typed is lost.
+ */
+export interface AddTaskCallbacks {
+  onAdding?: (pendingId: string, task: TaskData) => void;
+  onCreated?: (pendingId: string, task: TaskData) => void;
+  onFailed?: (pendingId: string) => void;
 }
 
-export function AddTaskInline({ statusId, onTaskCreated }: AddTaskInlineProps) {
+interface AddTaskInlineProps extends AddTaskCallbacks {
+  statusId: string;
+  /** The default column answers the "C" shortcut (lib/shortcuts.ts). */
+  answersShortcut?: boolean;
+}
+
+export function AddTaskInline({ statusId, onAdding, onCreated, onFailed, answersShortcut = false }: AddTaskInlineProps) {
   const [showInput, setShowInput] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // "C": open this form. The request may come before the board mounted
+  // (switching from the list), so a pending one is taken on mount too.
+  useEffect(() => {
+    if (!answersShortcut) return;
+    const open = () => {
+      if (!takeAddTaskRequest()) return;
+      setShowInput(true);
+      containerRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    };
+    open();
+    window.addEventListener(SHORTCUT_EVENTS.addTask, open);
+    return () => window.removeEventListener(SHORTCUT_EVENTS.addTask, open);
+  }, [answersShortcut]);
   const params = useParams<{ projectId: string }>();
   const { projectId } = params;
 
@@ -46,26 +69,41 @@ export function AddTaskInline({ statusId, onTaskCreated }: AddTaskInlineProps) {
   });
 
   const onSubmit = async (values: z.infer<typeof inlineTaskSchema>) => {
+    const pendingId = `pending-${crypto.randomUUID()}`;
+    onAdding?.(pendingId, {
+      id: pendingId,
+      title: values.title,
+      priority: 'medium',
+      dueDate: values.dueDate ?? null,
+      assignees: [],
+      pending: true,
+    });
     setShowInput(false);
+    form.reset();
 
-    const result = await createTask(values);
-    if (result?.error) {
-      toast.error(result.error, { position: 'top-center' });
+    let result: Awaited<ReturnType<typeof createTask>>;
+    try {
+      result = await createTask(values);
+    } catch {
+      result = { error: 'Could not add the task. Check your connection and try again.' };
+    }
+
+    if (result?.error || !result.task) {
+      onFailed?.(pendingId);
+      toast.error(result?.error ?? 'Could not add the task. Try again.', { position: 'top-center' });
+      // Bring the form back with what was typed.
+      form.reset({ ...values });
+      setShowInput(true);
       return;
     }
 
-    if (result.task) {
-      onTaskCreated?.({
-        id: result.task.id,
-        title: result.task.title,
-        priority: result.task.priority,
-        dueDate: result.task.dueDate ?? null,
-        assignees: [],
-      });
-    }
-
-    toast.success('Task created successfully', { position: 'top-center' });
-    form.reset();
+    onCreated?.(pendingId, {
+      id: result.task.id,
+      title: result.task.title,
+      priority: result.task.priority,
+      dueDate: result.task.dueDate ?? null,
+      assignees: [],
+    });
   };
 
   useEffect(() => {

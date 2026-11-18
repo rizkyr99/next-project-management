@@ -5,6 +5,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { config as zodConfig } from "zod";
 import { sharedSentryOptions } from "./lib/sentry-options";
+import { announceNavigationStart } from "./lib/navigation-events";
 
 // Zod v4 checks whether it may compile validators with `new Function`. Our
 // CSP forbids eval, so that check is a violation on every page with a form
@@ -39,4 +40,9 @@ if (typeof window !== 'undefined' && sharedSentryOptions.enabled) {
   else setTimeout(loadReplay, 3000);
 }
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+// Called by Next for every App Router navigation: Sentry traces it, and the
+// progress bar (components/navigation-progress.tsx) starts.
+export function onRouterTransitionStart(href: string, navigationType: string) {
+  Sentry.captureRouterTransitionStart(href, navigationType);
+  announceNavigationStart(href);
+}

@@ -6,6 +6,7 @@ import { AddColumn, type ColumnInfo } from '@/features/projects/components/colum
 import { BoardColumn, columnDragId } from '@/features/tasks/components/board-column';
 import { cardClassName, TaskCardPreview } from '@/features/tasks/components/task-card';
 import type { TaskData } from '@/features/tasks/components/task-meta';
+import type { AddTaskCallbacks } from '@/features/tasks/components/add-task-inline';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
 import { boardAnnouncements, boardInstructions } from './board-announcements';
 import { matchesFilters } from '@/features/tasks/filters';
@@ -99,13 +100,25 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
     [allStatuses, hidden],
   );
 
-  const handleTaskCreated = (statusId: string, newTask: TaskData) => {
-    setStatuses((prev) =>
-      prev.map((s) =>
-        s.id === statusId ? { ...s, tasks: [...s.tasks, { ...newTask, statusId }] } : s,
-      ),
-    );
-  };
+  // Tasks being added, shown at once while they save. Kept apart from
+  // `statuses` so a refresh from the server (e.g. the live stream) arriving
+  // mid-save can't wipe them.
+  const [pendingTasks, setPendingTasks] = useState<{ id: string; statusId: string; task: TaskData }[]>([]);
+  const addTaskCallbacks = (statusId: string): AddTaskCallbacks => ({
+    onAdding: (id, task) => setPendingTasks((prev) => [...prev, { id, statusId, task }]),
+    onCreated: (id, task) => {
+      // Swap in the saved task in the same render, so the card never blinks.
+      setStatuses((prev) =>
+        prev.map((s) =>
+          s.id === statusId && !s.tasks.some((t) => t.id === task.id)
+            ? { ...s, tasks: [...s.tasks, { ...task, statusId }] }
+            : s,
+        ),
+      );
+      setPendingTasks((prev) => prev.filter((p) => p.id !== id));
+    },
+    onFailed: (id) => setPendingTasks((prev) => prev.filter((p) => p.id !== id)),
+  });
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
 
@@ -378,9 +391,12 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
             color={status.color ?? null}
             isDefault={Boolean(status.isDefault)}
             columns={columnInfos}
-            tasks={status.tasks.map((t) => ({ ...t, commentCount: commentCountMap[t.id] ?? 0 }))}
+            tasks={[
+              ...status.tasks.map((t) => ({ ...t, commentCount: commentCountMap[t.id] ?? 0 })),
+              ...pendingTasks.filter((p) => p.statusId === status.id).map((p) => p.task),
+            ]}
             filtering={filtering}
-            onTaskCreated={(newTask) => handleTaskCreated(status.id, newTask)}
+            addTask={addTaskCallbacks(status.id)}
           />
         ))}
         </SortableContext>

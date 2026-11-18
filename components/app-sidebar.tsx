@@ -16,7 +16,8 @@ import {
 import { WorkspaceSwitcher } from './workspace-switcher';
 import { Activity, CheckSquare, CreditCard, Home, List, Settings, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
+import { LinkPending } from './link-pending';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
 import { ProjectActionsMenu } from '@/features/projects/components/project-actions-menu';
 import { cn } from '@/lib/utils';
@@ -38,6 +39,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSidebarProps) {
   const params = useParams<{ workspaceSlug: string; projectId: string }>();
+  const pathname = usePathname();
   const { workspaceSlug, projectId } = params;
   const { isMobile, setOpenMobile } = useSidebar();
   const role = workspaces.find((w) => w.slug === workspaceSlug)?.role;
@@ -87,10 +89,14 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link href={item.url} onClick={closeSidebarOnMobile}>
+                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                    <Link
+                      href={item.url}
+                      onClick={closeSidebarOnMobile}
+                      aria-current={pathname === item.url ? 'page' : undefined}>
                       <item.icon />
                       <span>{item.title}</span>
+                      <LinkPending />
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -114,11 +120,13 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
                     <Link
                       href={`/workspaces/${workspaceSlug}/projects/${project.id}`}
                       onClick={closeSidebarOnMobile}
+                      aria-current={projectId === project.id ? 'page' : undefined}
                       className={cn(
                         projectId === project.id && 'bg-muted font-medium'
                       )}>
                       <List />
                       <span>{project.name}</span>
+                      <LinkPending />
                     </Link>
                   </SidebarMenuButton>
                   <ProjectActionsMenu project={project} canDelete={canDeleteProjects} variant='sidebar' />
