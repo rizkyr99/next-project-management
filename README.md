@@ -2,7 +2,7 @@
 
 Project management for small teams, built on the Next.js 16 App Router: workspaces, kanban boards, tasks, comments, live updates and calls, with role-based access and Stripe billing.
 
-**Live:** https://next-project-management-three.vercel.app/
+**Live:** https://tide.ramarizdev.web.id/
 
 ![CI](https://github.com/rizkyr99/next-project-management/actions/workflows/ci.yml/badge.svg)
 
@@ -218,6 +218,7 @@ npm run test:e2e
 ## Deployment and operations
 
 - **Hosting:** Vercel. `main` deploys to production; every pull request gets a preview.
+- **Domain:** `tide.ramarizdev.web.id`, a CNAME to Vercel in Cloudflare set to **DNS only**. Cloudflare's proxy would hide visitors' IPs from the per-IP rate limits. Changing the domain means updating `BETTER_AUTH_URL`, the Google OAuth origin and redirect URI, the Stripe webhook URL and the Sentry uptime monitor, then redirecting the old domain.
 - **Flow:** feature branches merge into `develop`; a release pull request from `develop` into `main` ships them (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 - **Migrations** are applied to production by hand before a release that needs them, after taking a Neon snapshot branch; see [docs/runbooks/migrations.md](docs/runbooks/migrations.md).
 - **Daily job:** Vercel Cron calls `/api/cron/daily` at 08:00 UTC (due-soon reminders, digest, cleanup).

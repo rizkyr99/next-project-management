@@ -716,7 +716,7 @@ Recorded so they don't creep in:
 - [ ] Every create has a matching edit and delete.
 - [ ] A stranger can be invited by email, sign up and collaborate.
 - [ ] A user can reset their password, verify their email, control their emails and delete their account.
-- [ ] The public landing, pricing, privacy and terms pages are live on a custom domain, with OG images.
+- [x] The public landing, pricing, privacy and terms pages are live on a custom domain, with OG images. (`tide.ramarizdev.web.id` since 2026-11-18; the old `vercel.app` domain redirects there.)
 - [ ] No placeholder text, default assets or debug routes remain.
 - [ ] 404/error/loading states exist on every route group.
 - [ ] Lighthouse ≥ 95 on `/`, and axe reports no serious issues on main app pages.
