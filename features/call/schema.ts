@@ -20,3 +20,13 @@ export const signalSchema = z.object({
       message: 'Signal payload is empty or too large',
     }),
 });
+
+/**
+ * Calls are a full mesh: every participant sends their video to every other
+ * one, so upload grows with each person. Four keeps it usable on home
+ * connections.
+ */
+export const MAX_CALL_PARTICIPANTS = 4;
+
+/** A participant whose stream hasn't checked in for this long has left. */
+export const CALL_STALE_SECONDS = 15;

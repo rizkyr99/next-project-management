@@ -566,6 +566,18 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
 2. Cap the mesh at 4–6 participants, since a full-mesh connection scales O(n²). Show "Room full".
 3. Label the feature "Beta" in the UI.
 
+**Status:** done.
+- **Bug fixed first:** the call stream's heartbeat re-created a missing participant row, and every project viewer has that stream open. So **viewing a project put you in its call** (the button read "Join call (n)" for viewers), and **Leave didn't stick**. The stream now never adds anyone; only `/api/call/join` does. A participant whose place timed out rejoins through it.
+- **Stream:** two modes on `lib/sse.ts`. Viewers poll who's in the call every 5 s. People in the call poll every 1.5 s, with a heartbeat and signaling. Signals are removed as they're delivered, so each arrives once. All presence times use the database clock. It closes cleanly before Vercel's limit; the "Controller is already closed" error is gone.
+- **TURN:** `/api/call/ice` (behind `requireProjectAccess`) returns short-lived Cloudflare TURN credentials when `CLOUDFLARE_TURN_KEY_ID` and `CLOUDFLARE_TURN_API_TOKEN` are set. Otherwise, or if Cloudflare fails, it returns public STUN, so calls never break on it. The key never reaches the browser.
+- **Limit:** 4 people (`MAX_CALL_PARTICIPANTS`). Join locks the project row, so two people can't both take the last place. Anyone already in the call can always get back in. A full call shows "This call is full (4 people max)".
+- **Beta:** a "Beta" badge in the call window and "(beta)" in the button's accessible name. The window shows "n of 4".
+- **Errors now explained:** denied camera or microphone access, a full call, and removal from the workspace.
+- **Tests:**
+  - `tests/api/call-join.test.ts`, `tests/api/call-ice.test.ts`.
+  - `e2e/calls.spec.ts`: viewing doesn't join; a full call says so.
+  - `e2e/call-connect.spec.ts`: two people with Chromium's fake camera see each other's video, and leaving sticks.
+
 ### P5.3 CI and test coverage
 
 **Files:** `.github/workflows/ci.yml`, `playwright.config.ts`, `e2e/*`

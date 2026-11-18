@@ -49,6 +49,10 @@ export const serverEnvSchema = z.object({
   // token). Without it the cron route refuses every call.
   CRON_SECRET: z.string().trim().min(16, 'must be at least 16 characters').optional(),
 
+  // Optional. Cloudflare TURN key for calls (/api/call/ice). Both or neither.
+  CLOUDFLARE_TURN_KEY_ID: z.string().trim().min(1).optional(),
+  CLOUDFLARE_TURN_API_TOKEN: z.string().trim().min(1).optional(),
+
   // Set by Vercel: "production" | "preview" | "development".
   VERCEL_ENV: z.string().optional(),
 
