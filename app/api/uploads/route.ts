@@ -18,8 +18,14 @@ export async function POST(request: Request) {
   if (!storageAvailable()) {
     return Response.json({ error: 'Image uploads aren’t set up yet.' }, { status: 503 });
   }
+  let form: FormData;
   try {
-    const form = await request.formData();
+    form = await request.formData();
+  } catch {
+    // Not a multipart/form-data body at all.
+    return Response.json({ error: 'Send the image as form data.' }, { status: 400 });
+  }
+  try {
     const { taskId } = fields.parse({ taskId: form.get('taskId') });
     const ctx = await requireTaskAccess(taskId);
     await enforceRateLimit('uploads', ctx.session.user.id);
