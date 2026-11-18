@@ -25,7 +25,8 @@ jobs:
     # were slow. Keep the tag in step with @playwright/test in package.json.
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
-    timeout-minutes: 25
+    # Generous: a shard may wait for a free Neon branch when PRs overlap.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -69,13 +70,11 @@ jobs:
       # after a day in case the delete step below never runs.
       - name: Create Neon branch
         id: branch
-        uses: neondatabase/create-branch-action@v6
-        with:
-          project_id: ${{ vars.NEON_PROJECT_ID }}
-          api_key: ${{ secrets.NEON_API_KEY }}
-          parent_branch: br-muddy-heart-a18vsqxc
-          branch_name: ci/pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
-          expires_at: ${{ env.EXPIRES }}
+        run: node scripts/ci/neon-branch.mjs
+        env:
+          PARENT_BRANCH_ID: br-muddy-heart-a18vsqxc
+          BRANCH_NAME: ci/pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          EXPIRES_AT: ${{ env.EXPIRES }}
 
       - name: Migrate
         run: npm run db:migrate
