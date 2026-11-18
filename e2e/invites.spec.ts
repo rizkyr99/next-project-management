@@ -108,6 +108,8 @@ test.describe('Workspace invites', () => {
   });
 
   test('wrong account, revoked, expired and malformed links each explain themselves', async ({ browser }) => {
+    // Three invites and six page loads: over 30 s on a slow CI run.
+    test.setTimeout(60_000);
     const owner = await ownerWithWorkspace(browser);
     const sql = await testDb();
 
