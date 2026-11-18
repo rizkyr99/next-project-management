@@ -3,6 +3,7 @@ import { auth } from './lib/auth';
 import { headers } from 'next/headers';
 import { LIMITS, clientIp, rateLimit } from '@/lib/rate-limit';
 import { safeCallbackPath } from '@/lib/safe-redirect';
+import { REPORTING_ENDPOINTS, STATIC_PAGES, createNonce, strictCsp } from '@/lib/csp';
 
 // Better Auth endpoints that take credentials or send email: strict, per IP,
 // against credential stuffing and sign-up spam. Everything else under
@@ -91,7 +92,28 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  return NextResponse.next();
+  return withCsp(request);
+}
+
+/**
+ * Lets the page through with the strict policy (Report-Only for now; see
+ * lib/csp.ts). For dynamic pages, the nonce also goes on the request's CSP
+ * header, which is where Next reads it to mark its own scripts.
+ */
+function withCsp(request: NextRequest) {
+  // Not in `next dev`: its build of the theme script has a different hash,
+  // so every page would log reports. CI tests the production build.
+  if (process.env.NODE_ENV !== 'production') return NextResponse.next();
+
+  const nonce = STATIC_PAGES.has(request.nextUrl.pathname) ? undefined : createNonce();
+  const policy = strictCsp(nonce);
+  const requestHeaders = new Headers(request.headers);
+  if (nonce) requestHeaders.set('content-security-policy', policy);
+
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set('Content-Security-Policy-Report-Only', policy);
+  res.headers.set('Reporting-Endpoints', REPORTING_ENDPOINTS);
+  return res;
 }
 
 export const config = {
