@@ -48,19 +48,19 @@ Gaps inside existing features, checked against the code (none of these exist tod
 
 | # | Feature | Improvement | Why | Size |
 |---|---|---|---|---|
-| E-1 | Tasks | **Copy link** to a task | Deep links exist (`?task=`), but there's no button to share one; studios paste task links into chat all day. | S |
-| E-2 | Tasks | **Duplicate task**, and **move to another project** | Repeating deliverables, and tasks created in the wrong project, currently mean retyping. | M |
-| E-3 | Tasks | **Priority "Urgent" and "None"**, and an optional **due time** | Three levels (low/medium/high, default medium) can't mark "drop everything"; client deadlines are often "by 3 pm". | S |
-| E-4 | Tasks | **Follow a task** | Today only assignees and @mentions are notified. An account manager wants updates on tasks they don't do. | M |
-| E-5 | Board | **Collapse a column** | Long "Done" columns push the work off screen. | S |
-| E-6 | List / Table | **Group by** assignee, priority or due date | The list is grouped by column only; standups and planning want "by person". | M |
-| E-7 | Comments | **Reactions** (👍 ✅ 👀) | A quick "seen / approved" without another comment or notification. | S |
-| E-8 | Sidebar | **Favourite projects**, and drag to reorder | With many client projects, the active few need to be at the top. | S |
-| E-9 | My tasks | **Group by date**: overdue, today, this week, later | It's the screen people open first each morning. | S |
-| E-10 | Activity | **Filter by project and person** | The feed is one stream for the whole workspace. | S |
-| E-11 | Account | **Profile photo upload** | Only Google accounts have photos; email sign-ups are initials. Faces matter once clients are in. | M |
-| E-12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M |
-| E-13 | Search | **Recent items and filters** in ⌘K | Search shows nothing until you type, and can't narrow to tasks or a project. | S |
+| I1 | Tasks | **Copy link** to a task | Deep links exist (`?task=`), but there's no button to share one; studios paste task links into chat all day. | S |
+| I2 | Tasks | **Duplicate task**, and **move to another project** | Repeating deliverables, and tasks created in the wrong project, currently mean retyping. | M |
+| I3 | Tasks | **Priority "Urgent" and "None"**, and an optional **due time** | Three levels (low/medium/high, default medium) can't mark "drop everything"; client deadlines are often "by 3 pm". | S |
+| I4 | Tasks | **Follow a task** | Today only assignees and @mentions are notified. An account manager wants updates on tasks they don't do. | M |
+| I5 | Board | **Collapse a column** | Long "Done" columns push the work off screen. | S |
+| I6 | List / Table | **Group by** assignee, priority or due date | The list is grouped by column only; standups and planning want "by person". | M |
+| I7 | Comments | **Reactions** (👍 ✅ 👀) | A quick "seen / approved" without another comment or notification. | S |
+| I8 | Sidebar | **Favourite projects**, and drag to reorder | With many client projects, the active few need to be at the top. | S |
+| I9 | My tasks | **Group by date**: overdue, today, this week, later | It's the screen people open first each morning. | S |
+| I10 | Activity | **Filter by project and person** | The feed is one stream for the whole workspace. | S |
+| I11 | Account | **Profile photo upload** | Only Google accounts have photos; email sign-ups are initials. Faces matter once clients are in. | M |
+| I12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M |
+| I13 | Search | **Recent items and filters** in ⌘K | Search shows nothing until you type, and can't narrow to tasks or a project. | S |
 
 ## Phase B: Work the way studios work
 
@@ -121,7 +121,7 @@ Whatever is chosen, the features above are built so their plan can change in one
 ## Suggested order
 
 1. **Phase A** (A3–A7): the app should feel finished before adding more.
-2. **Phase A+ small items** (E-1, E-3, E-5, E-7, E-8, E-9, E-10, E-13): a day or less each, and they make existing features feel complete.
+2. **Phase A+ small items** (I1, I3, I5, I7, I8, I9, I10, I13): a day or less each, and they make existing features feel complete.
 3. **B1 labels, B2 subtasks, B6 archive, B7 project details**: quick, high-value basics.
 4. **C1–C3 client guests and approvals**: the reason a studio picks Tide over a generic tool.
 5. **B3 attachments, B5 templates, B4 calendar.**
