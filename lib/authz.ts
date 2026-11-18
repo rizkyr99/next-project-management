@@ -7,6 +7,7 @@ import { db } from '@/db/drizzle';
 import { comment, member, project, task, taskStatus, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { RateLimitError } from '@/lib/rate-limit';
+import { tagSentryUser } from '@/lib/sentry-user';
 
 /**
  * Authorization helpers for Server Actions and Route Handlers.
@@ -50,6 +51,7 @@ function assertRole(role: Role, opts?: AccessOptions) {
 export async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) throw new UnauthenticatedError();
+  tagSentryUser(session.user);
   return session;
 }
 

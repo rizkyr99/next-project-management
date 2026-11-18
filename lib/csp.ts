@@ -13,6 +13,8 @@
  * Once Sentry stays quiet, the strict policy replaces the enforced one.
  */
 
+import { sentryEnvironment } from './sentry-options';
+
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
@@ -25,13 +27,9 @@ const isDev = process.env.NODE_ENV !== 'production';
 export const THEME_SCRIPT_HASH = "'sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='";
 
 /** Sentry's CSP report endpoint, from the public DSN. */
-const SENTRY_REPORT_URI = (() => {
-  const env = process.env.VERCEL_ENV ?? (isDev ? 'development' : 'production');
-  return (
-    'https://o4511237520883712.ingest.de.sentry.io/api/4511249899257936/security/' +
-    `?sentry_key=09d2571a7c72c1fb4050b24656134159&sentry_environment=${env}`
-  );
-})();
+const SENTRY_REPORT_URI =
+  'https://o4511237520883712.ingest.de.sentry.io/api/4511249899257936/security/' +
+  `?sentry_key=09d2571a7c72c1fb4050b24656134159&sentry_environment=${sentryEnvironment}`;
 
 /** Origins the app talks to, shared by both policies. */
 const SOURCES = {
