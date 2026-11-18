@@ -681,6 +681,17 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
 3. `CHANGELOG.md` starting at `v1.0.0` once Phases 0–4 ship. Bump `package.json` version from `0.1.0`.
 4. Update `CASE_STUDY.md` with the security and migration stories. They make good case-study material.
 
+**Status:** done.
+- **README:**
+  - rewritten for the current app: features, stack, a Mermaid architecture diagram and the security model, extended with rate limits, invites, CSP, env checks and monitoring privacy;
+  - local setup on Node 24 with a Neon dev branch;
+  - the full env var table, testing, and deployment and operations.
+  - There's no seed script: every new workspace gets the Getting started project. The plans table no longer claims "priority support", which `lib/plans.ts` doesn't offer.
+- **Env table:** "generated from `lib/env.ts`" became a test. `tests/docs/env-docs.test.ts` fails if any variable in the schema is missing from the README table or from `.env.example`.
+- **`CONTRIBUTING.md`:** branches, Conventional Commits, PR checklist, `e2e` label and release steps.
+- **`CHANGELOG.md`:** 1.0.0 (2026-11-18) and 0.1.0. `package.json` is now 1.0.0. Tagging the release in git is left to the owner.
+- **`CASE_STUDY.md`** (new; there was none): tenant isolation, migration baseline, atomic writes, the realtime investigation, the call presence bug, the CSP nonce on Vercel, and keeping E2E fast.
+
 **Phase 5 exit criteria:** CI runs build + unit + E2E on every PR. The CSP is enforced without violations. Production errors reach an alert.
 
 ---
@@ -705,7 +716,7 @@ Recorded so they don't creep in:
 - [ ] Every create has a matching edit and delete.
 - [ ] A stranger can be invited by email, sign up and collaborate.
 - [ ] A user can reset their password, verify their email, control their emails and delete their account.
-- [ ] The public landing, pricing, privacy and terms pages are live on a custom domain, with OG images.
+- [x] The public landing, pricing, privacy and terms pages are live on a custom domain, with OG images. (`tide.ramarizdev.web.id` since 2026-11-18; the old `vercel.app` domain redirects there.)
 - [ ] No placeholder text, default assets or debug routes remain.
 - [ ] 404/error/loading states exist on every route group.
 - [ ] Lighthouse ≥ 95 on `/`, and axe reports no serious issues on main app pages.

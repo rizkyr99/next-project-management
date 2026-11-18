@@ -23,7 +23,8 @@ Set each one's environment to **production**, with the action "send a notificati
 ## Uptime check
 
 Sentry → **Insights → Uptime Monitors** → Add monitor:
-- URL `https://next-project-management-three.vercel.app/api/health`, method GET, interval 5 minutes, environment `production`.
+- URL `https://tide.ramarizdev.web.id/api/health`, method GET, **interval 10 minutes**, **timeout 15 s**, environment `production`.
+- Not more often: each check queries Neon, which suspends after ~5 idle minutes. Checking every 1–5 minutes would keep the database awake around the clock and spend the free plan's compute hours. The timeout covers a cold start.
 - It alerts when the check fails repeatedly. (Any external monitor, such as Better Stack, works the same way against this URL.)
 
 ## When an alert fires
