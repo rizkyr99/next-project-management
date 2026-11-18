@@ -49,6 +49,10 @@ export const serverEnvSchema = z.object({
   // token). Without it the cron route refuses every call.
   CRON_SECRET: z.string().trim().min(16, 'must be at least 16 characters').optional(),
 
+  // Optional. A private Vercel Blob store for uploads (lib/storage.ts). Set
+  // automatically when the store is connected to the Vercel project.
+  BLOB_READ_WRITE_TOKEN: z.string().trim().startsWith('vercel_blob_rw_', 'must be a Vercel Blob read-write token').optional(),
+
   // Optional. Cloudflare TURN key for calls (/api/call/ice). Both or neither.
   CLOUDFLARE_TURN_KEY_ID: z.string().trim().min(1).optional(),
   CLOUDFLARE_TURN_API_TOKEN: z.string().trim().min(1).optional(),
