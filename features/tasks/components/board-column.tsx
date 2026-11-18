@@ -84,7 +84,7 @@ export function BoardColumn({
             ) : (
               <div aria-hidden className='h-12 rounded-md border border-dashed border-muted-foreground/20' />
             ))}
-          <AddTaskInline statusId={id} {...addTask} />
+          <AddTaskInline statusId={id} {...addTask} answersShortcut={isDefault} />
         </div>
       </SortableContext>
     </div>
