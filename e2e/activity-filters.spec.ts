@@ -17,6 +17,8 @@ test('activity can be filtered by project and person, and the filter is in the U
     await page.getByLabel('Name').fill(name);
     await page.getByRole('button', { name: 'Create project' }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 15000 });
+    // The new project's board, not the previous one still on screen.
+    await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({ timeout: 15000 });
     await addTask(page, 'To Do', task);
   }
 
