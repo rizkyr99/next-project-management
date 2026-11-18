@@ -663,6 +663,16 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
 4. Write runbooks in `docs/runbooks/`: migrations, rolling back a deploy, rotating secrets, replaying a Stripe webhook.
 5. Enable Neon point-in-time restore and document the retention window.
 
+**Status:** code and runbooks done; alerts and the uptime monitor are dashboard steps in `docs/runbooks/monitoring.md`.
+- **Sentry:**
+  - **Release:** set by the build plugin from `VERCEL_GIT_COMMIT_SHA`.
+  - **Environment:** now plain `production` / `preview` / `development` (`lib/sentry-options.ts`, shared by all three configs). Before, it was Sentry's default `vercel-production`, which didn't match the CSP reports.
+  - **User ID:** attached on the server (`getSession` / `requireSession`) and in the browser (`components/sentry-user.tsx`).
+  - **PII:** `sendDefaultPii` is now **off**. It was sending request cookies (including the session token), headers and IPs.
+- **Stripe webhooks:** handler failures are reported with the event type and ID, and answered with 500 so Stripe retries. Bad signatures are one grouped warning, which catches a mismatched `STRIPE_WEBHOOK_SECRET` that would otherwise drop every event silently.
+- **`/api/health`:** `select 1`; 200 with the commit, or 503 without details.
+- **Runbooks:** `docs/runbooks/` covers monitoring, rollback, backups (Neon PITR: check the retention window in the console), secrets rotation and Stripe webhooks.
+
 ### P5.6 Documentation
 
 **Steps**

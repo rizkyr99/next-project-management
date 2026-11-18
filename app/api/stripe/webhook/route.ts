@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { db } from '@/db/drizzle';
 import { subscription } from '@/db/schema';
 import { getPlanFromPriceId, stripe } from '@/lib/stripe';
@@ -31,11 +32,37 @@ export async function POST(req: Request) {
       process.env.STRIPE_WEBHOOK_SECRET!,
     );
   } catch {
+    // One bad request is noise, but a stream of them usually means
+    // STRIPE_WEBHOOK_SECRET doesn't match the endpoint in Stripe (e.g. after
+    // rotating it), and every subscription change is being dropped. Grouped
+    // into one Sentry issue so an alert can watch its rate.
+    Sentry.captureMessage('Stripe webhook signature verification failed', {
+      level: 'warning',
+      tags: { area: 'stripe-webhook' },
+      fingerprint: ['stripe-webhook-signature'],
+    });
     return new Response('Webhook signature verification failed', {
       status: 400,
     });
   }
 
+  try {
+    await handleEvent(event);
+  } catch (error) {
+    // A 500 makes Stripe retry with backoff for up to 3 days. Each failure
+    // is reported with the event, so it can be replayed by hand once fixed
+    // (docs/runbooks/stripe-webhooks.md).
+    Sentry.captureException(error, {
+      tags: { area: 'stripe-webhook', stripe_event_type: event.type },
+      extra: { stripeEventId: event.id },
+    });
+    return new Response('Webhook handler failed', { status: 500 });
+  }
+
+  return new Response(null, { status: 200 });
+}
+
+async function handleEvent(event: Stripe.Event) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -120,6 +147,4 @@ export async function POST(req: Request) {
       break;
     }
   }
-
-  return new Response(null, { status: 200 });
 }
