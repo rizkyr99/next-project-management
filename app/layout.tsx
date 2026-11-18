@@ -8,6 +8,8 @@ import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from '@/components/theme-provider';
 import { QueryProvider } from '@/components/query-provider';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Suspense } from 'react';
+import { NavigationProgress } from '@/components/navigation-progress';
 import { SITE_DESCRIPTION, SITE_NAME, siteUrl } from '@/lib/site';
 
 const geistSans = localFont({
@@ -55,6 +57,10 @@ export default function RootLayout({
     <html lang='en' suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {/* Suspense: it reads the URL, which mustn't make static pages dynamic. */}
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <QueryProvider>
           <ThemeProvider
             attribute='class'
