@@ -34,6 +34,8 @@ test.describe('Tenant isolation', () => {
   test('another user cannot view a workspace or project they are not a member of', async ({
     browser,
   }) => {
+    // Two sign-ups, two workspaces and ~10 page loads: over 30 s on a slow CI run.
+    test.setTimeout(60_000);
     const owner = await newUser(browser, 'owner');
     const ownerSlug = `iso-a-${owner.stamp}`;
     await createWorkspace(owner.page, ownerSlug, 'Owner Workspace');
