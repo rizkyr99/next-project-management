@@ -21,6 +21,7 @@ import { closeTask, TASK_PARAM } from '../../task-link';
 import { TaskComments } from '../task-comments';
 import type { Person, Priority, TaskData } from '../task-meta';
 import { deleteTaskWithUndo } from './delete-task';
+import { CopyTaskLink } from './copy-task-link';
 import { TaskDescription } from './task-description';
 import { TaskProperties } from './task-properties';
 
@@ -223,7 +224,8 @@ function TaskDetailBody({
 
   return (
     <>
-      <SheetHeader className='pr-12 pb-2'>
+      <SheetHeader className='pr-12 pb-2 flex-row items-start gap-1 space-y-0'>
+        <div className='min-w-0 flex-1'>
         {editingTitle ? (
           <input
             autoFocus
@@ -260,6 +262,8 @@ function TaskDetailBody({
             </button>
           </SheetTitle>
         )}
+        </div>
+        <CopyTaskLink taskId={task.id} />
       </SheetHeader>
 
       <div className='space-y-5 px-4 pb-6'>
