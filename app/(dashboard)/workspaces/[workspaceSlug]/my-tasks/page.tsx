@@ -45,6 +45,7 @@ export default async function MyTasksPage({
       title: task.title,
       priority: task.priority,
       dueDate: task.dueDate,
+      dueHasTime: task.dueHasTime,
       createdAt: task.createdAt,
       statusId: task.statusId,
       statusName: taskStatus.name,

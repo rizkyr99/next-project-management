@@ -79,6 +79,8 @@ export const updateTaskPrioritySchema = z.object({
 export const updateTaskDueDateSchema = z.object({
   taskId: z.uuid(),
   dueDate: z.date().nullable(),
+  /** Due at that time (true), or just on that day (false). */
+  hasTime: z.boolean().default(false),
 });
 
 export const updateTaskAssigneesSchema = z.object({

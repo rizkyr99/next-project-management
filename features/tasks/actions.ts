@@ -315,12 +315,15 @@ export async function updateTaskPriority(
   }
 }
 
-export async function updateTaskDueDate(taskId: string, dueDate: Date | null): Promise<ActionResult> {
+export async function updateTaskDueDate(taskId: string, dueDate: Date | null, hasTime = false): Promise<ActionResult> {
   try {
-    const input = updateTaskDueDateSchema.parse({ taskId, dueDate });
+    const input = updateTaskDueDateSchema.parse({ taskId, dueDate, hasTime });
     const ctx = await requireTaskAccess(input.taskId);
 
-    await db.update(task).set({ dueDate: input.dueDate }).where(eq(task.id, ctx.task.id));
+    await db
+      .update(task)
+      .set({ dueDate: input.dueDate, dueHasTime: input.dueDate !== null && input.hasTime })
+      .where(eq(task.id, ctx.task.id));
     revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
 
     await insertActivity({

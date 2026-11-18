@@ -25,7 +25,8 @@ import { PRIORITIES, priorityConfig, type Priority } from '../priority';
 import Link from 'next/link';
 import { useState } from 'react';
 import { projectHref, taskHref } from '../task-link';
-import { dueGroup, groupByDue } from '../due-groups';
+import { groupByDue } from '../due-groups';
+import { formatDue, isOverdue } from '../due';
 
 
 interface MyTask {
@@ -33,6 +34,7 @@ interface MyTask {
   title: string;
   priority: Priority;
   dueDate: Date | null;
+  dueHasTime?: boolean;
   createdAt: Date;
   statusId: string;
   statusName: string;
@@ -45,17 +47,9 @@ interface MyTasksViewProps {
   workspaceSlug: string;
 }
 
-function formatDate(date: Date | null) {
+function formatDate(date: Date | null, hasTime = false) {
   if (!date) return null;
-  const d = new Date(date);
-  // Same calendar-day rule as the groups: due earlier today isn't overdue yet.
-  const isOverdue = dueGroup(d) === 'overdue';
-  const label = d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
-  });
-  return { label, isOverdue };
+  return { label: formatDue(date, hasTime), isOverdue: isOverdue(date, hasTime) };
 }
 
 export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>) {
@@ -155,7 +149,7 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
                   <TableBody>
                     {group.tasks.map((t) => {
                       const priority = priorityConfig[t.priority];
-                      const due = formatDate(t.dueDate);
+                      const due = formatDate(t.dueDate, t.dueHasTime);
 
                       return (
                         <TableRow key={t.id}>

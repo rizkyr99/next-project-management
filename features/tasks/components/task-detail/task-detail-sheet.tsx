@@ -140,7 +140,8 @@ type Overrides = Partial<{
   title: string;
   statusId: string;
   priority: Priority;
-  dueDate: Date | null;
+  /** Date and whether it includes a time, saved together. */
+  due: { date: Date | null; hasTime: boolean };
   assigneeIds: string[];
   description: string | null;
 }>;
@@ -182,7 +183,7 @@ function TaskDetailBody({
   const title = overrides.title ?? task.title;
   const statusId = overrides.statusId ?? task.statusId;
   const priority = overrides.priority ?? task.priority;
-  const dueDate = overrides.dueDate !== undefined ? overrides.dueDate : (task.dueDate ?? null);
+  const due = overrides.due ?? { date: task.dueDate ?? null, hasTime: Boolean(task.dueHasTime) };
   const description = overrides.description !== undefined ? overrides.description : (task.description ?? null);
   const assigneeIds = overrides.assigneeIds ?? task.assignees.map((a) => a.user.id);
 
@@ -281,14 +282,14 @@ function TaskDetailBody({
           statusId={statusId}
           statuses={statuses}
           priority={priority}
-          dueDate={dueDate}
+          due={due}
           assignees={assignees}
           assigneeOptions={assigneeOptions}
           onStatusChange={(next) =>
             save('statusId', next, () => updateTaskStatus({ taskId: task.id, statusId: next, projectId }))
           }
           onPriorityChange={(next) => save('priority', next, () => updateTaskPriority(task.id, next))}
-          onDueDateChange={(next) => save('dueDate', next, () => updateTaskDueDate(task.id, next))}
+          onDueChange={(next) => save('due', next, () => updateTaskDueDate(task.id, next.date, next.hasTime))}
           onToggleAssignee={toggleAssignee}
         />
 

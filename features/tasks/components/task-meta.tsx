@@ -18,6 +18,8 @@ export interface TaskData {
   description?: string | null;
   priority: Priority;
   dueDate?: Date | null;
+  /** The due date includes a time of day. */
+  dueHasTime?: boolean;
   assignees: { user: Person }[];
   /** Client-only: just added, still being saved. Not openable or draggable yet. */
   pending?: boolean;
@@ -52,5 +54,3 @@ export function PersonAvatar({
   );
 }
 
-export const formatShortDate = (date: Date) =>
-  date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

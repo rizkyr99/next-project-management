@@ -1,6 +1,7 @@
 'use client';
 
 import { priorityConfig, type Priority } from '@/features/tasks/priority';
+import { formatDue, isOverdue } from '@/features/tasks/due';
 
 import {
   AlertDialog,
@@ -68,6 +69,7 @@ interface TableViewProps {
         title: string;
         priority: Priority;
         dueDate: Date | null;
+        dueHasTime?: boolean;
         assignees: {
           user: {
             id: string;
@@ -90,17 +92,9 @@ function getInitials(name: string) {
     .join('');
 }
 
-function formatDate(date: Date | null) {
+function formatDate(date: Date | null, hasTime = false) {
   if (!date) return null;
-  const d = new Date(date);
-  const now = new Date();
-  const isOverdue = d < now;
-  const label = d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
-  });
-  return { label, isOverdue };
+  return { label: formatDue(date, hasTime), isOverdue: isOverdue(date, hasTime) };
 }
 
 export function TableView({ project, currentUserId = '' }: Readonly<TableViewProps>) {
@@ -308,7 +302,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
           <TableBody>
             {visible.map((task) => {
               const priority = priorityConfig[task.priority];
-              const due = formatDate(task.dueDate);
+              const due = formatDate(task.dueDate, task.dueHasTime);
 
               return (
                 <TableRow key={task.id} data-state={selectedIds.has(task.id) ? 'selected' : undefined}>

@@ -25,23 +25,23 @@ export function TaskProperties({
   statusId,
   statuses,
   priority,
-  dueDate,
+  due,
   assignees,
   assigneeOptions,
   onStatusChange,
   onPriorityChange,
-  onDueDateChange,
+  onDueChange,
   onToggleAssignee,
 }: {
   statusId: string;
   statuses: { id: string; name: string }[];
   priority: Priority;
-  dueDate: Date | null;
+  due: { date: Date | null; hasTime: boolean };
   assignees: Person[];
   assigneeOptions: Person[];
   onStatusChange: (statusId: string) => void;
   onPriorityChange: (priority: Priority) => void;
-  onDueDateChange: (date: Date | null) => void;
+  onDueChange: (due: { date: Date | null; hasTime: boolean }) => void;
   onToggleAssignee: (userId: string) => void;
 }) {
   return (
@@ -80,7 +80,7 @@ export function TaskProperties({
       </Row>
 
       <Row icon={<CalendarIcon className='size-4' />} label='Due date'>
-        <DatePicker value={dueDate} onChange={onDueDateChange} />
+        <DatePicker value={due} onChange={onDueChange} />
       </Row>
 
       <Row icon={<Users className='size-4' />} label='Assignees' top>
