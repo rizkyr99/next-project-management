@@ -37,6 +37,17 @@ test('inline scripts without the nonce are allowed by hash', async ({ request })
   }
 });
 
+test('the enforced and report-only policies carry the same nonce', async ({ request }) => {
+  // On Vercel, the page render sees the response's enforced CSP header, and
+  // Next takes the nonce from it. Without the nonce there, scripts aren't
+  // marked at all (this shipped once: locally `next start` didn't show it).
+  const headers = (await request.get('/login')).headers();
+  const nonce = (h: string | undefined) => h?.match(/'nonce-([^']+)'/)?.[1];
+  const enforced = nonce(headers['content-security-policy']);
+  expect(enforced).toBeTruthy();
+  expect(enforced).toBe(nonce(headers['content-security-policy-report-only']));
+});
+
 test('static pages get no nonce; dynamic pages a fresh one each time', async ({ request }) => {
   const nonceOf = async (path: string) =>
     (await request.get(path)).headers()['content-security-policy-report-only']?.match(/'nonce-([^']+)'/)?.[1];

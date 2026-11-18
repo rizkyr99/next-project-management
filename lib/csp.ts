@@ -1,17 +1,17 @@
 /**
- * Content Security Policy.
+ * Content Security Policy. Both policies are set by proxy.ts on page
+ * responses (not next.config.ts; see the note there).
  *
- * Two policies are sent:
- * - `enforcedCsp()` (next.config.ts, every response): the long-standing
- *   policy, which still allows inline scripts.
- * - `strictCsp()` (proxy.ts, pages only), sent as Report-Only while we watch
- *   for violations in Sentry. Dynamic pages get a fresh nonce per request and
- *   `'strict-dynamic'`: only scripts Next marked with the nonce, and scripts
- *   those load, may run. Static pages are built once, so they carry no nonce;
- *   they keep `'unsafe-inline'`. They render no user content.
- *
- * Once Sentry stays quiet, the strict policy replaces the enforced one.
+ * - `enforcedCsp(nonce?)`: enforced. On dynamic pages it carries a fresh
+ *   nonce per request plus the theme script's hash, so inline scripts must
+ *   have one or the other. On static pages (built once, no nonce) inline
+ *   scripts are allowed; those pages render no user content.
+ * - `strictCsp(nonce?)`: Report-Only while we watch Sentry for violations.
+ *   Adds `'strict-dynamic'` (no host allowlist), `form-action` and
+ *   `upgrade-insecure-requests`. Once quiet, it replaces the enforced one.
  */
+
+import { sentryEnvironment } from './sentry-options';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -25,13 +25,9 @@ const isDev = process.env.NODE_ENV !== 'production';
 export const THEME_SCRIPT_HASH = "'sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='";
 
 /** Sentry's CSP report endpoint, from the public DSN. */
-const SENTRY_REPORT_URI = (() => {
-  const env = process.env.VERCEL_ENV ?? (isDev ? 'development' : 'production');
-  return (
-    'https://o4511237520883712.ingest.de.sentry.io/api/4511249899257936/security/' +
-    `?sentry_key=09d2571a7c72c1fb4050b24656134159&sentry_environment=${env}`
-  );
-})();
+const SENTRY_REPORT_URI =
+  'https://o4511237520883712.ingest.de.sentry.io/api/4511249899257936/security/' +
+  `?sentry_key=09d2571a7c72c1fb4050b24656134159&sentry_environment=${sentryEnvironment}`;
 
 /** Origins the app talks to, shared by both policies. */
 const SOURCES = {
@@ -50,12 +46,24 @@ function serialize(directives: Record<string, string[]>) {
     .join('; ');
 }
 
-/** The policy enforced today. */
-export function enforcedCsp() {
+/**
+ * The policy enforced today. With a nonce (dynamic pages), inline scripts
+ * need the nonce or the theme hash: browsers ignore 'unsafe-inline' once a
+ * nonce is present (it stays for very old browsers). The nonce has to be in
+ * this policy, not only the strict one: on Vercel, the response's CSP header
+ * is also what the page render sees, and Next takes the nonce from there.
+ */
+export function enforcedCsp(nonce?: string) {
   return serialize({
     'default-src': ["'self'"],
     // Dev only: React's dev build and Turbopack's HMR use eval.
-    'script-src': ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : []), ...SOURCES.scripts],
+    'script-src': [
+      "'self'",
+      "'unsafe-inline'",
+      ...(nonce ? [`'nonce-${nonce}'`, THEME_SCRIPT_HASH] : []),
+      ...(isDev ? ["'unsafe-eval'"] : []),
+      ...SOURCES.scripts,
+    ],
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': SOURCES.images,
     'font-src': ["'self'"],
@@ -101,12 +109,13 @@ export const REPORTING_ENDPOINTS = `csp="${SENTRY_REPORT_URI}"`;
 /**
  * Pages Next builds as static HTML (○ in `next build`), so they never carry
  * a nonce. Keep in sync with the build output; e2e/csp.spec.ts visits each.
+ * A static page missing here gets a nonce policy its scripts can't satisfy:
+ * the HTML shows, but nothing on it runs.
  *
- * Not listed: the root 404 for an unknown URL (logged-in only; logged-out
- * visitors are sent to log in). It's static too, but its paths can't be known
- * here, and making it dynamic makes every page dynamic. Before enforcing,
- * either accept that it renders without scripts there (links still work) or
- * give it its own policy.
+ * Known case: the root 404 for an unknown URL (logged-in only; logged-out
+ * visitors are sent to log in). It's static, its paths can't be listed, and
+ * making it dynamic makes every page dynamic. It's plain HTML with a link
+ * home, so it still works without scripts.
  */
 export const STATIC_PAGES = new Set(['/', '/pricing', '/privacy', '/terms', '/forgot-password', '/create-workspace']);
 

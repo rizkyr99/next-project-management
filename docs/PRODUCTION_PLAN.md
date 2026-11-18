@@ -642,6 +642,13 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
   - **Not sent by `next dev`:** its theme script hashes differently.
 - **Found along the way:** Zod v4 probes `new Function("")` to decide whether to compile validators. That's a CSP violation on every page with a form. The client now sets `jitless: true` (`instrumentation-client.ts`), so it never probes.
 - **Known gap before enforcing:** the root 404 for an unknown URL. It's static and gets the nonce policy, and it only affects logged-in users, because logged-out visitors go to log in. Making it dynamic makes every page dynamic (tried). Either accept that it renders without scripts there (its links still work), or give it its own policy.
+- **Fix after the first deploy:** production pages carried no nonce at all. Vercel adds the response's CSP header to the request the page renders with, and Next takes the nonce from that header. It found the nonce-less enforced policy (then set in `next.config.ts`) and never marked its scripts. Local `next start` doesn't do this, so the tests had passed. Now:
+  - `proxy.ts` sets both policies on page responses;
+  - on dynamic pages, the enforced policy carries the same nonce plus the theme hash, so inline scripts there are already nonce-only in modern browsers;
+  - a test checks that both headers carry the same nonce;
+  - this was confirmed on a Vercel preview before merging.
+
+  Consequence: the root 404 for an unknown URL is static. It's served with the nonce policy, so its scripts are blocked. It's plain HTML with a link home, so it still works.
 - **Tests (`e2e/csp.spec.ts`, production build only):**
   - inline scripts without the nonce must match a hash in the policy; the failure message prints the new hash;
   - static pages get no nonce, and dynamic pages get a new one each time;
@@ -655,6 +662,16 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
 3. Add a `/api/health` route that runs a `select 1` check, plus an uptime monitor (Better Stack / Vercel checks).
 4. Write runbooks in `docs/runbooks/`: migrations, rolling back a deploy, rotating secrets, replaying a Stripe webhook.
 5. Enable Neon point-in-time restore and document the retention window.
+
+**Status:** code and runbooks done; alerts and the uptime monitor are dashboard steps in `docs/runbooks/monitoring.md`.
+- **Sentry:**
+  - **Release:** set by the build plugin from `VERCEL_GIT_COMMIT_SHA`.
+  - **Environment:** now plain `production` / `preview` / `development` (`lib/sentry-options.ts`, shared by all three configs). Before, it was Sentry's default `vercel-production`, which didn't match the CSP reports.
+  - **User ID:** attached on the server (`getSession` / `requireSession`) and in the browser (`components/sentry-user.tsx`).
+  - **PII:** `sendDefaultPii` is now **off**. It was sending request cookies (including the session token), headers and IPs.
+- **Stripe webhooks:** handler failures are reported with the event type and ID, and answered with 500 so Stripe retries. Bad signatures are one grouped warning, which catches a mismatched `STRIPE_WEBHOOK_SECRET` that would otherwise drop every event silently.
+- **`/api/health`:** `select 1`; 200 with the commit, or 503 without details.
+- **Runbooks:** `docs/runbooks/` covers monitoring, rollback, backups (Neon PITR: check the retention window in the console), secrets rotation and Stripe webhooks.
 
 ### P5.6 Documentation
 

@@ -1,3 +1,4 @@
+import { SentryUser } from '@/components/sentry-user';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { getSession } from '@/lib/auth-session';
 import { redirect } from 'next/navigation';
@@ -13,5 +14,10 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  return <SidebarProvider>{children}</SidebarProvider>;
+  return (
+    <SidebarProvider>
+      <SentryUser id={session.user.id} />
+      {children}
+    </SidebarProvider>
+  );
 }
