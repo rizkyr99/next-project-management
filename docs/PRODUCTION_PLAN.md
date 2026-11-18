@@ -535,6 +535,30 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
 3. Add an **optimistic update** layer with TanStack Query mutations for drag-and-drop and status changes (with rollback on error) if it isn't fully there already.
 4. Longer-term note (not in scope): if real-time grows, swap DB polling for a pub/sub provider (Ably, Pusher, Supabase Realtime, or Postgres `LISTEN/NOTIFY` via a long-lived worker). Polling Neon every 5 s per open tab keeps the compute from scaling to zero, which costs money.
 
+**Status:** done, with a different approach to step 1.
+- **Snapshot (step 1):** `features/tasks/snapshot.ts` hashes what the views show instead of relying on `updated_at`: task fields, columns, assignees, comments, and the project name. Every kind of change now registers, including:
+  - assignee changes
+  - column renames
+  - a delete and a create inside the same poll
+
+  No migration, and no mutation path has to remember to bump a timestamp.
+- **Every view (new):** before this, only the board listened. Live updates now sit on the project page, so the list and table refresh too. The page passes its render-time snapshot, so a change between the render and the first poll isn't missed.
+- **Streams (step 2):** `lib/sse.ts` is a shared polling stream for the task and notification streams. It has these properties:
+  - `maxDuration = 300`; the stream closes itself cleanly at 240 s with a `retry` hint, so there are no timeout errors.
+  - Polls never overlap.
+  - There are no writes after the client leaves, which also fixes "Controller is already closed".
+- **Reconnects:** events carry the snapshot as their id, and a reconnect sends it back as `Last-Event-ID` or `?since=`, so nothing is lost when a stream recycles.
+- **Hidden tabs:**
+  - The task stream closes, which saves Neon polling.
+  - When the tab is visible again, the stream reopens from the last snapshot and catches up at once.
+  - If the server refuses the stream, reconnects back off up to 60 s.
+- **Step 3 (TanStack Query):** skipped. The board, list and table already apply edits optimistically and roll back on error.
+- **Call stream:** not changed here; it belongs with P5.2.
+- **Follow-up, done:** CI showed actions arriving late. A late live refresh doesn't overwrite newer data: Next queues router work in order, and `e2e/realtime-stale.spec.ts` holds one back to prove it. The real cost was that **your own action waits behind any refresh in flight**. Each of your saves also caused a second, redundant refresh about 5 s later, when the stream saw the same change. The stream now skips a change whose snapshot the page already renders, so your own saves no longer refresh twice.
+- **Tests:**
+  - `tests/lib/sse.test.ts`: retry hint, ids, self-close, no late writes, no overlap.
+  - `e2e/realtime.spec.ts`: the change kinds above, list view, hidden-tab catch-up.
+
 ### P5.2 Calls: TURN and limits (F14)
 
 **Steps**
@@ -558,6 +582,32 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
    - password reset with a mock email sink (P3.1)
    - Stripe checkout with test clocks/test card (happy path).
 5. Coverage target: ≥ 80 % on `features/*/actions.ts` and `lib/authz.ts`. Report it in the PR summary.
+
+**Status:** done. The E2E job turns on once the Neon secret and variable are set.
+- **Workflow:**
+  - All jobs use `npm ci` and Node from `.nvmrc` (24), with the npm cache.
+  - A newer push cancels the run in progress.
+  - A new **Build** job runs `next build` with placeholder env. It catches invalid segment config, which tsc misses (see #53).
+- **E2E workflow (`e2e.yml`):**
+  - **When it runs:** always on release PRs into `main`. On other PRs only with the `e2e` label, because it's slower than the 1-minute checks.
+  - **Shards:** 3 in parallel. Each shard creates its own Neon branch from the **dev** branch (never production), expiring after a day.
+  - **Each shard:** runs `db:migrate`, builds, and runs Playwright against `next start`. It uploads its report on failure, then deletes its branch.
+  - **Why a production build:** the dev server compiled pages on first visit, which made CI slow (10+ min) and caused timeout failures.
+  - **Sentry:** `NEXT_PUBLIC_SENTRY_DISABLED` keeps CI's production build from reporting to it.
+  - **The daily-job spec:** runs last in shard 3, on that shard's own branch.
+  - **Ubuntu 24.04:** Playwright has no browser builds for 26.04 yet.
+  - **What the production build exposed, fixed:**
+    - Better Auth's own rate limiter (production only) keyed on `x-forwarded-for`, so every test sign-up shared one limit. It now reads `x-real-ip` first, like `lib/rate-limit.ts`.
+    - The task panel sometimes never reported a deleted task: a fast refresh finished within one commit. It now waits for the refreshed data.
+    - Test timing: the task-detail spec gets 60 s. The keyboard column drag re-presses an arrow only when nothing moved.
+- **Build fixes the new jobs exposed:**
+  - **Lock file:** the npm bundled with Node 24.11.1 rejected `package-lock.json`, so `.nvmrc` moves to 24.22.3.
+  - **Fonts:** builds failed when Google Fonts served URLs Turbopack couldn't map. Geist, Geist Mono and Schibsted Grotesk are now self-hosted (`app/fonts/`, latin, variable weight) through `next/font/local`.
+- **Coverage:** `scripts/coverage-summary.mjs` writes a per-file table to the job summary. It fails the Unit Tests job below 80 %.
+  - Now 87.3 %, up from 70.4 %.
+  - New tests for billing, search, and workspace admin actions (update, remove member, change role, delete).
+- **Specs (step 4):** isolation, invites, columns, deep link and password reset already exist (`e2e/`).
+  - Stripe checkout is not covered: it needs real Stripe test keys and a webhook forwarder in CI. It's left for when billing goes live.
 
 ### P5.4 Content Security Policy
 

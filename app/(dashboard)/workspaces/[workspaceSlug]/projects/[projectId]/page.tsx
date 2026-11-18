@@ -15,6 +15,8 @@ import type { Metadata } from 'next';
 import { createHash } from 'node:crypto';
 import { TaskDetailSheet } from '@/features/tasks/components/task-detail/task-detail-sheet';
 import { TaskFilterBar } from '@/features/tasks/components/task-filter-bar';
+import { ProjectLiveUpdates } from '@/features/tasks/components/project-live-updates';
+import { projectSnapshot } from '@/features/tasks/snapshot';
 
 type View = 'board' | 'list' | 'table';
 
@@ -58,7 +60,10 @@ export default async function ProjectIdPage({
   const currentWorkspace = await getActiveWorkspace(workspaceSlug, session.user.id);
   if (!currentWorkspace) notFound();
 
-  const [workspaceMembers, data] = await Promise.all([
+  // The snapshot is taken alongside the data, so the live stream can tell
+  // whether anything changed between this render and its first poll.
+  const [snapshot, workspaceMembers, data] = await Promise.all([
+    projectSnapshot(projectId),
     db
       .select({
         id: user.id,
@@ -130,6 +135,7 @@ export default async function ProjectIdPage({
 
   return (
     <div className='h-full flex flex-col'>
+      <ProjectLiveUpdates projectId={data.id} snapshot={snapshot} />
       <div className='px-4 py-2 space-y-2 border-b'>
         <div className='flex items-start justify-between gap-4'>
           <div className='min-w-0'>

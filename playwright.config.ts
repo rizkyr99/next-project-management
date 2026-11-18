@@ -8,8 +8,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  workers: process.env.CI ? 1 : 2,
-  reporter: 'html',
+  workers: 2,
+  // CI: failures inline on the PR, plus the HTML report as an artifact.
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }], ['list']] : 'html',
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
@@ -31,11 +32,15 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    // CI runs against a production build (built beforehand): the dev server
+    // compiles each page on first visit, which made CI slow and flaky.
+    command: process.env.E2E_SERVER === 'start' ? 'npm run start' : 'npm run dev',
     url: 'http://localhost:3000',
     // Never reuse an already-running server: it may point at a different
     // (e.g. production) database than the one global-setup verified.
     reuseExistingServer: false,
+    // The dev server compiles on first request; CI runners are slow to start.
+    timeout: 180_000,
     // The cron spec calls /api/cron/daily with this test-only secret.
     env: { CRON_SECRET: E2E_CRON_SECRET },
   },

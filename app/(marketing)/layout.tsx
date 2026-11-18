@@ -1,11 +1,12 @@
-import { Schibsted_Grotesk } from 'next/font/google';
+import localFont from 'next/font/local';
 import { SiteFooter } from './_components/site-footer';
 import { SiteHeader } from './_components/site-header';
 
 // Headlines on public pages only; the app itself stays on Geist.
-const display = Schibsted_Grotesk({
-  subsets: ['latin'],
-  weight: ['600', '700', '800'],
+// Self-hosted like the app fonts (see app/layout.tsx).
+const display = localFont({
+  src: '../fonts/schibsted-grotesk-latin.woff2',
+  weight: '600 800',
   variable: '--font-display-face',
   display: 'swap',
 });
