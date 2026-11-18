@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { SidebarGroupAction } from '@/components/ui/sidebar';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus } from 'lucide-react';
+import { SHORTCUT_EVENTS } from '@/lib/shortcuts';
 import { useForm } from 'react-hook-form';
 import { createProjectSchema } from '../schema';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,7 +30,7 @@ import { useParams, useRouter } from 'next/navigation';
 
 import { createProject } from '../actions';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * "New project" dialog. The sidebar shows it as its "+" action; empty states
@@ -44,6 +45,15 @@ export function CreateProjectDialog({
 }) {
   const [open, setOpen] = useState(false);
   const params = useParams<{ workspaceSlug: string }>();
+
+  // "New project" from ⌘K. Only the sidebar's dialog answers, so other
+  // "Create a project" buttons on the page don't open a second one.
+  useEffect(() => {
+    if (variant !== 'sidebar') return;
+    const openDialog = () => setOpen(true);
+    window.addEventListener(SHORTCUT_EVENTS.newProject, openDialog);
+    return () => window.removeEventListener(SHORTCUT_EVENTS.newProject, openDialog);
+  }, [variant]);
   const { workspaceSlug } = params;
   const router = useRouter();
 

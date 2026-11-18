@@ -1,3 +1,4 @@
+import { KeyboardShortcuts } from '@/components/keyboard-shortcuts';
 import { SentryUser } from '@/components/sentry-user';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { getSession } from '@/lib/auth-session';
@@ -17,6 +18,7 @@ export default async function DashboardLayout({
   return (
     <SidebarProvider>
       <SentryUser id={session.user.id} />
+      <KeyboardShortcuts />
       {children}
     </SidebarProvider>
   );

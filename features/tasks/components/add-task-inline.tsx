@@ -17,6 +17,7 @@ import { useParams } from 'next/navigation';
 import { createTask } from '../actions';
 import { toast } from 'sonner';
 import type { TaskData } from './task-meta';
+import { SHORTCUT_EVENTS, takeAddTaskRequest } from '@/lib/shortcuts';
 
 /**
  * A new task is shown at once, marked as saving, before the server replies
@@ -32,11 +33,27 @@ export interface AddTaskCallbacks {
 
 interface AddTaskInlineProps extends AddTaskCallbacks {
   statusId: string;
+  /** The default column answers the "C" shortcut (lib/shortcuts.ts). */
+  answersShortcut?: boolean;
 }
 
-export function AddTaskInline({ statusId, onAdding, onCreated, onFailed }: AddTaskInlineProps) {
+export function AddTaskInline({ statusId, onAdding, onCreated, onFailed, answersShortcut = false }: AddTaskInlineProps) {
   const [showInput, setShowInput] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // "C": open this form. The request may come before the board mounted
+  // (switching from the list), so a pending one is taken on mount too.
+  useEffect(() => {
+    if (!answersShortcut) return;
+    const open = () => {
+      if (!takeAddTaskRequest()) return;
+      setShowInput(true);
+      containerRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    };
+    open();
+    window.addEventListener(SHORTCUT_EVENTS.addTask, open);
+    return () => window.removeEventListener(SHORTCUT_EVENTS.addTask, open);
+  }, [answersShortcut]);
   const params = useParams<{ projectId: string }>();
   const { projectId } = params;
 
