@@ -20,6 +20,8 @@ export interface TaskData {
   priority: Priority;
   dueDate?: Date | null;
   assignees: { user: Person }[];
+  /** Client-only: just added, still being saved. Not openable or draggable yet. */
+  pending?: boolean;
 }
 
 export const priorityConfig: Record<

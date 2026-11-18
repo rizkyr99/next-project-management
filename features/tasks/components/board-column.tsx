@@ -1,6 +1,6 @@
 import { TaskCard } from './task-card';
 import type { TaskData } from './task-meta';
-import { AddTaskInline } from './add-task-inline';
+import { AddTaskInline, type AddTaskCallbacks } from './add-task-inline';
 import { useDroppable } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -14,13 +14,6 @@ import { cn } from '@/lib/utils';
 /** Column sortable IDs are prefixed so they never collide with task IDs. */
 export const columnDragId = (statusId: string) => `column:${statusId}`;
 
-type NewTask = {
-  id: string;
-  title: string;
-  priority: 'low' | 'medium' | 'high';
-  dueDate: Date | null;
-  assignees: [];
-};
 
 interface BoardColumnProps {
   id: string;
@@ -29,7 +22,8 @@ interface BoardColumnProps {
   isDefault?: boolean;
   /** All columns, for the delete dialog's "move tasks to" picker. */
   columns?: ColumnInfo[];
-  onTaskCreated?: (task: NewTask) => void;
+  /** Adding a task from this column; see AddTaskCallbacks. */
+  addTask?: AddTaskCallbacks;
   tasks?: (TaskData & { commentCount?: number })[];
   /** Filters are on: cards can't be dragged, and "empty" means no matches. */
   filtering?: boolean;
@@ -41,7 +35,7 @@ export function BoardColumn({
   color = null,
   isDefault = false,
   columns = [],
-  onTaskCreated,
+  addTask,
   tasks = [],
   filtering = false,
 }: Readonly<BoardColumnProps>) {
@@ -90,7 +84,7 @@ export function BoardColumn({
             ) : (
               <div aria-hidden className='h-12 rounded-md border border-dashed border-muted-foreground/20' />
             ))}
-          <AddTaskInline statusId={id} onTaskCreated={onTaskCreated} />
+          <AddTaskInline statusId={id} {...addTask} />
         </div>
       </SortableContext>
     </div>
