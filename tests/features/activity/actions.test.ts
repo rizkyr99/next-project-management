@@ -40,6 +40,12 @@ describe('getWorkspaceActivity', () => {
     expect(requireWorkspaceMember).not.toHaveBeenCalled();
   });
 
+  it('returns an empty feed for a malformed project filter, without querying', async () => {
+    expect(await getWorkspaceActivity(WS, undefined, { projectId: 'nope' })).toEqual({ items: [], nextCursor: null });
+    expect(requireWorkspaceMember).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
   it('paginates for a member', async () => {
     vi.mocked(requireWorkspaceMember).mockResolvedValue({
       workspace: { id: WS, slug: 'acme', name: 'Acme' },
