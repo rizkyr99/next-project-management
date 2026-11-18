@@ -3,7 +3,7 @@ import { auth } from './lib/auth';
 import { headers } from 'next/headers';
 import { LIMITS, clientIp, rateLimit } from '@/lib/rate-limit';
 import { safeCallbackPath } from '@/lib/safe-redirect';
-import { REPORTING_ENDPOINTS, STATIC_PAGES, createNonce, strictCsp } from '@/lib/csp';
+import { REPORTING_ENDPOINTS, STATIC_PAGES, createNonce, enforcedCsp, strictCsp } from '@/lib/csp';
 
 // Better Auth endpoints that take credentials or send email: strict, per IP,
 // against credential stuffing and sign-up spam. Everything else under
@@ -101,16 +101,28 @@ export async function proxy(request: NextRequest) {
  * header, which is where Next reads it to mark its own scripts.
  */
 function withCsp(request: NextRequest) {
-  // Not in `next dev`: its build of the theme script has a different hash,
-  // so every page would log reports. CI tests the production build.
-  if (process.env.NODE_ENV !== 'production') return NextResponse.next();
+  // Both policies are set here, on page responses only, and not in
+  // next.config.ts headers(): on Vercel those are also added to the incoming
+  // request, and Next then read the nonce-less enforced policy and never
+  // marked its scripts. Only HTML pages need a CSP; they all pass through here.
+  if (process.env.NODE_ENV !== 'production') {
+    // `next dev` builds the theme script differently, so the strict policy's
+    // hash wouldn't match; just enforce the base policy.
+    const res = NextResponse.next();
+    res.headers.set('Content-Security-Policy', enforcedCsp());
+    return res;
+  }
 
   const nonce = STATIC_PAGES.has(request.nextUrl.pathname) ? undefined : createNonce();
+  const enforced = enforcedCsp(nonce);
   const policy = strictCsp(nonce);
+  // Next reads the nonce from the request's CSP header to mark its scripts.
+  // Same value as the response header (on Vercel, the response's wins).
   const requestHeaders = new Headers(request.headers);
-  if (nonce) requestHeaders.set('content-security-policy', policy);
+  requestHeaders.set('content-security-policy', enforced);
 
   const res = NextResponse.next({ request: { headers: requestHeaders } });
+  res.headers.set('Content-Security-Policy', enforced);
   res.headers.set('Content-Security-Policy-Report-Only', policy);
   res.headers.set('Reporting-Endpoints', REPORTING_ENDPOINTS);
   return res;

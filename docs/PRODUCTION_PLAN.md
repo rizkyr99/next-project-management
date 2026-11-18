@@ -642,6 +642,13 @@ Continue the work on `feat/mobile-header-improvements`: the board scrolls horizo
   - **Not sent by `next dev`:** its theme script hashes differently.
 - **Found along the way:** Zod v4 probes `new Function("")` to decide whether to compile validators. That's a CSP violation on every page with a form. The client now sets `jitless: true` (`instrumentation-client.ts`), so it never probes.
 - **Known gap before enforcing:** the root 404 for an unknown URL. It's static and gets the nonce policy, and it only affects logged-in users, because logged-out visitors go to log in. Making it dynamic makes every page dynamic (tried). Either accept that it renders without scripts there (its links still work), or give it its own policy.
+- **Fix after the first deploy:** production pages carried no nonce at all. Vercel adds the response's CSP header to the request the page renders with, and Next takes the nonce from that header. It found the nonce-less enforced policy (then set in `next.config.ts`) and never marked its scripts. Local `next start` doesn't do this, so the tests had passed. Now:
+  - `proxy.ts` sets both policies on page responses;
+  - on dynamic pages, the enforced policy carries the same nonce plus the theme hash, so inline scripts there are already nonce-only in modern browsers;
+  - a test checks that both headers carry the same nonce;
+  - this was confirmed on a Vercel preview before merging.
+
+  Consequence: the root 404 for an unknown URL is static. It's served with the nonce policy, so its scripts are blocked. It's plain HTML with a link home, so it still works.
 - **Tests (`e2e/csp.spec.ts`, production build only):**
   - inline scripts without the nonce must match a hash in the policy; the failure message prints the new hash;
   - static pages get no nonce, and dynamic pages get a new one each time;
