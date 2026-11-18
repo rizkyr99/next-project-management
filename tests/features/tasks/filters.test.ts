@@ -30,7 +30,9 @@ describe('parseFilters', () => {
       due: 'week',
       q: 'plan',
     });
-    expect(parseFilters(params('priority=urgent&due=yesterday'))).toEqual({
+    expect(parseFilters(params('priority=urgent')).priority).toBe('urgent');
+    expect(parseFilters(params('priority=none')).priority).toBe('none');
+    expect(parseFilters(params('priority=critical&due=yesterday'))).toEqual({
       assignee: null,
       priority: null,
       due: null,

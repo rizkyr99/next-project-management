@@ -5,7 +5,9 @@
  * browser: a project's tasks are already loaded for the board.
  */
 
-export type Priority = 'low' | 'medium' | 'high';
+import { PRIORITIES, PRIORITY_RANK, type Priority } from './priority';
+
+export type { Priority };
 export type DueFilter = 'overdue' | 'week' | 'none';
 
 export interface TaskFilters {
@@ -24,7 +26,6 @@ export interface FilterableTask {
   assignees: { user: { id: string } }[];
 }
 
-const PRIORITIES: Priority[] = ['low', 'medium', 'high'];
 const DUES: DueFilter[] = ['overdue', 'week', 'none'];
 
 export const FILTER_PARAMS = ['assignee', 'priority', 'due', 'q'] as const;
@@ -34,7 +35,7 @@ export function parseFilters(params: Pick<URLSearchParams, 'get'>): TaskFilters 
   const due = params.get('due');
   return {
     assignee: params.get('assignee')?.trim() || null,
-    priority: PRIORITIES.includes(priority as Priority) ? (priority as Priority) : null,
+    priority: (PRIORITIES as readonly string[]).includes(priority ?? '') ? (priority as Priority) : null,
     due: DUES.includes(due as DueFilter) ? (due as DueFilter) : null,
     q: (params.get('q') ?? '').trim().slice(0, 200),
   };
@@ -92,7 +93,6 @@ export interface TaskSort {
 }
 
 const SORT_KEYS: SortKey[] = ['title', 'status', 'priority', 'due'];
-const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
 
 /** `?sort=priority&dir=desc`; null means the board's own order. */
 export function parseSort(params: Pick<URLSearchParams, 'get'>): TaskSort | null {

@@ -2,7 +2,7 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { Header } from '@/components/header';
 import { VerifyEmailBanner } from '@/features/account/components/verify-email-banner';
 import { db } from '@/db/drizzle';
-import { member, project, workspace } from '@/db/schema';
+import { member, project, workspace, projectFavorite } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
 import { checkWorkspaceLimit } from '@/lib/subscription';
 import { getActiveWorkspace } from '@/lib/workspace-context';
@@ -62,12 +62,17 @@ export default async function WorkspaceLayout({
         description: project.description,
         createdAt: project.createdAt,
         workspaceId: project.workspaceId,
+        favoritedAt: projectFavorite.createdAt,
       })
       .from(project)
       .innerJoin(workspace, eq(project.workspaceId, workspace.id))
       .innerJoin(
         member,
         and(eq(member.workspaceId, workspace.id), eq(member.userId, session.user.id)),
+      )
+      .leftJoin(
+        projectFavorite,
+        and(eq(projectFavorite.projectId, project.id), eq(projectFavorite.userId, session.user.id)),
       )
       .where(eq(workspace.slug, workspaceSlug)),
   ]);

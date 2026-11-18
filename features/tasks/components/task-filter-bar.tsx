@@ -1,5 +1,7 @@
 "use client";
 
+import { PRIORITIES, priorityConfig } from "../priority";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -134,9 +136,11 @@ export function TaskFilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ANY}>Any priority</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
+            {PRIORITIES.map((p) => (
+              <SelectItem key={p} value={p}>
+                {priorityConfig[p].label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
