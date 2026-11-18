@@ -1,6 +1,5 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next';
-import { enforcedCsp } from './lib/csp';
 import { checkServerEnv, formatEnvProblems } from './lib/env';
 
 // Fail a production build on Vercel when the environment is incomplete, so a
@@ -37,11 +36,6 @@ const securityHeaders = [
   {
     key: 'Permissions-Policy',
     value: 'camera=(self), microphone=(self), geolocation=()',
-  },
-  {
-    // The stricter policy is sent Report-Only from proxy.ts; see lib/csp.ts.
-    key: 'Content-Security-Policy',
-    value: enforcedCsp(),
   },
 ];
 
