@@ -20,6 +20,7 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
   const [isCameraOff, setIsCameraOff] = useState(false);
   const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
+  const iceServersRef = useRef<RTCIceServer[] | undefined>(undefined);
 
   const sendSignal = useCallback(
     async (toUserId: string, type: string, payload: unknown) => {
@@ -36,7 +37,13 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
     (remoteUserId: string, initiator: boolean, stream: MediaStream) => {
       if (peersRef.current.has(remoteUserId)) return peersRef.current.get(remoteUserId)!;
 
-      const peer = new SimplePeer({ initiator, stream, trickle: true });
+      const peer = new SimplePeer({
+        initiator,
+        stream,
+        trickle: true,
+        // Without these, simple-peer's defaults apply (public STUN only).
+        config: iceServersRef.current ? { iceServers: iceServersRef.current } : undefined,
+      });
 
       peer.on('signal', (data) => {
         const type = data.type === 'offer' ? 'offer' : data.type === 'answer' ? 'answer' : 'ice-candidate';
@@ -67,11 +74,15 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
   );
 
   const start = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const [stream, iceServers] = await Promise.all([
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
+      fetchIceServers(projectId),
+    ]);
+    iceServersRef.current = iceServers;
     localStreamRef.current = stream;
     setLocalStream(stream);
     return stream;
-  }, []);
+  }, [projectId]);
 
   const connectToParticipants = useCallback(
     (participantIds: string[]) => {
@@ -151,4 +162,16 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
     toggleMute,
     toggleCamera,
   };
+}
+
+/** STUN, plus TURN when the server has it configured. Never blocks a call. */
+async function fetchIceServers(projectId: string): Promise<RTCIceServer[] | undefined> {
+  try {
+    const res = await fetch(`/api/call/ice?projectId=${projectId}`, { cache: 'no-store' });
+    if (!res.ok) return undefined;
+    const { iceServers } = (await res.json()) as { iceServers?: RTCIceServer[] };
+    return iceServers?.length ? iceServers : undefined;
+  } catch {
+    return undefined;
+  }
 }

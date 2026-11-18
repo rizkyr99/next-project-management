@@ -1,150 +1,109 @@
+import { and, asc, eq, gte, lt, sql } from 'drizzle-orm';
 import { db } from '@/db/drizzle';
 import { callParticipant, member, project, user, webrtcSignal } from '@/db/schema';
-import { and, eq, gt, lt } from 'drizzle-orm';
 import { callRoomSchema } from '@/features/call/schema';
 import { requireProjectAccess, toErrorResponse } from '@/lib/authz';
+import { staleBefore } from '@/lib/call-presence';
+import { pollingStream } from '@/lib/sse';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
+/**
+ * Two modes:
+ * - Watching (anyone on the project page): who is in the call, every 5 s.
+ * - In the call (`inCall=1`): also a heartbeat and signaling, every 1.5 s.
+ *
+ * The stream never adds anyone to the call; only /api/call/join does, and
+ * that is where the size limit is enforced. So viewing a project doesn't put
+ * you in its call, and leaving sticks.
+ */
 export async function GET(request: Request) {
   let projectId: string;
   let userId: string;
+  let inCall: boolean;
   try {
     const { searchParams } = new URL(request.url);
     const input = callRoomSchema.parse({ projectId: searchParams.get('projectId') });
     const ctx = await requireProjectAccess(input.projectId);
     projectId = ctx.project.id;
     userId = ctx.session.user.id;
+    inCall = searchParams.get('inCall') === '1';
   } catch (error) {
     return toErrorResponse(error);
   }
 
-  let intervalId: NodeJS.Timeout;
+  const intervalMs = inCall ? 1_500 : 5_000;
+  const recheckEvery = Math.round(30_000 / intervalMs);
+  let ticks = 0;
+  let lastParticipants = '';
 
-  const stream = new ReadableStream({
-    start(controller) {
-      let lastSignalCheck = new Date();
-      let ticks = 0;
-      let closed = false;
+  const stillMember = async () => {
+    const [row] = await db
+      .select({ id: member.id })
+      .from(project)
+      .innerJoin(member, and(eq(member.workspaceId, project.workspaceId), eq(member.userId, userId)))
+      .where(eq(project.id, projectId))
+      .limit(1);
+    return Boolean(row);
+  };
 
-      const close = () => {
-        if (closed) return;
-        closed = true;
-        clearInterval(intervalId);
-        try {
-          controller.close();
-        } catch {
-          // already closed by the client
+  return pollingStream({
+    intervalMs,
+    label: 'call',
+    onOpen: async (send) => sendParticipants(send, true),
+    onTick: async (send) => {
+      // Access is checked when the stream opens. Re-check about every 30 s,
+      // so someone removed from the workspace drops out of the call.
+      if (++ticks % recheckEvery === 0 && !(await stillMember())) {
+        await db
+          .delete(callParticipant)
+          .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId)));
+        send.event({ type: 'removed' });
+        return;
+      }
+
+      if (inCall) {
+        // Heartbeat. Never re-creates the row: if it's gone (left from another
+        // tab, or timed out), the client sees itself missing and rejoins.
+        await db
+          .update(callParticipant)
+          .set({ lastSeen: sql`now()` })
+          .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId)));
+
+        // Taken off the queue as they're delivered, so each arrives once.
+        const signals = await db
+          .delete(webrtcSignal)
+          .where(and(eq(webrtcSignal.projectId, projectId), eq(webrtcSignal.toUserId, userId)))
+          .returning();
+        signals.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+        for (const sig of signals) {
+          send.event({
+            type: 'signal',
+            data: { fromUserId: sig.fromUserId, signalType: sig.type, payload: sig.payload },
+          });
         }
-      };
 
-      controller.enqueue(': keepalive\n\n');
+        await db.delete(callParticipant).where(
+          and(eq(callParticipant.projectId, projectId), lt(callParticipant.lastSeen, staleBefore)),
+        );
+        await db.delete(webrtcSignal).where(lt(webrtcSignal.createdAt, sql`now() - interval '30 seconds'`));
+      }
 
-      const tick = async () => {
-        try {
-          if (closed) return;
-          const now = new Date();
-
-          // Access is checked when the stream opens. Re-check about every 30s
-          // so a member removed from the workspace stops receiving the call.
-          if (++ticks % 15 === 0) {
-            const [stillMember] = await db
-              .select({ id: member.id })
-              .from(project)
-              .innerJoin(
-                member,
-                and(eq(member.workspaceId, project.workspaceId), eq(member.userId, userId)),
-              )
-              .where(eq(project.id, projectId))
-              .limit(1);
-            if (!stillMember) {
-              await db
-                .delete(callParticipant)
-                .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId)));
-              close();
-              return;
-            }
-          }
-
-          // Heartbeat: update lastSeen so we know the user is still in the call.
-          // If another participant's cleanup removed our row (e.g. after a
-          // stalled tick), re-create it. Otherwise /api/call/signal would
-          // reject this still-connected participant.
-          const touched = await db
-            .update(callParticipant)
-            .set({ lastSeen: now })
-            .where(and(eq(callParticipant.projectId, projectId), eq(callParticipant.userId, userId)))
-            .returning({ id: callParticipant.id });
-          if (touched.length === 0) {
-            await db.insert(callParticipant).values({ projectId, userId, lastSeen: now });
-          }
-
-          // Clean up stale participants (no heartbeat for > 8 seconds)
-          const staleThreshold = new Date(now.getTime() - 8_000);
-          await db
-            .delete(callParticipant)
-            .where(
-              and(
-                eq(callParticipant.projectId, projectId),
-                lt(callParticipant.lastSeen, staleThreshold),
-              ),
-            );
-
-          // Send current participants list
-          const participants = await db
-            .select({ userId: callParticipant.userId, name: user.name, image: user.image })
-            .from(callParticipant)
-            .innerJoin(user, eq(callParticipant.userId, user.id))
-            .where(eq(callParticipant.projectId, projectId));
-
-          const participantsPayload = JSON.stringify({ type: 'participants', data: participants });
-          controller.enqueue(`data: ${participantsPayload}\n\n`);
-
-          // Deliver signals addressed to this user
-          const signals = await db
-            .select()
-            .from(webrtcSignal)
-            .where(
-              and(
-                eq(webrtcSignal.projectId, projectId),
-                eq(webrtcSignal.toUserId, userId),
-                gt(webrtcSignal.createdAt, lastSignalCheck),
-              ),
-            );
-
-          lastSignalCheck = now;
-
-          for (const sig of signals) {
-            const sigPayload = JSON.stringify({
-              type: 'signal',
-              data: { fromUserId: sig.fromUserId, signalType: sig.type, payload: sig.payload },
-            });
-            controller.enqueue(`data: ${sigPayload}\n\n`);
-          }
-
-          // Clean up old signals (older than 30s)
-          const signalExpiry = new Date(now.getTime() - 30_000);
-          await db.delete(webrtcSignal).where(lt(webrtcSignal.createdAt, signalExpiry));
-        } catch (err) {
-          console.error('[SSE call] tick error:', err);
-        }
-      };
-
-      tick();
-      intervalId = setInterval(tick, 2_000);
-    },
-
-    cancel() {
-      clearInterval(intervalId);
+      await sendParticipants(send, false);
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  });
+  async function sendParticipants(send: { event: (data: unknown) => void }, always: boolean) {
+    const participants = await db
+      .select({ userId: callParticipant.userId, name: user.name, image: user.image })
+      .from(callParticipant)
+      .innerJoin(user, eq(callParticipant.userId, user.id))
+      .where(and(eq(callParticipant.projectId, projectId), gte(callParticipant.lastSeen, staleBefore)))
+      .orderBy(asc(callParticipant.joinedAt));
+    const json = JSON.stringify(participants);
+    if (!always && json === lastParticipants) return;
+    lastParticipants = json;
+    send.event({ type: 'participants', data: participants });
+  }
 }
