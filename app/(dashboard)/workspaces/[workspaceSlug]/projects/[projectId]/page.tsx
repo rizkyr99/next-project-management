@@ -1,10 +1,8 @@
 import { db } from '@/db/drizzle';
 import { comment, member, project, user } from '@/db/schema';
 import { and, count, eq, inArray } from 'drizzle-orm';
-import BoardView from '@/features/projects/components/board-view-client';
 import { CallButton } from '@/features/call/components/call-button';
-import { ListView } from '@/features/projects/components/list-view';
-import { TableView } from '@/features/projects/components/table-view';
+import { ProjectViews } from '@/features/projects/components/project-views';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
 import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
@@ -18,7 +16,6 @@ import { TaskFilterBar } from '@/features/tasks/components/task-filter-bar';
 import { ProjectLiveUpdates } from '@/features/tasks/components/project-live-updates';
 import { projectSnapshot } from '@/features/tasks/snapshot';
 
-type View = 'board' | 'list' | 'table';
 
 export async function generateMetadata({
   params,
@@ -40,21 +37,13 @@ export async function generateMetadata({
 
 export default async function ProjectIdPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ workspaceSlug: string; projectId: string }>;
-  searchParams: Promise<{ view?: string }>;
 }) {
-  const [{ workspaceSlug, projectId }, { view }] = await Promise.all([
-    params,
-    searchParams,
-  ]);
+  const { workspaceSlug, projectId } = await params;
 
   const session = await getSession();
   if (!session) redirect('/login');
-
-  const currentView: View =
-    view === 'list' || view === 'table' ? view : 'board';
 
   // Membership is resolved (and cached) by the workspace layout as well.
   const currentWorkspace = await getActiveWorkspace(workspaceSlug, session.user.id);
@@ -159,7 +148,7 @@ export default async function ProjectIdPage({
         </div>
         <Suspense>
           <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
-            <ViewSwitcher currentView={currentView} />
+            <ViewSwitcher />
             <TaskFilterBar
               members={workspaceMembers.map((m) => ({ id: m.id, name: m.name }))}
               currentUserId={session.user.id}
@@ -167,15 +156,14 @@ export default async function ProjectIdPage({
           </div>
         </Suspense>
       </div>
-      {currentView === 'board' && (
-        <BoardView project={data} commentCountMap={commentCountMap} currentUserId={session.user.id} />
-      )}
-      {currentView === 'list' && (
-        <ListView key={boardKey} project={data} workspaceMembers={workspaceMembers} currentUserId={session.user.id} />
-      )}
-      {currentView === 'table' && (
-        <TableView key={boardKey} project={data} workspaceMembers={workspaceMembers} currentUserId={session.user.id} />
-      )}
+      {/* The view lives in the URL and switches without a server request. */}
+      <ProjectViews
+        project={data}
+        commentCountMap={commentCountMap}
+        workspaceMembers={workspaceMembers}
+        currentUserId={session.user.id}
+        dataKey={boardKey}
+      />
       <Suspense>
         <TaskDetailSheet
           projectId={data.id}
