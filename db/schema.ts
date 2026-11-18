@@ -272,6 +272,38 @@ export const task = pgTable(
   ],
 );
 
+/**
+ * A file uploaded to a task: for now, images pasted into a description or
+ * comment. The bytes live in private storage (lib/storage.ts) and are only
+ * served through /api/files/[id], which checks project access, so a file is
+ * exactly as private as its task.
+ */
+export const attachment = pgTable(
+  'attachment',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id, { onDelete: 'cascade' }),
+    uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+    /** Where the bytes are in storage; never sent to browsers. */
+    storageKey: text('storage_key').notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    contentType: varchar('content_type', { length: 100 }).notNull(),
+    size: integer('size').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('attachment_taskId_idx').on(table.taskId),
+    index('attachment_projectId_idx').on(table.projectId),
+  ],
+);
+
 export const taskAssignee = pgTable(
   'task_assignee',
   {

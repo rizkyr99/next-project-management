@@ -1,48 +1,65 @@
 'use client';
 
+import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import type { Editor } from '@tiptap/react';
 import { AlignLeft } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useRef, useState } from 'react';
-import Markdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
+import { toast } from 'sonner';
 import { MAX_DESCRIPTION_LENGTH } from '../../schema';
+import { uploadTaskImage } from '../../upload-image';
+
+// The editor is the heaviest part of the sheet; load it only to edit.
+const RichTextEditor = dynamic(() => import('@/components/rich-text-editor'), {
+  ssr: false,
+  loading: () => <div className='min-h-36 rounded-md border bg-muted/30 animate-pulse' />,
+});
 
 /**
- * Markdown is rendered with rehype-sanitize (GitHub's allow-list), so raw
- * HTML, scripts and `javascript:` links in a description never execute.
+ * The description is stored as Markdown and rendered safely (components/
+ * markdown.tsx). Editing is visual: headings, lists, checklists, links,
+ * code and pasted screenshots.
  */
-const markdownClassName = [
-  'text-sm leading-relaxed break-words space-y-2',
-  '[&_h1]:text-base [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-medium',
-  '[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5',
-  '[&_a]:underline [&_a]:underline-offset-2 [&_a]:text-primary',
-  '[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.85em]',
-  '[&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0',
-  '[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground',
-].join(' ');
-
 export function TaskDescription({
+  taskId,
   value,
   onSave,
 }: {
+  taskId: string;
   value: string | null;
   onSave: (description: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value ?? '');
-  const cancelled = useRef(false);
+  const editor = useRef<Editor | null>(null);
 
   const startEditing = () => {
-    setDraft(value ?? '');
-    cancelled.current = false;
+    editor.current = null;
     setEditing(true);
   };
 
-  const commit = () => {
+  const save = () => {
+    const markdown = editor.current?.getMarkdown().trim() ?? (value ?? '').trim();
+    if (markdown.length > MAX_DESCRIPTION_LENGTH) {
+      toast.error(`Descriptions can be up to ${MAX_DESCRIPTION_LENGTH.toLocaleString()} characters.`, {
+        position: 'top-center',
+      });
+      return;
+    }
     setEditing(false);
-    if (cancelled.current) return;
-    if (draft.trim() !== (value ?? '').trim()) onSave(draft);
+    if (markdown !== (value ?? '').trim()) onSave(markdown);
+  };
+
+  const upload = async (file: File) => {
+    const id = toast.loading('Uploading image…', { position: 'top-center' });
+    try {
+      const uploaded = await uploadTaskImage(taskId, file);
+      toast.dismiss(id);
+      return uploaded;
+    } catch (error) {
+      toast.error((error as Error).message, { id, position: 'top-center' });
+      return null;
+    }
   };
 
   return (
@@ -52,30 +69,35 @@ export function TaskDescription({
         Description
       </h3>
       {editing ? (
-        <div className='space-y-1'>
-          <Textarea
-            autoFocus
-            value={draft}
-            maxLength={MAX_DESCRIPTION_LENGTH}
-            aria-label='Description'
-            placeholder='Add more detail. Markdown is supported.'
-            className='min-h-28 max-h-[50vh] text-sm'
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-              if (e.key === 'Escape') {
-                // Keep Escape from also closing the sheet.
-                e.stopPropagation();
-                cancelled.current = true;
-                e.currentTarget.blur();
-              }
-            }}
+        <div
+          className='space-y-2'
+          onKeyDownCapture={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              save();
+            } else if (e.key === 'Escape' && !(e.target as HTMLElement).closest('[data-radix-popper-content-wrapper]')) {
+              // Cancel the edit, and keep Escape from also closing the sheet.
+              e.preventDefault();
+              e.stopPropagation();
+              setEditing(false);
+            }
+          }}>
+          <RichTextEditor
+            initialMarkdown={value ?? ''}
+            placeholder='Add more detail: the brief, links, a checklist, screenshots…'
+            ariaLabel='Description'
+            onUploadImage={upload}
+            onEditor={(e) => (editor.current = e)}
           />
-          <p className='text-xs text-muted-foreground'>⌘/Ctrl + Enter to save · Esc to cancel</p>
+          <div className='flex items-center gap-2'>
+            <Button size='sm' onClick={save}>
+              Save
+            </Button>
+            <Button size='sm' variant='ghost' onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <p className='ml-auto text-xs text-muted-foreground'>⌘/Ctrl + Enter to save · Esc to cancel</p>
+          </div>
         </div>
       ) : value ? (
         <div
@@ -94,18 +116,8 @@ export function TaskDescription({
               startEditing();
             }
           }}>
-          <div className={markdownClassName} data-testid='task-description'>
-            <Markdown
-              rehypePlugins={[rehypeSanitize]}
-              components={{
-                a: ({ href, children }) => (
-                  <a href={href} target='_blank' rel='noopener noreferrer nofollow'>
-                    {children}
-                  </a>
-                ),
-              }}>
-              {value}
-            </Markdown>
+          <div data-testid='task-description'>
+            <Markdown text={value} />
           </div>
         </div>
       ) : (

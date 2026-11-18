@@ -3,7 +3,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { mentionPattern } from '../mentions';
+import { Markdown } from '@/components/markdown';
+import { imageFiles, uploadTaskImage } from '../upload-image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Pencil, Send, Trash2, X } from 'lucide-react';
@@ -36,24 +37,6 @@ function getInitials(name: string) {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join('');
-}
-
-/**
- * Highlights @mentions of real workspace members with the exact rule the
- * server uses to notify them (features/tasks/mentions.ts).
- */
-export function renderBody(body: string, memberNames: string[]) {
-  const pattern = mentionPattern(memberNames);
-  if (!pattern) return body;
-  return body.split(pattern).map((part, i) =>
-    i % 2 === 1 ? (
-      <mark key={i} className='bg-primary/15 text-primary rounded px-0.5 font-medium not-italic'>
-        {part}
-      </mark>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
 }
 
 export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCommentsProps) {
@@ -165,6 +148,33 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
     },
   });
 
+  /** Pasted images are uploaded and inserted as Markdown where the cursor is. */
+  const pasteImages = async (
+    event: React.ClipboardEvent<HTMLTextAreaElement>,
+    current: string,
+    setText: (next: string) => void,
+  ) => {
+    const files = imageFiles(event.clipboardData.files);
+    if (files.length === 0) return;
+    event.preventDefault();
+    const box = event.currentTarget;
+    const at = box.selectionStart ?? current.length;
+    const id = toast.loading('Uploading image…', { position: 'top-center' });
+    const inserted: string[] = [];
+    for (const file of files) {
+      try {
+        const { url, name } = await uploadTaskImage(taskId, file);
+        inserted.push(`![${name.replace(/[[\]]/g, '')}](${url})`);
+      } catch (error) {
+        toast.error((error as Error).message, { id, position: 'top-center' });
+        return;
+      }
+    }
+    toast.dismiss(id);
+    const snippet = inserted.join('\n');
+    setText(`${current.slice(0, at)}${at > 0 && current[at - 1] !== '\n' ? '\n' : ''}${snippet}\n${current.slice(at)}`);
+  };
+
   const post = () => {
     const text = body.trim();
     if (text) addMutation.mutate({ text, pendingId: `pending-${crypto.randomUUID()}` });
@@ -241,6 +251,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     <Textarea
                       value={editBody}
                       onChange={(e) => setEditBody(e.target.value)}
+                      onPaste={(e) => void pasteImages(e, editBody, setEditBody)}
                       className='min-h-[60px] text-sm resize-none'
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -271,7 +282,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     </div>
                   </div>
                 ) : (
-                  <p className='text-sm mt-0.5 break-words'>{renderBody(c.body, memberNames)}</p>
+                  <Markdown text={c.body} mentionNames={memberNames} className='mt-0.5' />
                 )}
               </div>
 
@@ -324,9 +335,10 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
 
         <Textarea
           ref={textareaRef}
-          placeholder='Add a comment… type @ to mention someone'
+          placeholder='Add a comment… type @ to mention someone, paste a screenshot'
           value={body}
           onChange={(e) => handleBodyChange(e.target.value)}
+          onPaste={(e) => void pasteImages(e, body, setBody)}
           onKeyDown={(e) => {
             if (mentionSearch !== null && filteredMembers.length > 0) return;
             if (e.key === 'Enter' && !e.shiftKey) {

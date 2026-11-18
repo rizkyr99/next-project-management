@@ -279,6 +279,7 @@ function TaskDetailBody({
         />
 
         <TaskDescription
+          taskId={task.id}
           value={description}
           onSave={(next) =>
             save('description', next.trim() || null, () =>

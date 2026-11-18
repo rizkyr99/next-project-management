@@ -33,20 +33,22 @@ test('task sheet: description, deep link and delete with undo', async ({ page })
   await expect(page).toHaveURL(/\?task=[0-9a-f-]{36}$/);
   const taskUrl = page.url();
 
-  // Markdown description: saved with Cmd/Ctrl+Enter, rendered sanitized.
+  // Description: edited visually (Markdown shortcuts and autolinks work as
+  // you type), saved with Cmd/Ctrl+Enter, stored as Markdown, rendered sanitized.
   await sheet.getByRole('button', { name: 'Add a description…' }).click();
-  await sheet.getByLabel('Description').fill(
-    '**Ship** the [docs](https://example.com)\n\n<img src=x onerror="window.__xss=1">',
-  );
+  const editor = sheet.getByRole('textbox', { name: 'Description' });
+  await expect(editor).toBeFocused({ timeout: 10000 });
+  await page.keyboard.type('**Ship** the docs https://example.com ');
+  await page.keyboard.type('<img src=x onerror="window.__xss=1">');
   const saved = page.waitForResponse(
     (r) =>
       r.request().headers()['next-action'] !== undefined &&
       (r.request().postData() ?? '').includes('"description"'),
   );
-  await sheet.getByLabel('Description').press('ControlOrMeta+Enter');
+  await page.keyboard.press('ControlOrMeta+Enter');
   const rendered = sheet.getByTestId('task-description');
   await expect(rendered.locator('strong')).toHaveText('Ship');
-  await expect(rendered.getByRole('link', { name: 'docs' })).toHaveAttribute('target', '_blank');
+  await expect(rendered.getByRole('link', { name: 'https://example.com' })).toHaveAttribute('target', '_blank');
   await expect(rendered.locator('img')).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
   expect((await saved).ok()).toBe(true);
