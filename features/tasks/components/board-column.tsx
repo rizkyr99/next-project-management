@@ -10,6 +10,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ColumnHeader, type ColumnInfo } from '@/features/projects/components/column-controls';
 import { cn } from '@/lib/utils';
+import { useCollapsedColumns } from '@/features/projects/collapsed-columns';
+import { statusDotClass } from '@/features/projects/status-colors';
+import { ChevronsRight } from 'lucide-react';
+import { useParams } from 'next/navigation';
 
 /** Column sortable IDs are prefixed so they never collide with task IDs. */
 export const columnDragId = (statusId: string) => `column:${statusId}`;
@@ -52,6 +56,36 @@ export function BoardColumn({
   const { setNodeRef: setDropRef } = useDroppable({ id, data: { type: 'column-drop' } });
 
   const column: ColumnInfo = { id, name: title, color, isDefault, taskCount: tasks.length };
+  const { projectId } = useParams<{ projectId: string }>();
+  const { isCollapsed, setCollapsed } = useCollapsedColumns(projectId);
+
+  // Collapsed: a narrow strip with the name and count. It keeps its place in
+  // the column order, and cards can still be dropped onto it.
+  if (isCollapsed(id)) {
+    return (
+      <div
+        ref={setColumnRef}
+        style={{ transform: CSS.Translate.toString(transform), transition }}
+        data-testid={`column-${title}`}
+        data-collapsed=''
+        className={cn('bg-muted w-10 shrink-0 rounded-lg snap-start', isDragging && 'opacity-50')}>
+        <div ref={setDropRef} className='flex h-full min-h-48 flex-col items-center gap-2 py-2'>
+          <button
+            type='button'
+            className='rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground'
+            aria-label={`Expand column ${title}`}
+            aria-expanded={false}
+            onClick={() => setCollapsed(id, false)}>
+            <ChevronsRight className='size-4' />
+          </button>
+          <span className={cn('size-2 rounded-full', statusDotClass(color))} aria-hidden />
+          <span className='[writing-mode:vertical-rl] text-sm font-medium text-muted-foreground whitespace-nowrap'>
+            {title} <span className='tabular-nums text-muted-foreground/70'>{tasks.length}</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -66,6 +100,7 @@ export function BoardColumn({
         column={column}
         columns={columns.length > 0 ? columns : [column]}
         dragHandleProps={{ ...attributes, ...listeners }}
+        onCollapse={() => setCollapsed(id, true)}
       />
       <SortableContext
         items={tasks.map((t) => t.id)}

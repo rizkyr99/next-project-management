@@ -24,6 +24,7 @@ import { ArrowDown, ArrowRight, ArrowUp, CheckSquare } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { projectHref, taskHref } from '../task-link';
+import { dueGroup, groupByDue } from '../due-groups';
 
 type Priority = 'low' | 'medium' | 'high';
 
@@ -56,7 +57,8 @@ const priorityConfig: Record<
 function formatDate(date: Date | null) {
   if (!date) return null;
   const d = new Date(date);
-  const isOverdue = d < new Date();
+  // Same calendar-day rule as the groups: due earlier today isn't overdue yet.
+  const isOverdue = dueGroup(d) === 'overdue';
   const label = d.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -138,66 +140,76 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
             Change the priority or status filter to see more.
           </EmptyState>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className='hover:bg-transparent'>
-                <TableHead>Task</TableHead>
-                <TableHead className='w-40'>Project</TableHead>
-                <TableHead className='w-36'>Status</TableHead>
-                <TableHead className='w-32'>Priority</TableHead>
-                <TableHead className='w-36'>Due date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((t) => {
-                const priority = priorityConfig[t.priority];
-                const due = formatDate(t.dueDate);
+          <div className='space-y-6'>
+            {groupByDue(filtered).map((group) => (
+              <section key={group.key} aria-labelledby={`due-${group.key}`} data-testid={`due-group-${group.key}`}>
+                <h2
+                  id={`due-${group.key}`}
+                  className={`mb-1 flex items-baseline gap-2 text-sm font-semibold ${group.key === 'overdue' ? 'text-destructive' : ''}`}>
+                  {group.label}
+                  <span className='text-xs font-normal text-muted-foreground tabular-nums'>{group.tasks.length}</span>
+                </h2>
+                <Table>
+                  <TableHeader className='sr-only sm:not-sr-only'>
+                    <TableRow className='hover:bg-transparent'>
+                      <TableHead>Task</TableHead>
+                      <TableHead className='w-40'>Project</TableHead>
+                      <TableHead className='w-36'>Status</TableHead>
+                      <TableHead className='w-32'>Priority</TableHead>
+                      <TableHead className='w-36'>Due date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {group.tasks.map((t) => {
+                      const priority = priorityConfig[t.priority];
+                      const due = formatDate(t.dueDate);
 
-                return (
-                  <TableRow key={t.id}>
-                    <TableCell className='font-medium max-w-xs'>
-                      <Link
-                        href={taskHref(workspaceSlug, t.projectId, t.id)}
-                        className='hover:underline truncate block'>
-                        {t.title}
-                      </Link>
-                    </TableCell>
+                      return (
+                        <TableRow key={t.id}>
+                          <TableCell className='font-medium max-w-xs'>
+                            <Link
+                              href={taskHref(workspaceSlug, t.projectId, t.id)}
+                              className='hover:underline truncate block'>
+                              {t.title}
+                            </Link>
+                          </TableCell>
 
-                    <TableCell>
-                      <Link
-                        href={projectHref(workspaceSlug, t.projectId)}
-                        className='text-sm text-muted-foreground hover:text-foreground truncate block'>
-                        {t.projectName}
-                      </Link>
-                    </TableCell>
+                          <TableCell>
+                            <Link
+                              href={projectHref(workspaceSlug, t.projectId)}
+                              className='text-sm text-muted-foreground hover:text-foreground truncate block'>
+                              {t.projectName}
+                            </Link>
+                          </TableCell>
 
-                    <TableCell>
-                      <span className='text-sm text-muted-foreground'>
-                        {t.statusName}
-                      </span>
-                    </TableCell>
+                          <TableCell>
+                            <span className='text-sm text-muted-foreground'>{t.statusName}</span>
+                          </TableCell>
 
-                    <TableCell>
-                      <Badge variant={priority.variant} className='gap-1 text-xs font-normal'>
-                        {priority.icon}
-                        {priority.label}
-                      </Badge>
-                    </TableCell>
+                          <TableCell>
+                            <Badge variant={priority.variant} className='gap-1 text-xs font-normal'>
+                              {priority.icon}
+                              {priority.label}
+                            </Badge>
+                          </TableCell>
 
-                    <TableCell>
-                      {due ? (
-                        <span className={due.isOverdue ? 'text-destructive text-sm' : 'text-sm text-muted-foreground'}>
-                          {due.label}
-                        </span>
-                      ) : (
-                        <span className='text-sm text-muted-foreground'>—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                          <TableCell>
+                            {due ? (
+                              <span className={due.isOverdue ? 'text-destructive text-sm' : 'text-sm text-muted-foreground'}>
+                                {due.label}
+                              </span>
+                            ) : (
+                              <span className='text-sm text-muted-foreground'>—</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </section>
+            ))}
+          </div>
         )}
       </div>
     </div>

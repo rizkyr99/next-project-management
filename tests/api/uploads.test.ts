@@ -78,6 +78,12 @@ describe('POST /api/uploads', () => {
     expect((await upload(form(big))).status).toBe(413);
   });
 
+  it('answers 400, not 500, to a request without form data', async () => {
+    const res = await upload(new Request('http://t/api/uploads', { method: 'POST' }));
+    expect(res.status).toBe(400);
+    expect(requireTaskAccess).not.toHaveBeenCalled();
+  });
+
   it('says so when uploads are not set up', async () => {
     storage.storageAvailable.mockReturnValue(false);
     const res = await upload(form(PNG));

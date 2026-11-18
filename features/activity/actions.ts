@@ -16,7 +16,12 @@ const PAGE_SIZE = 30;
 const workspaceActivitySchema = z.object({
   workspaceId: z.uuid(),
   cursor: z.iso.datetime().optional(),
+  projectId: z.uuid().optional(),
+  // Better Auth user IDs aren't UUIDs.
+  actorId: z.string().min(1).max(64).optional(),
 });
+
+export type ActivityFilters = { projectId?: string; actorId?: string };
 
 const actorColumns = {
   id: userTable.id,
@@ -33,9 +38,9 @@ function isDenied(error: unknown) {
   return error instanceof AuthzError || error instanceof z.ZodError;
 }
 
-export async function getWorkspaceActivity(workspaceId: string, cursor?: string) {
+export async function getWorkspaceActivity(workspaceId: string, cursor?: string, filters: ActivityFilters = {}) {
   try {
-    const input = workspaceActivitySchema.parse({ workspaceId, cursor });
+    const input = workspaceActivitySchema.parse({ workspaceId, cursor, ...filters });
     const ctx = await requireWorkspaceMember(input.workspaceId);
 
     const rows = await db
@@ -51,12 +56,14 @@ export async function getWorkspaceActivity(workspaceId: string, cursor?: string)
       .from(activityLog)
       .innerJoin(userTable, eq(activityLog.actorId, userTable.id))
       .where(
-        input.cursor
-          ? and(
-              eq(activityLog.workspaceId, ctx.workspace.id),
-              lt(activityLog.createdAt, new Date(input.cursor)),
-            )
-          : eq(activityLog.workspaceId, ctx.workspace.id),
+        // Always within this workspace: a project or person from elsewhere
+        // simply matches nothing.
+        and(
+          eq(activityLog.workspaceId, ctx.workspace.id),
+          input.cursor ? lt(activityLog.createdAt, new Date(input.cursor)) : undefined,
+          input.projectId ? eq(activityLog.projectId, input.projectId) : undefined,
+          input.actorId ? eq(activityLog.actorId, input.actorId) : undefined,
+        ),
       )
       .orderBy(desc(activityLog.createdAt))
       .limit(PAGE_SIZE + 1);

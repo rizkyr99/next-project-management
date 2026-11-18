@@ -5,7 +5,8 @@ import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { TaskActivity } from '@/features/activity/components/task-activity';
 import { Trash2 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { forgetRecent, rememberRecent } from '@/features/search/recent';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -21,6 +22,7 @@ import { closeTask, TASK_PARAM } from '../../task-link';
 import { TaskComments } from '../task-comments';
 import type { Person, Priority, TaskData } from '../task-meta';
 import { deleteTaskWithUndo } from './delete-task';
+import { CopyTaskLink } from './copy-task-link';
 import { TaskDescription } from './task-description';
 import { TaskProperties } from './task-properties';
 
@@ -28,6 +30,8 @@ type SheetTask = TaskData & { statusId: string };
 
 interface TaskDetailSheetProps {
   projectId: string;
+  /** Shown under the task in ⌘K's recent items. */
+  projectName: string;
   statuses: { id: string; name: string; tasks: SheetTask[] }[];
   members: Person[];
   currentUserId: string;
@@ -38,8 +42,9 @@ interface TaskDetailSheetProps {
  * task from the page's server data, so any refresh (our own revalidation or
  * another member's change) shows here too.
  */
-export function TaskDetailSheet({ projectId, statuses, members, currentUserId }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ projectId, projectName, statuses, members, currentUserId }: TaskDetailSheetProps) {
   const taskId = useSearchParams().get(TASK_PARAM);
+  const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const hidden = usePendingDeletes();
 
   const task = useMemo(() => {
@@ -50,6 +55,11 @@ export function TaskDetailSheet({ projectId, statuses, members, currentUserId }:
     }
     return null;
   }, [statuses, taskId, hidden]);
+
+  // Opened tasks are listed in ⌘K before typing.
+  useEffect(() => {
+    if (task) rememberRecent(workspaceSlug, { type: 'task', id: task.id, title: task.title, projectId, projectName });
+  }, [task, workspaceSlug, projectId, projectName]);
 
   // A task id we can't find. It may be brand new (its card shows from the
   // board's local update before the page data catches up), so refresh once
@@ -74,8 +84,9 @@ export function TaskDetailSheet({ projectId, statuses, members, currentUserId }:
     if (isRefreshing || statuses === statusesAtRefresh.current) return;
     reported.current = taskId;
     toast.error('That task no longer exists.', { position: 'top-center' });
+    forgetRecent(workspaceSlug, { type: 'task', id: taskId });
     closeTask();
-  }, [taskId, task, hidden, isRefreshing, router, statuses]);
+  }, [taskId, task, hidden, isRefreshing, router, statuses, workspaceSlug]);
 
   const statusOptions = useMemo(() => statuses.map((s) => ({ id: s.id, name: s.name })), [statuses]);
 
@@ -223,7 +234,8 @@ function TaskDetailBody({
 
   return (
     <>
-      <SheetHeader className='pr-12 pb-2'>
+      <SheetHeader className='pr-12 pb-2 flex-row items-start gap-1 space-y-0'>
+        <div className='min-w-0 flex-1'>
         {editingTitle ? (
           <input
             autoFocus
@@ -260,6 +272,8 @@ function TaskDetailBody({
             </button>
           </SheetTitle>
         )}
+        </div>
+        <CopyTaskLink taskId={task.id} />
       </SheetHeader>
 
       <div className='space-y-5 px-4 pb-6'>
