@@ -15,6 +15,8 @@ export interface TaskFilters {
   assignee: string | null;
   priority: Priority | null;
   due: DueFilter | null;
+  /** A label id. */
+  label: string | null;
   q: string;
 }
 
@@ -24,11 +26,12 @@ export interface FilterableTask {
   priority: Priority;
   dueDate?: Date | null;
   assignees: { user: { id: string } }[];
+  labels?: { label: { id: string } }[];
 }
 
 const DUES: DueFilter[] = ['overdue', 'week', 'none'];
 
-export const FILTER_PARAMS = ['assignee', 'priority', 'due', 'q'] as const;
+export const FILTER_PARAMS = ['assignee', 'priority', 'due', 'label', 'q'] as const;
 
 export function parseFilters(params: Pick<URLSearchParams, 'get'>): TaskFilters {
   const priority = params.get('priority');
@@ -37,12 +40,13 @@ export function parseFilters(params: Pick<URLSearchParams, 'get'>): TaskFilters 
     assignee: params.get('assignee')?.trim() || null,
     priority: (PRIORITIES as readonly string[]).includes(priority ?? '') ? (priority as Priority) : null,
     due: DUES.includes(due as DueFilter) ? (due as DueFilter) : null,
+    label: params.get('label')?.trim() || null,
     q: (params.get('q') ?? '').trim().slice(0, 200),
   };
 }
 
 export function filtersActive(f: TaskFilters) {
-  return Boolean(f.assignee || f.priority || f.due || f.q);
+  return Boolean(f.assignee || f.priority || f.due || f.label || f.q);
 }
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -53,6 +57,7 @@ export function matchesFilters(
   ctx: { currentUserId: string; now?: Date },
 ): boolean {
   if (f.priority && task.priority !== f.priority) return false;
+  if (f.label && !(task.labels ?? []).some((l) => l.label.id === f.label)) return false;
 
   if (f.assignee) {
     const ids = task.assignees.map((a) => a.user.id);

@@ -20,7 +20,7 @@ export async function projectSnapshot(projectId: string): Promise<string> {
     select md5(
       coalesce((
         select string_agg(
-          concat_ws('|', t.id, t.status_id, t."order", t.title, t.priority, t.due_date,
+          concat_ws('|', t.id, t.status_id, t."order", t.title, t.priority, t.due_date, t.due_has_time,
                     md5(coalesce(t.description, '')), t.updated_at),
           ',' order by t.id)
         from task t where t.project_id = ${projectId}
@@ -37,6 +37,11 @@ export async function projectSnapshot(projectId: string): Promise<string> {
       || '#' || coalesce((
         select string_agg(concat_ws('|', c.id, md5(c.body), c.updated_at), ',' order by c.id)
         from comment c join task t on t.id = c.task_id
+        where t.project_id = ${projectId}
+      ), '')
+      || '#' || coalesce((
+        select string_agg(concat_ws('|', tl.task_id, l.id, l.name, l.color), ',' order by tl.task_id, l.id)
+        from task_label tl join task t on t.id = tl.task_id join label l on l.id = tl.label_id
         where t.project_id = ${projectId}
       ), '')
       || '#' || coalesce((select name || '|' || coalesce(description, '') from project where id = ${projectId}), '')

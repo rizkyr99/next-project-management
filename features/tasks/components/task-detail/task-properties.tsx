@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarIcon, Target, Users, X } from 'lucide-react';
+import { CalendarIcon, Tag, Target, Users, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { PersonAvatar, type Person } from '../task-meta';
 import { PRIORITIES, priorityConfig, type Priority } from '../../priority';
@@ -32,6 +32,7 @@ export function TaskProperties({
   onPriorityChange,
   onDueChange,
   onToggleAssignee,
+  labelsField,
 }: {
   statusId: string;
   statuses: { id: string; name: string }[];
@@ -43,6 +44,8 @@ export function TaskProperties({
   onPriorityChange: (priority: Priority) => void;
   onDueChange: (due: { date: Date | null; hasTime: boolean }) => void;
   onToggleAssignee: (userId: string) => void;
+  /** The label picker, built by the sheet. */
+  labelsField?: ReactNode;
 }) {
   return (
     <div className='space-y-3'>
@@ -78,6 +81,12 @@ export function TaskProperties({
           </SelectContent>
         </Select>
       </Row>
+
+      {labelsField && (
+        <Row icon={<Tag className='size-4' />} label='Labels' top>
+          {labelsField}
+        </Row>
+      )}
 
       <Row icon={<CalendarIcon className='size-4' />} label='Due date'>
         <DatePicker value={due} onChange={onDueChange} />

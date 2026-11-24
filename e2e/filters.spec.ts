@@ -88,7 +88,7 @@ test('filter the board and list by assignee, priority, due date and text; sort t
   await page.getByRole('button', { name: /^Sort by Task/ }).click();
   await expect(page).toHaveURL(/sort=title/);
   const listTitles = () =>
-    page.locator('button.text-left.hover\\:underline').evaluateAll((els) => els.map((e) => e.textContent?.trim()));
+    page.getByTestId('list-task-title').evaluateAll((els) => els.map((e) => e.textContent?.trim()));
   await expect
     .poll(listTitles)
     .toEqual(['Archive old tickets', 'Fix login bug', 'Plan offsite', 'Update pricing page', 'Write release notes']);

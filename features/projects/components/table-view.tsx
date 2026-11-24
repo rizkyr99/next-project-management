@@ -2,6 +2,7 @@
 
 import { priorityConfig, type Priority } from '@/features/tasks/priority';
 import { formatDue, isOverdue } from '@/features/tasks/due';
+import { LabelChips } from '@/features/labels/components/label-chip';
 
 import {
   AlertDialog,
@@ -70,6 +71,7 @@ interface TableViewProps {
         priority: Priority;
         dueDate: Date | null;
         dueHasTime?: boolean;
+        labels?: { label: { id: string; name: string; color: string | null } }[];
         assignees: {
           user: {
             id: string;
@@ -321,6 +323,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                       className='truncate block max-w-full text-left hover:underline'>
                       {task.title}
                     </button>
+                    <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={2} />
                   </TableCell>
 
                   <TableCell>
