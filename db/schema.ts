@@ -308,6 +308,56 @@ export const attachment = pgTable(
   ],
 );
 
+/**
+ * Labels belong to a workspace, so "Design" or "Client feedback" mean the
+ * same across every project. Colours are column colour keys
+ * (features/projects/status-colors.ts).
+ */
+export const label = pgTable(
+  'label',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 40 }).notNull(),
+    color: varchar('color', { length: 20 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    // One "Design" per workspace, whatever the capitalisation.
+    uniqueIndex('label_workspace_name_unique').on(table.workspaceId, sql`lower(${table.name})`),
+  ],
+);
+
+export const taskLabel = pgTable(
+  'task_label',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id, { onDelete: 'cascade' }),
+    labelId: text('label_id')
+      .notNull()
+      .references(() => label.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.labelId] }),
+    index('task_label_labelId_idx').on(table.labelId),
+  ],
+);
+
+export const labelRelations = relations(label, ({ one, many }) => ({
+  workspace: one(workspace, { fields: [label.workspaceId], references: [workspace.id] }),
+  tasks: many(taskLabel),
+}));
+
+export const taskLabelRelations = relations(taskLabel, ({ one }) => ({
+  task: one(task, { fields: [taskLabel.taskId], references: [task.id] }),
+  label: one(label, { fields: [taskLabel.labelId], references: [label.id] }),
+}));
+
 export const taskAssignee = pgTable(
   'task_assignee',
   {
@@ -377,6 +427,7 @@ export const taskRelations = relations(task, ({ one, many }) => ({
   }),
   assignees: many(taskAssignee),
   comments: many(comment),
+  labels: many(taskLabel),
 }));
 
 export const taskAssigneeRelations = relations(taskAssignee, ({ one }) => ({

@@ -5,9 +5,10 @@ import { PendingInvitesList } from '@/features/workspaces/components/pending-inv
 import { DeleteWorkspaceButton } from '@/features/workspaces/components/delete-workspace-button';
 import { LeaveWorkspaceButton } from '@/features/workspaces/components/leave-workspace-button';
 import { db } from '@/db/drizzle';
-import { member, user, workspace, workspaceInvite } from '@/db/schema';
+import { label, member, taskLabel, user, workspace, workspaceInvite } from '@/db/schema';
+import { LabelManager } from '@/features/labels/components/label-manager';
 import { auth } from '@/lib/auth';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
@@ -82,6 +83,15 @@ export default async function WorkspaceSettingsPage({
     .where(eq(member.workspaceId, membership.workspaceId))
     .orderBy(desc(member.createdAt));
 
+  // Labels with how many tasks use each, for the Labels tab.
+  const labels = await db
+    .select({ id: label.id, name: label.name, color: label.color, taskCount: count(taskLabel.taskId) })
+    .from(label)
+    .leftJoin(taskLabel, eq(taskLabel.labelId, label.id))
+    .where(eq(label.workspaceId, membership.workspaceId))
+    .groupBy(label.id)
+    .orderBy(asc(label.name));
+
   const pendingInvites = await db
     .select({
       id: workspaceInvite.id,
@@ -123,6 +133,7 @@ export default async function WorkspaceSettingsPage({
                 {members.length}
               </span>
             </TabsTrigger>
+            <TabsTrigger value='labels'>Labels</TabsTrigger>
             <TabsTrigger value='danger' className='text-red-700 data-[state=active]:text-red-700 dark:text-red-400 dark:data-[state=active]:text-red-400'>
               Danger zone
             </TabsTrigger>
@@ -192,6 +203,22 @@ export default async function WorkspaceSettingsPage({
                   <span className='text-muted-foreground'>Total members</span>
                   <span>{members.length}</span>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Labels ──────────────────────────────────── */}
+          <TabsContent value='labels' className='mt-6 space-y-6'>
+            <Card>
+              <CardHeader>
+                <CardTitle>Labels</CardTitle>
+                <CardDescription>
+                  Shared by every project in this workspace. Anyone can rename or recolour a label
+                  {canManage ? '; owners and admins can delete one.' : '.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <LabelManager labels={labels} canDelete={canManage} />
               </CardContent>
             </Card>
           </TabsContent>

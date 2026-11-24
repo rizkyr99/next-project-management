@@ -71,6 +71,13 @@
       "when": 1794993600625,
       "tag": "0009_priorities_reactions_favorites",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795534344249,
+      "tag": "0010_labels",
+      "breakpoints": true
     }
   ]
 }
