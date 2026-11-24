@@ -1,4 +1,5 @@
 import z from 'zod';
+import { PRIORITIES } from './priority';
 
 export const MAX_DESCRIPTION_LENGTH = 10_000;
 
@@ -72,12 +73,14 @@ export const deleteTaskSchema = z.object({ taskId: z.uuid() });
 
 export const updateTaskPrioritySchema = z.object({
   taskId: z.uuid(),
-  priority: z.enum(['low', 'medium', 'high']),
+  priority: z.enum(PRIORITIES),
 });
 
 export const updateTaskDueDateSchema = z.object({
   taskId: z.uuid(),
   dueDate: z.date().nullable(),
+  /** Due at that time (true), or just on that day (false). */
+  hasTime: z.boolean().default(false),
 });
 
 export const updateTaskAssigneesSchema = z.object({

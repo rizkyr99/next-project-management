@@ -10,7 +10,9 @@ import { formatDistanceToNow } from 'date-fns';
 import { Pencil, Send, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { addComment, deleteComment, getComments, updateComment } from '../actions';
+import { addComment, deleteComment, getComments, toggleReaction, updateComment } from '../actions';
+import { CommentReactions } from './comment-reactions';
+import type { Reaction, ReactionSummary } from '../reaction-kinds';
 
 type CommentAuthor = { id: string; name: string; image: string | null };
 
@@ -20,6 +22,7 @@ type Comment = {
   createdAt: Date;
   updatedAt: Date | null;
   author: CommentAuthor;
+  reactions?: ReactionSummary[];
   /** Client-only: posted, still saving. */
   pending?: boolean;
 };
@@ -144,6 +147,47 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
       if ('error' in res) failed(res.error ?? 'Something went wrong. Please try again.', ctx.previous);
     },
     onError: (_err, _id, ctx) => {
+      if (ctx) failed(NETWORK_ERROR, ctx.previous);
+    },
+  });
+
+  // Reactions toggle at once and roll back if the server refuses.
+  const reactMutation = useMutation({
+    mutationFn: ({ commentId, reaction }: { commentId: string; reaction: Reaction }) =>
+      toggleReaction(commentId, reaction),
+    onMutate: async ({ commentId, reaction }) => {
+      const previous = await snapshot();
+      const myName = me?.name ?? 'You';
+      setComments((prev) =>
+        prev.map((c) => {
+          if (c.id !== commentId) return c;
+          const list = c.reactions ?? [];
+          const existing = list.find((r) => r.reaction === reaction);
+          let next: ReactionSummary[];
+          if (existing?.mine) {
+            next = list
+              .map((r) =>
+                r.reaction === reaction
+                  ? { ...r, count: r.count - 1, mine: false, names: r.names.filter((n) => n !== myName) }
+                  : r,
+              )
+              .filter((r) => r.count > 0);
+          } else if (existing) {
+            next = list.map((r) =>
+              r.reaction === reaction ? { ...r, count: r.count + 1, mine: true, names: [...r.names, myName] } : r,
+            );
+          } else {
+            next = [...list, { reaction, count: 1, mine: true, names: [myName] }];
+          }
+          return { ...c, reactions: next };
+        }),
+      );
+      return { previous };
+    },
+    onSuccess: (res, _vars, ctx) => {
+      if ('error' in res) failed(res.error ?? 'Could not update the reaction.', ctx.previous);
+    },
+    onError: (_err, _vars, ctx) => {
       if (ctx) failed(NETWORK_ERROR, ctx.previous);
     },
   });
@@ -282,7 +326,15 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                     </div>
                   </div>
                 ) : (
-                  <Markdown text={c.body} mentionNames={memberNames} className='mt-0.5' />
+                  <>
+                    <Markdown text={c.body} mentionNames={memberNames} className='mt-0.5' />
+                    {!c.pending && (
+                      <CommentReactions
+                        reactions={c.reactions ?? []}
+                        onToggle={(reaction) => reactMutation.mutate({ commentId: c.id, reaction })}
+                      />
+                    )}
+                  </>
                 )}
               </div>
 

@@ -1,5 +1,8 @@
 'use client';
 
+import { priorityConfig, type Priority } from '@/features/tasks/priority';
+import { formatDue, isOverdue } from '@/features/tasks/due';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,9 +42,6 @@ import {
 import { bulkDeleteTasks, bulkUpdateStatus } from '@/features/tasks/actions';
 import { TaskStatusSelect } from '@/features/tasks/components/task-status-select';
 import {
-  ArrowDown,
-  ArrowRight,
-  ArrowUp,
   MoreHorizontal,
   Trash2,
 } from 'lucide-react';
@@ -55,7 +55,6 @@ import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { ariaSort, SortButton } from '@/features/tasks/components/sort-button';
 import { ListTodo } from 'lucide-react';
 
-type Priority = 'low' | 'medium' | 'high';
 
 interface TableViewProps {
   currentUserId?: string;
@@ -70,6 +69,7 @@ interface TableViewProps {
         title: string;
         priority: Priority;
         dueDate: Date | null;
+        dueHasTime?: boolean;
         assignees: {
           user: {
             id: string;
@@ -83,27 +83,6 @@ interface TableViewProps {
   };
 }
 
-const priorityConfig: Record<
-  Priority,
-  { label: string; icon: React.ReactNode; variant: 'default' | 'secondary' | 'outline' | 'destructive' }
-> = {
-  high: {
-    label: 'High',
-    icon: <ArrowUp className='size-3' />,
-    variant: 'destructive',
-  },
-  medium: {
-    label: 'Medium',
-    icon: <ArrowRight className='size-3' />,
-    variant: 'secondary',
-  },
-  low: {
-    label: 'Low',
-    icon: <ArrowDown className='size-3' />,
-    variant: 'outline',
-  },
-};
-
 function getInitials(name: string) {
   return name
     .split(' ')
@@ -113,17 +92,9 @@ function getInitials(name: string) {
     .join('');
 }
 
-function formatDate(date: Date | null) {
+function formatDate(date: Date | null, hasTime = false) {
   if (!date) return null;
-  const d = new Date(date);
-  const now = new Date();
-  const isOverdue = d < now;
-  const label = d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
-  });
-  return { label, isOverdue };
+  return { label: formatDue(date, hasTime), isOverdue: isOverdue(date, hasTime) };
 }
 
 export function TableView({ project, currentUserId = '' }: Readonly<TableViewProps>) {
@@ -331,7 +302,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
           <TableBody>
             {visible.map((task) => {
               const priority = priorityConfig[task.priority];
-              const due = formatDate(task.dueDate);
+              const due = formatDate(task.dueDate, task.dueHasTime);
 
               return (
                 <TableRow key={task.id} data-state={selectedIds.has(task.id) ? 'selected' : undefined}>

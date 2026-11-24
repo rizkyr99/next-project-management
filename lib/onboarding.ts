@@ -1,3 +1,4 @@
+import type { Priority } from '@/features/tasks/priority';
 import { db } from '@/db/drizzle';
 import { project, task, taskStatus } from '@/db/schema';
 
@@ -22,7 +23,7 @@ export function gettingStartedQueries(workspaceId: string, now = new Date()) {
     title: string;
     description: string;
     statusId: string;
-    priority: 'low' | 'medium' | 'high';
+    priority: Priority;
     dueDate?: Date;
   }[] = [
     {

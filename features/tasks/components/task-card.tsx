@@ -7,7 +7,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { AlignLeft, MessageSquare } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { openTask } from '../task-link';
-import { formatShortDate, PersonAvatar, priorityConfig, type TaskData } from './task-meta';
+import { PersonAvatar, priorityConfig, type TaskData } from './task-meta';
+import { formatDue, isOverdue } from '../due';
 
 interface TaskCardProps {
   task: TaskData;
@@ -20,20 +21,22 @@ interface TaskCardProps {
 export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
   const p = priorityConfig[task.priority];
   const dueDate = task.dueDate ?? null;
-  const isOverdue = dueDate !== null && dueDate < new Date();
+  const overdue = isOverdue(dueDate, task.dueHasTime);
   const assignees = task.assignees.map((a) => a.user);
 
   return (
     <>
       <div className='text-sm font-medium leading-snug'>{task.title}</div>
       <div className='flex items-center gap-1.5 flex-wrap'>
-        <Badge variant={p.variant} className='gap-1 text-xs font-normal px-1.5 py-0'>
-          {p.icon}
-          {p.label}
-        </Badge>
+        {task.priority !== 'none' && (
+          <Badge variant={p.variant} className='gap-1 text-xs font-normal px-1.5 py-0'>
+            {p.icon}
+            {p.label}
+          </Badge>
+        )}
         {dueDate && (
-          <span className={cn('text-xs', isOverdue ? 'text-destructive' : 'text-muted-foreground')}>
-            {formatShortDate(dueDate)}
+          <span className={cn('text-xs', overdue ? 'text-destructive' : 'text-muted-foreground')}>
+            {formatDue(dueDate, task.dueHasTime)}
           </span>
         )}
         <div className='flex items-center gap-2 ml-auto text-muted-foreground'>

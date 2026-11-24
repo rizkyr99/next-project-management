@@ -40,6 +40,8 @@ export const LIMITS = {
   taskCreate: { limit: 120, windowMs: 60_000 },
   /** Assignee changes, per user (each can email the people assigned). */
   assignees: { limit: 60, windowMs: 60_000 },
+  /** Reactions added or removed, per user. */
+  reactions: { limit: 120, windowMs: 60_000 },
   /** Files uploaded (pasted screenshots), per user. */
   uploads: { limit: 30, windowMs: 60_000 },
   /** Account deletion attempts (password checks), per user. */
