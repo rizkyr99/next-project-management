@@ -1,5 +1,7 @@
 'use client';
 
+import { useReadOnly } from '@/features/projects/read-only';
+
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -72,6 +74,7 @@ export function ColumnHeader({
   /** Fold the column into a narrow strip (a display preference). */
   onCollapse?: () => void;
 }) {
+  const readOnly = useReadOnly();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(column.name);
   const [deleting, setDeleting] = useState(false);
@@ -130,13 +133,15 @@ export function ColumnHeader({
 
   return (
     <div className='group/column-header flex items-center gap-1.5 min-h-8'>
-      <button
-        type='button'
-        className='-ml-1 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-grab active:cursor-grabbing focus-visible:outline-2 touch-none'
-        aria-label={`Reorder column ${shown.name}`}
-        {...dragHandleProps}>
-        <GripVertical className='size-3.5' />
-      </button>
+      {!readOnly && (
+        <button
+          type='button'
+          className='-ml-1 rounded p-0.5 text-muted-foreground/60 hover:text-foreground cursor-grab active:cursor-grabbing focus-visible:outline-2 touch-none'
+          aria-label={`Reorder column ${shown.name}`}
+          {...dragHandleProps}>
+          <GripVertical className='size-3.5' />
+        </button>
+      )}
       <span className={cn('size-2 rounded-full shrink-0', statusDotClass(shown.color))} aria-hidden />
       {editing ? (
         <Input
@@ -158,9 +163,9 @@ export function ColumnHeader({
       ) : (
         <button
           type='button'
-          onDoubleClick={startRename}
+          onDoubleClick={readOnly ? undefined : startRename}
           className='min-w-0 truncate text-left text-sm font-medium uppercase text-muted-foreground'
-          title='Double-click to rename'>
+          title={readOnly ? undefined : 'Double-click to rename'}>
           {shown.name}
         </button>
       )}
@@ -189,6 +194,8 @@ export function ColumnHeader({
                 Collapse column
               </DropdownMenuItem>
             )}
+            {!readOnly && (
+              <>
             <DropdownMenuItem onSelect={startRename}>
               <Pencil />
               Rename
@@ -225,6 +232,8 @@ export function ColumnHeader({
               <Trash2 />
               Delete column
             </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

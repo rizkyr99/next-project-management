@@ -82,7 +82,7 @@ export async function getWorkspaceActivity(workspaceId: string, cursor?: string,
 
 export async function getTaskActivity(taskId: string) {
   try {
-    const ctx = await requireTaskAccess(z.uuid().parse(taskId));
+    const ctx = await requireTaskAccess(z.uuid().parse(taskId), { allowGuests: true });
 
     const rows = await db
       .select({

@@ -1,5 +1,7 @@
 'use client';
 
+import { useReadOnly } from '@/features/projects/read-only';
+
 import { reorderTasks } from '@/features/tasks/actions';
 import { reorderStatuses } from '@/features/projects/status-actions';
 import { AddColumn, type ColumnInfo } from '@/features/projects/components/column-controls';
@@ -170,6 +172,7 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
     .flatMap((s) => s.tasks)
     .find((t) => t.id === activeId);
 
+  const readOnly = useReadOnly();
   const sensors = useSensors(
     // Mouse: drag after moving 5px. Touch: press and hold 250ms first, so a
     // swipe across the board scrolls instead of picking up a card (P4.6).
@@ -400,7 +403,7 @@ export function BoardView({ project, commentCountMap = {}, currentUserId = '' }:
           />
         ))}
         </SortableContext>
-        <AddColumn projectId={project!.id} columnCount={statuses.length} />
+        {!readOnly && <AddColumn projectId={project!.id} columnCount={statuses.length} />}
       </div>
       <DragOverlay>
         {activeColumnId ? (

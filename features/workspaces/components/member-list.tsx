@@ -10,18 +10,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Crown, MoreHorizontal, ShieldCheck, User, UserMinus } from 'lucide-react';
+import { Crown, FolderKanban, MoreHorizontal, ShieldCheck, User, UserMinus } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { changeMemberRole, removeMember } from '../actions';
+import { GuestProjectsDialog } from './guest-projects-dialog';
 import { TransferOwnershipDialog } from './transfer-ownership-dialog';
+
+type Role = 'owner' | 'admin' | 'member' | 'guest';
 
 interface WorkspaceMember {
   id: string;
   name: string | null;
   email: string;
-  role: 'owner' | 'admin' | 'member';
+  role: Role;
   createdAt: Date;
+  /** Guests: the projects shared with them. */
+  projects?: { id: string; name: string }[];
 }
 
 interface MemberListProps {
@@ -30,13 +35,16 @@ interface MemberListProps {
   workspaceName: string;
   workspaceSlug: string;
   currentUserId: string;
-  currentUserRole: 'owner' | 'admin' | 'member';
+  currentUserRole: Role;
+  /** Active projects, offered when changing a guest's projects. */
+  projects?: { id: string; name: string }[];
 }
 
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   owner: 'default',
   admin: 'secondary',
   member: 'outline',
+  guest: 'outline',
 };
 
 export function MemberList({
@@ -46,9 +54,11 @@ export function MemberList({
   workspaceSlug,
   currentUserId,
   currentUserRole,
+  projects = [],
 }: MemberListProps) {
   const canManage = currentUserRole === 'owner' || currentUserRole === 'admin';
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
+  const [guestTarget, setGuestTarget] = useState<WorkspaceMember | null>(null);
 
   const handleRemove = async (memberId: string, name: string | null) => {
     const result = await removeMember(workspaceSlug, memberId);
@@ -105,12 +115,17 @@ export function MemberList({
                 <div className='truncate text-xs text-muted-foreground'>
                   {m.email}
                 </div>
+                {m.role === 'guest' && (
+                  <div className='truncate text-xs text-muted-foreground'>
+                    Sees: {m.projects?.length ? m.projects.map((p) => p.name).join(', ') : 'no projects'}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className='flex shrink-0 items-center gap-2'>
-              <Badge variant={roleBadgeVariant[m.role]}>
-                {m.role.charAt(0).toUpperCase() + m.role.slice(1)}
+              <Badge variant={roleBadgeVariant[m.role]} className={m.role === 'guest' ? 'border-dashed' : undefined}>
+                {m.role === 'guest' ? 'Guest' : m.role.charAt(0).toUpperCase() + m.role.slice(1)}
               </Badge>
 
               {canActOnMember && (
@@ -125,7 +140,16 @@ export function MemberList({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align='end'>
-                    {currentUserRole === 'owner' && (
+                    {m.role === 'guest' && (
+                      <>
+                        <DropdownMenuItem onClick={() => setGuestTarget(m)}>
+                          <FolderKanban className='mr-2 h-4 w-4' />
+                          Change projects
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    {currentUserRole === 'owner' && m.role !== 'guest' && (
                       <>
                         {m.role !== 'admin' && (
                           <DropdownMenuItem
@@ -173,6 +197,13 @@ export function MemberList({
       target={transferTarget}
       open={transferTarget !== null}
       onOpenChange={(open) => !open && setTransferTarget(null)}
+    />
+    <GuestProjectsDialog
+      workspaceId={workspaceId}
+      guest={guestTarget}
+      projects={projects}
+      open={guestTarget !== null}
+      onOpenChange={(open) => !open && setGuestTarget(null)}
     />
     </>
   );

@@ -92,6 +92,13 @@
       "when": 1795581196923,
       "tag": "0012_project_details_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795582887908,
+      "tag": "0013_client_guests",
+      "breakpoints": true
     }
   ]
 }

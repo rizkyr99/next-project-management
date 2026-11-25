@@ -8,6 +8,7 @@ const inviteFields = {
   id: workspaceInvite.id,
   email: workspaceInvite.email,
   role: workspaceInvite.role,
+  projectIds: workspaceInvite.projectIds,
   status: workspaceInvite.status,
   expiresAt: workspaceInvite.expiresAt,
   workspaceId: workspace.id,
@@ -19,7 +20,9 @@ const inviteFields = {
 export type InviteRow = {
   id: string;
   email: string;
-  role: 'owner' | 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member' | 'guest';
+  /** Guest invites: the projects shared on accepting. */
+  projectIds: string[] | null;
   status: 'pending' | 'accepted' | 'revoked' | 'expired' | 'declined';
   expiresAt: Date;
   workspaceId: string;

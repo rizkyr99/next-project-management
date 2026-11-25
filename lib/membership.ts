@@ -1,5 +1,5 @@
 import { db } from '@/db/drizzle';
-import { member, project, task, taskAssignee, workspace } from '@/db/schema';
+import { member, project, projectGuest, task, taskAssignee, workspace } from '@/db/schema';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 /*
@@ -37,6 +37,25 @@ export function unassignFromWorkspaceTasks(userId: string, workspaceId: string) 
       and(
         eq(taskAssignee.userId, userId),
         inArray(taskAssignee.taskId, workspaceTaskIds),
+        sql`not exists (select 1 from ${member} where ${member.workspaceId} = ${workspaceId} and ${member.userId} = ${userId})`,
+      ),
+    );
+}
+
+/**
+ * Drops a former member's guest access to this workspace's projects. Like
+ * `unassignFromWorkspaceTasks`, it's batched after the membership delete and
+ * only acts once they're no longer a member, so re-inviting a guest later
+ * starts from exactly the projects in the new invite.
+ */
+export function revokeGuestProjects(userId: string, workspaceId: string) {
+  const workspaceProjectIds = db.select({ id: project.id }).from(project).where(eq(project.workspaceId, workspaceId));
+  return db
+    .delete(projectGuest)
+    .where(
+      and(
+        eq(projectGuest.userId, userId),
+        inArray(projectGuest.projectId, workspaceProjectIds),
         sql`not exists (select 1 from ${member} where ${member.workspaceId} = ${workspaceId} and ${member.userId} = ${userId})`,
       ),
     );

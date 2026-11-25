@@ -3,6 +3,7 @@ import {
   activityLog,
   member,
   project,
+  projectGuest,
   task,
   taskStatus,
   user,
@@ -46,6 +47,9 @@ export default async function WorkspaceHomePage({
     session.user.id,
   );
   if (!currentWorkspace) redirect('/create-workspace');
+  if (currentWorkspace.role === 'guest') {
+    return <GuestHome workspace={currentWorkspace} userId={session.user.id} userName={session.user.name} />;
+  }
 
   const [projects, taskCountsRaw, members] = await Promise.all([
     db
@@ -260,6 +264,71 @@ export default async function WorkspaceHomePage({
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A client's home: the projects this studio shared with them, and nothing
+ * about the team or the rest of the workspace.
+ */
+async function GuestHome({
+  workspace,
+  userId,
+  userName,
+}: Readonly<{ workspace: { id: string; name: string; slug: string }; userId: string; userName: string | null }>) {
+  const shared = await db
+    .select({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      clientName: project.clientName,
+      deadline: project.deadline,
+      status: project.status,
+    })
+    .from(projectGuest)
+    .innerJoin(project, eq(project.id, projectGuest.projectId))
+    .where(and(eq(projectGuest.userId, userId), eq(project.workspaceId, workspace.id), isNull(project.archivedAt)))
+    .orderBy(project.name);
+  const firstName = userName?.split(' ')[0] ?? 'there';
+
+  return (
+    <div className='flex-1 p-6 md:p-8 space-y-8 max-w-5xl'>
+      <div>
+        <h1 className='text-2xl font-semibold'>Welcome, {firstName}</h1>
+        <p className='text-sm text-muted-foreground mt-1'>
+          Projects <span className='font-medium text-foreground'>{workspace.name}</span> shared with you. Open one to
+          follow progress and leave comments.
+        </p>
+      </div>
+      {shared.length === 0 ? (
+        <Card className='border-dashed'>
+          <EmptyState icon={Briefcase} title='Nothing shared yet'>
+            When {workspace.name} shares a project with you, it shows up here.
+          </EmptyState>
+        </Card>
+      ) : (
+        <ul aria-label='Shared projects' className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+          {shared.map((p) => (
+            <li key={p.id}>
+              <Link href={`/workspaces/${workspace.slug}/projects/${p.id}`}>
+                <Card className='h-full transition-shadow hover:shadow-md cursor-pointer'>
+                  <CardHeader className='pb-2'>
+                    <CardTitle className='text-sm font-semibold truncate'>{p.name}</CardTitle>
+                    {p.description && (
+                      <CardDescription className='text-xs line-clamp-2'>{p.description}</CardDescription>
+                    )}
+                    <ProjectDetails clientName={p.clientName} deadline={p.deadline} status={p.status} />
+                  </CardHeader>
+                  <CardContent className='flex justify-end'>
+                    <ArrowRight className='size-3.5 text-muted-foreground' />
+                  </CardContent>
+                </Card>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

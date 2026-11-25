@@ -28,7 +28,7 @@ interface AppSidebarProps {
     id: string;
     name: string;
     slug: string;
-    role: 'owner' | 'admin' | 'member';
+    role: 'owner' | 'admin' | 'member' | 'guest';
   }[];
   projects: {
     id: string;
@@ -52,12 +52,14 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
   const { isMobile, setOpenMobile } = useSidebar();
   const role = workspaces.find((w) => w.slug === workspaceSlug)?.role;
   const canDeleteProjects = role === 'owner' || role === 'admin';
+  // Clients see their shared projects and nothing else of the workspace.
+  const isGuest = role === 'guest';
 
   const closeSidebarOnMobile = () => {
     if (isMobile) setOpenMobile(false);
   };
 
-  const items = [
+  const allItems = [
     {
       title: 'Home',
       url: `/workspaces/${workspaceSlug}`,
@@ -84,6 +86,8 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
       icon: CreditCard,
     },
   ];
+  const items = isGuest ? allItems.filter((item) => item.title === 'Home') : allItems;
+
 
   // Archived projects live on their own page, linked under the list.
   const active = projects.filter((p) => !p.archivedAt);
@@ -109,7 +113,9 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
           <LinkPending />
         </Link>
       </SidebarMenuButton>
-      <ProjectActionsMenu project={{ ...project, favorite }} canDelete={canDeleteProjects} variant='sidebar' />
+      {!isGuest && (
+        <ProjectActionsMenu project={{ ...project, favorite }} canDelete={canDeleteProjects} variant='sidebar' />
+      )}
     </SidebarMenuItem>
   );
 
@@ -151,13 +157,17 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
           </SidebarGroup>
         )}
         <SidebarGroup>
-          <SidebarGroupLabel>Projects</SidebarGroupLabel>
-          <CreateProjectDialog />
+          <SidebarGroupLabel>{isGuest ? 'Shared with you' : 'Projects'}</SidebarGroupLabel>
+          {!isGuest && <CreateProjectDialog />}
           <SidebarGroupContent>
             <SidebarMenu aria-label='Projects'>
               {active.length === 0 && (
                 <div className='text-xs text-muted-foreground p-2'>
-                  {archivedCount > 0 ? 'No active projects. Use + to start one.' : 'No projects yet. Use + to create one.'}
+                  {isGuest
+                    ? 'Nothing is shared with you here yet.'
+                    : archivedCount > 0
+                      ? 'No active projects. Use + to start one.'
+                      : 'No projects yet. Use + to create one.'}
                 </div>
               )}
               {others.map((project) => renderProject(project, false))}

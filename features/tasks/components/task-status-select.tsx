@@ -1,5 +1,7 @@
 'use client';
 
+import { useReadOnly } from '@/features/projects/read-only';
+
 import {
   Select,
   SelectContent,
@@ -30,6 +32,7 @@ export function TaskStatusSelect({
   label = 'Status',
 }: Readonly<TaskStatusSelectProps>) {
   const [isPending, setIsPending] = useState(false);
+  const readOnly = useReadOnly();
 
   const handleChange = async (newStatusId: string) => {
     if (newStatusId === currentStatusId) return;
@@ -49,6 +52,14 @@ export function TaskStatusSelect({
       toast.error(result.error, { position: 'top-center' });
     }
   };
+
+  if (readOnly) {
+    return (
+      <span className='inline-flex h-7 items-center rounded-md bg-secondary px-2 text-xs font-medium'>
+        {statuses.find((s) => s.id === currentStatusId)?.name ?? ''}
+      </span>
+    );
+  }
 
   return (
     <Select value={currentStatusId} onValueChange={handleChange} disabled={isPending}>

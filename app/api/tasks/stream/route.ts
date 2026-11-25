@@ -21,7 +21,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const requested = z.uuid().parse(searchParams.get('projectId'));
-    projectId = (await requireProjectAccess(requested)).project.id;
+    projectId = (await requireProjectAccess(requested, { allowGuests: true })).project.id;
     since = request.headers.get('last-event-id') || searchParams.get('since') || null;
   } catch (error) {
     return toErrorResponse(error);
