@@ -16,7 +16,14 @@ vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
 import { auth } from '@/lib/auth';
 import { insertActivity } from '@/lib/activity';
 import { redirect } from 'next/navigation';
-import { createProject, deleteProject, setProjectArchived, updateProject } from '@/features/projects/actions';
+import {
+  createProject,
+  deleteProject,
+  setProjectArchived,
+  setProjectShareLink,
+  updateProject,
+} from '@/features/projects/actions';
+import { isWellFormedShareToken } from '@/features/projects/share-link';
 
 const session = { user: { id: 'user-1', name: 'Alice' } };
 
@@ -227,6 +234,64 @@ describe('setProjectArchived (B6)', () => {
     db.select.mockReturnValue(chain([]));
     expect(await setProjectArchived({ projectId: PROJECT_ID, archived: true })).toEqual({ error: 'Not found.' });
     expect(db.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('setProjectShareLink (C4)', () => {
+  /** Access check, then the current token. Records what gets written. */
+  function setUp(role: 'owner' | 'admin' | 'member', current: string | null) {
+    db.select.mockReturnValueOnce(chain(access(role))).mockReturnValueOnce(chain([{ token: current }]));
+    const sets: { shareToken: string | null }[] = [];
+    db.update.mockImplementation(() => ({
+      set: (v: { shareToken: string | null }) => {
+        sets.push(v);
+        return chain(undefined);
+      },
+    }));
+    return sets;
+  }
+
+  it('is for owners and admins only', async () => {
+    const sets = setUp('member', null);
+    expect(await setProjectShareLink({ projectId: PROJECT_ID, action: 'enable' })).toEqual({ error: 'Not found.' });
+    expect(sets).toEqual([]);
+  });
+
+  it('creates an unguessable token and logs it', async () => {
+    const sets = setUp('admin', null);
+    const result = await setProjectShareLink({ projectId: PROJECT_ID, action: 'enable' });
+    const token = (result as { token: string }).token;
+    expect(isWellFormedShareToken(token)).toBe(true);
+    expect(sets).toEqual([{ shareToken: token }]);
+    expect(insertActivity).toHaveBeenCalledWith(expect.objectContaining({ action: 'project.share_link_created' }));
+  });
+
+  it('keeps the current link when turned on again', async () => {
+    const existing = 'a'.repeat(43);
+    const sets = setUp('owner', existing);
+    expect(await setProjectShareLink({ projectId: PROJECT_ID, action: 'enable' })).toEqual({ token: existing });
+    expect(sets).toEqual([]);
+  });
+
+  it('replaces the link with a new token', async () => {
+    const existing = 'a'.repeat(43);
+    const sets = setUp('owner', existing);
+    const { token } = (await setProjectShareLink({ projectId: PROJECT_ID, action: 'replace' })) as { token: string };
+    expect(token).not.toBe(existing);
+    expect(sets).toEqual([{ shareToken: token }]);
+  });
+
+  it('turns the link off', async () => {
+    const sets = setUp('owner', 'a'.repeat(43));
+    expect(await setProjectShareLink({ projectId: PROJECT_ID, action: 'disable' })).toEqual({ token: null });
+    expect(sets).toEqual([{ shareToken: null }]);
+    expect(insertActivity).toHaveBeenCalledWith(expect.objectContaining({ action: 'project.share_link_disabled' }));
+  });
+
+  it('only accepts tokens of the issued shape', () => {
+    expect(isWellFormedShareToken('a'.repeat(43))).toBe(true);
+    expect(isWellFormedShareToken('a'.repeat(42))).toBe(false);
+    expect(isWellFormedShareToken(`${'a'.repeat(42)}%`)).toBe(false);
   });
 });
 

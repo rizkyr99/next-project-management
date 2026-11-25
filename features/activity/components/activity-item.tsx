@@ -22,6 +22,8 @@ type ActivityAction =
   | 'project.deleted'
   | 'project.archived'
   | 'project.restored'
+  | 'project.share_link_created'
+  | 'project.share_link_disabled'
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'
@@ -90,6 +92,10 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return `archived project "${m.projectName ?? 'Untitled'}"`;
     case 'project.restored':
       return `restored project "${m.projectName ?? 'Untitled'}" from the archive`;
+    case 'project.share_link_created':
+      return `created a share link for "${m.projectName ?? 'Untitled'}"`;
+    case 'project.share_link_disabled':
+      return `turned off the share link for "${m.projectName ?? 'Untitled'}"`;
     case 'project.deleted':
       return `deleted project "${m.projectName ?? 'Untitled'}"`;
     case 'member.invited':

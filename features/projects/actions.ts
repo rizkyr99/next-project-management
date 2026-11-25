@@ -10,6 +10,7 @@ import { archiveProjectSchema, createProjectSchema, deleteProjectSchema, updateP
 import type { ProjectStatus } from './details';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { generateShareToken } from './share-token';
 import { requireProjectAccess, requireSession, runAction, toActionError, type ActionResult } from '@/lib/authz';
 
 export async function createProject(
@@ -172,6 +173,42 @@ export async function setProjectArchived(values: z.infer<typeof archiveProjectSc
     return { success: true };
   } catch (error) {
     return toActionError(error, archiveErrorMessage(values));
+  }
+}
+
+const shareLinkSchema = z.object({ projectId: z.uuid(), action: z.enum(['enable', 'replace', 'disable']) });
+
+/**
+ * C4: turns a project's read-only share link on (keeping the current link if
+ * there is one), replaces it (the old link stops working), or turns it off.
+ * Owners and admins only: it shows the board to anyone with the link.
+ */
+export async function setProjectShareLink(
+  values: z.infer<typeof shareLinkSchema>,
+): Promise<ActionResult<{ token: string | null }>> {
+  try {
+    const input = shareLinkSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId, { roles: ['owner', 'admin'] });
+    const [current] = await db
+      .select({ token: project.shareToken })
+      .from(project)
+      .where(eq(project.id, ctx.project.id));
+    if (input.action === 'enable' && current?.token) return { token: current.token };
+    if (input.action === 'disable' && !current?.token) return { token: null };
+
+    const token = input.action === 'disable' ? null : generateShareToken();
+    await db.update(project).set({ shareToken: token }).where(eq(project.id, ctx.project.id));
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: token ? 'project.share_link_created' : 'project.share_link_disabled',
+      projectId: ctx.project.id,
+      metadata: { projectName: ctx.project.name },
+    });
+    revalidatePath(`/workspaces/${ctx.workspace.slug}/projects/${ctx.project.id}`);
+    return { token };
+  } catch (error) {
+    return toActionError(error, 'Could not change the share link.');
   }
 }
 

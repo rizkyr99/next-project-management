@@ -114,6 +114,9 @@ export default async function ProjectIdPage({
   ]);
 
   if (!data) notFound();
+  // The board goes to the browser; the share token (C4) never does, except to
+  // owners and admins through the share dialog below.
+  const board = { ...data, shareToken: undefined };
 
   // Fetch comment counts for all tasks in this project in one query
   const allTaskIds = data.statuses.flatMap((s) => s.tasks.map((t) => t.id)) ?? [];
@@ -223,6 +226,10 @@ export default async function ProjectIdPage({
                 deadline: data.deadline,
                 status: data.status,
                 archived: data.archivedAt !== null,
+                // Only owners and admins manage the share link (C4).
+                ...((currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin') && {
+                  shareToken: data.shareToken,
+                }),
               }}
               canDelete={currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin'}
               variant='header'
@@ -243,7 +250,7 @@ export default async function ProjectIdPage({
       </div>
       {/* The view lives in the URL and switches without a server request. */}
       <ProjectViews
-        project={data}
+        project={board}
         commentCountMap={commentCountMap}
         workspaceMembers={teamMembers}
         currentUserId={session.user.id}
