@@ -44,6 +44,11 @@ export async function projectSnapshot(projectId: string): Promise<string> {
         from task_label tl join task t on t.id = tl.task_id join label l on l.id = tl.label_id
         where t.project_id = ${projectId}
       ), '')
+      || '#' || coalesce((
+        select string_agg(concat_ws('|', ci.id, ci.task_id, ci.title, ci.done, ci.position), ',' order by ci.id)
+        from checklist_item ci join task t on t.id = ci.task_id
+        where t.project_id = ${projectId}
+      ), '')
       || '#' || coalesce((select name || '|' || coalesce(description, '') from project where id = ${projectId}), '')
     ) as snap
   `);

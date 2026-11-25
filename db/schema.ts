@@ -348,6 +348,31 @@ export const taskLabel = pgTable(
   ],
 );
 
+/**
+ * A task's checklist: the steps of a deliverable, ticked off one by one.
+ * `position` orders them (0, 1, 2… rewritten on reorder).
+ */
+export const checklistItem = pgTable(
+  'checklist_item',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id, { onDelete: 'cascade' }),
+    title: varchar('title', { length: 255 }).notNull(),
+    done: boolean('done').default(false).notNull(),
+    position: integer('position').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('checklist_item_taskId_idx').on(table.taskId)],
+);
+
+export const checklistItemRelations = relations(checklistItem, ({ one }) => ({
+  task: one(task, { fields: [checklistItem.taskId], references: [task.id] }),
+}));
+
 export const labelRelations = relations(label, ({ one, many }) => ({
   workspace: one(workspace, { fields: [label.workspaceId], references: [workspace.id] }),
   tasks: many(taskLabel),
@@ -428,6 +453,7 @@ export const taskRelations = relations(task, ({ one, many }) => ({
   assignees: many(taskAssignee),
   comments: many(comment),
   labels: many(taskLabel),
+  checklist: many(checklistItem),
 }));
 
 export const taskAssigneeRelations = relations(taskAssignee, ({ one }) => ({
