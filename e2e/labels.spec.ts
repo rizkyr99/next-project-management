@@ -4,6 +4,14 @@ import { addTask } from './helpers/tasks';
 
 test('create a label from a task, see it on the card, filter by it, and take it off', async ({ page }) => {
   test.setTimeout(90_000);
+  /** The next server action whose request carries `field` (e.g. the labels save) to finish. */
+  const saved = (field: string) =>
+    page.waitForResponse(
+      (r) =>
+        r.request().method() === 'POST' &&
+        r.request().headers()['next-action'] !== undefined &&
+        (r.request().postData() ?? '').includes(`"${field}"`),
+    );
   const s = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   await registerAndLogin(page, `lbl+${s}@example.com`, 'Lu Label');
   await page.goto('/create-workspace');
@@ -48,22 +56,22 @@ test('create a label from a task, see it on the card, filter by it, and take it 
   await expect(page.getByRole('button', { name: 'Open task Logo concepts' })).toContainText('Design', { timeout: 15000 });
   await page.getByRole('button', { name: 'Open task Logo concepts' }).click();
   await page.getByRole('dialog', { name: 'Logo concepts' }).getByRole('button', { name: /^Labels: Design\./ }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Design' }).click();
+  await Promise.all([saved('labelIds'), page.getByRole('menuitemcheckbox', { name: 'Design' }).click()]);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Logo concepts' }).getByRole('button', { name: 'Add labels' })).toBeVisible();
 
   // Put it back, then rename it in workspace settings: the card follows.
   await page.getByRole('dialog', { name: 'Logo concepts' }).getByRole('button', { name: 'Add labels' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Design' }).click();
-  await page.waitForTimeout(800);
+  // Wait for the save itself before leaving the page: navigating away
+  // cancels a save still in flight.
+  await Promise.all([saved('labelIds'), page.getByRole('menuitemcheckbox', { name: 'Design' }).click()]);
   const projectUrl = page.url().split('?')[0];
   await page.goto(`/workspaces/lbl-${s}/settings`);
   await page.getByRole('tab', { name: 'Labels' }).click();
   const nameBox = page.getByRole('textbox', { name: 'Name of Design' });
   await expect(page.getByRole('list', { name: 'Labels' })).toContainText('1 task');
   await nameBox.fill('Brand design');
-  await nameBox.press('Enter');
-  await page.waitForTimeout(800);
+  await Promise.all([saved('labelId'), nameBox.press('Enter')]);
   await page.goto(projectUrl);
   await expect(page.getByRole('button', { name: 'Open task Logo concepts' })).toContainText('Brand design', { timeout: 15000 });
 
