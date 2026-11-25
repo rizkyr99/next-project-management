@@ -3,6 +3,7 @@
 import { priorityConfig, type Priority } from '@/features/tasks/priority';
 import { formatDue, isOverdue } from '@/features/tasks/due';
 import { LabelChips } from '@/features/labels/components/label-chip';
+import { ChecklistBadge } from '@/features/checklists/components/checklist-badge';
 
 import {
   AlertDialog,
@@ -72,6 +73,7 @@ interface TableViewProps {
         dueDate: Date | null;
         dueHasTime?: boolean;
         labels?: { label: { id: string; name: string; color: string | null } }[];
+        checklist?: { done: boolean }[];
         assignees: {
           user: {
             id: string;
@@ -323,7 +325,10 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                       className='truncate block max-w-full text-left hover:underline'>
                       {task.title}
                     </button>
-                    <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={2} />
+                    <span className='flex flex-wrap items-center gap-1.5'>
+                      <ChecklistBadge items={task.checklist} />
+                      <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={2} />
+                    </span>
                   </TableCell>
 
                   <TableCell>
