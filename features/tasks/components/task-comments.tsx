@@ -7,10 +7,17 @@ import { Markdown } from '@/components/markdown';
 import { imageFiles, uploadTaskImage } from '../upload-image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { Pencil, Send, Trash2, X } from 'lucide-react';
+import { Eye, EyeOff, Lock, Pencil, Send, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { addComment, deleteComment, getComments, toggleReaction, updateComment } from '../actions';
+import {
+  addComment,
+  deleteComment,
+  getComments,
+  setCommentVisibility,
+  toggleReaction,
+  updateComment,
+} from '../actions';
 import { CommentReactions } from './comment-reactions';
 import type { Reaction, ReactionSummary } from '../reaction-kinds';
 
@@ -21,6 +28,7 @@ type Comment = {
   body: string;
   createdAt: Date;
   updatedAt: Date | null;
+  clientVisible: boolean;
   author: CommentAuthor;
   reactions?: ReactionSummary[];
   /** Client-only: posted, still saving. */
@@ -30,7 +38,8 @@ type Comment = {
 interface TaskCommentsProps {
   taskId: string;
   currentUserId: string;
-  workspaceMembers: { id: string; name: string; image?: string | null }[];
+  /** Everyone who can see the project; guests (clients) have role 'guest'. */
+  workspaceMembers: { id: string; name: string; image?: string | null; role?: string }[];
 }
 
 function getInitials(name: string) {
@@ -42,10 +51,23 @@ function getInitials(name: string) {
     .join('');
 }
 
+/**
+ * Older comments got updated_at on insert (Drizzle's $onUpdate also fires
+ * then), a few milliseconds from created_at; only a later change is an edit.
+ */
+function wasEdited(c: { createdAt: Date; updatedAt: Date | null }) {
+  return c.updatedAt !== null && new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime() > 1000;
+}
+
 export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCommentsProps) {
   const queryClient = useQueryClient();
   const queryKey = ['comments', taskId];
   const memberNames = workspaceMembers.map((m) => m.name);
+  const guestIds = new Set(workspaceMembers.filter((m) => m.role === 'guest').map((m) => m.id));
+  const viewerIsGuest = guestIds.has(currentUserId);
+  const viewerRole = workspaceMembers.find((m) => m.id === currentUserId)?.role;
+  // Internal vs client-visible only matters once a project has guests.
+  const showVisibility = !viewerIsGuest && guestIds.size > 0;
 
   const { data: comments = [] } = useQuery({
     queryKey,
@@ -56,6 +78,8 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
   });
 
   const [body, setBody] = useState('');
+  // A team comment is internal unless the author chooses to post it to the client.
+  const [toClient, setToClient] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
   const [mentionSearch, setMentionSearch] = useState<string | null>(null);
@@ -77,8 +101,9 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
   const NETWORK_ERROR = 'Could not reach the server. Check your connection and try again.';
 
   const addMutation = useMutation({
-    mutationFn: ({ text }: { text: string; pendingId: string }) => addComment(taskId, text),
-    onMutate: async ({ text, pendingId }) => {
+    mutationFn: ({ text, clientVisible }: { text: string; pendingId: string; clientVisible: boolean }) =>
+      addComment(taskId, text, { clientVisible }),
+    onMutate: async ({ text, pendingId, clientVisible }) => {
       const previous = await snapshot();
       setComments((prev) => [
         ...prev,
@@ -87,6 +112,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
           body: text,
           createdAt: new Date(),
           updatedAt: null,
+          clientVisible,
           author: { id: currentUserId, name: me?.name ?? 'You', image: me?.image ?? null },
           pending: true,
         },
@@ -147,6 +173,26 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
       if ('error' in res) failed(res.error ?? 'Something went wrong. Please try again.', ctx.previous);
     },
     onError: (_err, _id, ctx) => {
+      if (ctx) failed(NETWORK_ERROR, ctx.previous);
+    },
+  });
+
+  const visibilityMutation = useMutation({
+    mutationFn: ({ commentId, clientVisible }: { commentId: string; clientVisible: boolean }) =>
+      setCommentVisibility(commentId, clientVisible),
+    onMutate: async ({ commentId, clientVisible }) => {
+      const previous = await snapshot();
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, clientVisible } : c)));
+      return { previous };
+    },
+    onSuccess: (res, { clientVisible }, ctx) => {
+      if ('error' in res) {
+        failed(res.error ?? 'Something went wrong. Please try again.', ctx.previous);
+        return;
+      }
+      toast.success(clientVisible ? 'Shared with the client' : 'Made internal', { position: 'top-center' });
+    },
+    onError: (_err, _vars, ctx) => {
       if (ctx) failed(NETWORK_ERROR, ctx.previous);
     },
   });
@@ -221,7 +267,10 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
 
   const post = () => {
     const text = body.trim();
-    if (text) addMutation.mutate({ text, pendingId: `pending-${crypto.randomUUID()}` });
+    if (!text) return;
+    // Guests' comments are always visible to the client side (the server enforces it).
+    const clientVisible = viewerIsGuest || (showVisibility && toClient);
+    addMutation.mutate({ text, clientVisible, pendingId: `pending-${crypto.randomUUID()}` });
   };
 
   const handleBodyChange = (value: string) => {
@@ -236,8 +285,11 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
 
   const filteredMembers =
     mentionSearch !== null
-      ? workspaceMembers.filter((m) =>
-          m.name.toLowerCase().includes(mentionSearch.toLowerCase()),
+      ? workspaceMembers.filter(
+          (m) =>
+            m.name.toLowerCase().includes(mentionSearch.toLowerCase()) &&
+            // Clients can't be mentioned in a note they won't see.
+            (viewerIsGuest || toClient || !guestIds.has(m.id)),
         )
       : [];
 
@@ -264,9 +316,9 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
       </p>
 
       {comments.length > 0 && (
-        <div className='space-y-3'>
+        <ul aria-label='Comments' className='space-y-3'>
           {comments.map((c) => (
-            <div
+            <li
               key={c.id}
               className={c.pending ? 'flex gap-2.5 opacity-60' : 'flex gap-2.5'}
               aria-busy={c.pending || undefined}>
@@ -285,9 +337,21 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                   <span className='text-xs text-muted-foreground'>
                     {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
                   </span>
-                  {c.updatedAt && (
+                  {wasEdited(c) && (
                     <span className='text-xs text-muted-foreground italic'>(edited)</span>
                   )}
+                  {showVisibility &&
+                    (c.clientVisible ? (
+                      <span className='inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-1.5 text-[11px] font-medium text-sky-700 dark:text-sky-300'>
+                        <Eye className='size-3' aria-hidden />
+                        Client can see
+                      </span>
+                    ) : (
+                      <span className='inline-flex items-center gap-1 rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground'>
+                        <Lock className='size-3' aria-hidden />
+                        Internal
+                      </span>
+                    ))}
                 </div>
 
                 {editingId === c.id ? (
@@ -338,27 +402,70 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
                 )}
               </div>
 
-              {c.author.id === currentUserId && editingId !== c.id && !c.pending && (
+              {editingId !== c.id && !c.pending && (
                 <div className='flex items-start gap-0.5 shrink-0'>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    className='size-6'
-                    aria-label='Edit comment'
-                    onClick={() => { setEditingId(c.id); setEditBody(c.body); }}>
-                    <Pencil className='size-3' />
-                  </Button>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    className='size-6 text-destructive hover:text-destructive'
-                    aria-label='Delete comment'
-                    onClick={() => deleteMutation.mutate(c.id)}>
-                    <Trash2 className='size-3' />
-                  </Button>
+                  {showVisibility &&
+                    !guestIds.has(c.author.id) &&
+                    (c.author.id === currentUserId || viewerRole === 'owner' || viewerRole === 'admin') && (
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='size-6'
+                        aria-label={c.clientVisible ? 'Make comment internal' : 'Share comment with client'}
+                        title={c.clientVisible ? 'Make internal' : 'Share with client'}
+                        onClick={() => visibilityMutation.mutate({ commentId: c.id, clientVisible: !c.clientVisible })}>
+                        {c.clientVisible ? <EyeOff className='size-3' /> : <Eye className='size-3' />}
+                      </Button>
+                    )}
+                  {c.author.id === currentUserId && (
+                    <>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='size-6'
+                        aria-label='Edit comment'
+                        onClick={() => { setEditingId(c.id); setEditBody(c.body); }}>
+                        <Pencil className='size-3' />
+                      </Button>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='size-6 text-destructive hover:text-destructive'
+                        aria-label='Delete comment'
+                        onClick={() => deleteMutation.mutate(c.id)}>
+                        <Trash2 className='size-3' />
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
-            </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showVisibility && (
+        <div role='radiogroup' aria-label='Who sees this comment' className='flex gap-1'>
+          {[
+            { value: false, label: 'Internal', icon: <Lock className='size-3' aria-hidden /> },
+            { value: true, label: 'Client can see', icon: <Eye className='size-3' aria-hidden /> },
+          ].map((option) => (
+            <button
+              key={option.label}
+              type='button'
+              role='radio'
+              aria-checked={toClient === option.value}
+              onClick={() => setToClient(option.value)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                toClient === option.value
+                  ? option.value
+                    ? 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+                    : 'border-foreground/20 bg-muted text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}>
+              {option.icon}
+              {option.label}
+            </button>
           ))}
         </div>
       )}
@@ -387,7 +494,14 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
 
         <Textarea
           ref={textareaRef}
-          placeholder='Add a comment… type @ to mention someone, paste a screenshot'
+          placeholder={
+            !showVisibility
+              ? 'Add a comment… type @ to mention someone, paste a screenshot'
+              : toClient
+                ? 'Add a comment for the client… type @ to mention someone'
+                : 'Add an internal comment… only your team sees it'
+          }
+          className={`min-h-[72px] resize-none text-sm pr-10${showVisibility && toClient ? ' border-sky-500/50' : ''}`}
           value={body}
           onChange={(e) => handleBodyChange(e.target.value)}
           onPaste={(e) => void pasteImages(e, body, setBody)}
@@ -398,7 +512,6 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
               post();
             }
           }}
-          className='min-h-[72px] resize-none text-sm pr-10'
         />
         <Button
           size='icon'

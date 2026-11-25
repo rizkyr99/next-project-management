@@ -121,7 +121,13 @@ export default async function ProjectIdPage({
       ? await db
           .select({ taskId: comment.taskId, count: count() })
           .from(comment)
-          .where(inArray(comment.taskId, allTaskIds))
+          .where(
+            and(
+              inArray(comment.taskId, allTaskIds),
+              // A client counts only the comments shared with them.
+              isGuest ? eq(comment.clientVisible, true) : undefined,
+            ),
+          )
           .groupBy(comment.taskId)
       : [];
   const commentCountMap = Object.fromEntries(commentCounts.map((r) => [r.taskId, r.count]));

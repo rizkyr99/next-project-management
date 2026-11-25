@@ -315,4 +315,32 @@ describe('guests (C1): refused unless the action opts in, and only on shared pro
     mockSelect.mockReturnValueOnce(chain([{ ...projectRow(null), role: 'member' }]));
     await expect(requireProjectAccess('p-1')).resolves.toMatchObject({ role: 'member' });
   });
+  // C2: an internal comment doesn't exist for a guest, even on a shared project.
+  const commentRow = (role: string, clientVisible: boolean) => ({
+    commentId: 'c-1',
+    authorId: 'u-2',
+    clientVisible,
+    taskId: 't-1',
+    projectId: 'p-1',
+    workspaceId: 'ws-1',
+    role,
+    shared: role === 'guest' ? 'p-1' : null,
+  });
+
+  it('hides an internal comment from a guest (edit, delete, react)', async () => {
+    mockSelect.mockReturnValueOnce(chain([commentRow('guest', false)]));
+    await expect(requireCommentAccess('c-1', { allowGuests: true })).rejects.toBeInstanceOf(AuthzError);
+  });
+
+  it('lets a guest reach a client-visible comment on a shared project', async () => {
+    mockSelect.mockReturnValueOnce(chain([commentRow('guest', true)]));
+    await expect(requireCommentAccess('c-1', { allowGuests: true })).resolves.toMatchObject({
+      comment: { clientVisible: true },
+    });
+  });
+
+  it('lets the team reach internal comments', async () => {
+    mockSelect.mockReturnValueOnce(chain([commentRow('member', false)]));
+    await expect(requireCommentAccess('c-1', { allowGuests: true })).resolves.toMatchObject({ role: 'member' });
+  });
 });

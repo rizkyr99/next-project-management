@@ -509,6 +509,12 @@ export const comment = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     body: text('body').notNull(),
+    /**
+     * Whether the project's guests (clients) can see it. Team comments are
+     * internal unless posted to the client deliberately; a guest's own
+     * comments are always visible to the client side.
+     */
+    clientVisible: boolean('client_visible').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').$onUpdate(() => new Date()),
   },

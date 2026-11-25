@@ -46,8 +46,10 @@ export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
           <ChecklistBadge items={task.checklist} />
           {task.description && <AlignLeft className='size-3' aria-label='Has description' />}
           {commentCount > 0 && (
-            <span className='flex items-center gap-0.5 text-xs'>
-              <MessageSquare className='size-3' />
+            <span
+              className='flex items-center gap-0.5 text-xs'
+              aria-label={`${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}`}>
+              <MessageSquare className='size-3' aria-hidden />
               {commentCount}
             </span>
           )}

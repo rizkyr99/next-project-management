@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, lt, ne } from 'drizzle-orm';
 import { db } from '@/db/drizzle';
 import { activityLog, user as userTable } from '@/db/schema';
 import {
@@ -94,7 +94,14 @@ export async function getTaskActivity(taskId: string) {
       })
       .from(activityLog)
       .innerJoin(userTable, eq(activityLog.actorId, userTable.id))
-      .where(eq(activityLog.taskId, ctx.task.id))
+      .where(
+        and(
+          eq(activityLog.taskId, ctx.task.id),
+          // A client sees the comments shared with them in the thread itself;
+          // "X commented" here could point at an internal one.
+          ctx.role === 'guest' ? ne(activityLog.action, 'task.comment_added') : undefined,
+        ),
+      )
       .orderBy(desc(activityLog.createdAt))
       .limit(20);
 
