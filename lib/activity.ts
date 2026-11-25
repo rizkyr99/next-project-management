@@ -21,6 +21,8 @@ export type ActivityAction =
   | 'project.deleted'
   | 'project.archived'
   | 'project.restored'
+  | 'project.share_link_created'
+  | 'project.share_link_disabled'
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'

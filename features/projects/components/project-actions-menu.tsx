@@ -19,7 +19,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Link2, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
+import { ShareLinkDialog } from './share-link-dialog';
 import {
   Select,
   SelectContent,
@@ -47,6 +48,11 @@ export interface ProjectSummary {
   archived?: boolean;
   /** Starred by me (sidebar only; the header doesn't offer favourites). */
   favorite?: boolean;
+  /**
+   * The read-only share link's token (C4): a string when on, null when off.
+   * Only passed to owners and admins in the header; undefined hides the item.
+   */
+  shareToken?: string | null;
 }
 
 /**
@@ -64,7 +70,7 @@ export function ProjectActionsMenu({
   canDelete: boolean;
   variant: 'header' | 'sidebar';
 }) {
-  const [dialog, setDialog] = useState<'edit' | 'delete' | null>(null);
+  const [dialog, setDialog] = useState<'edit' | 'delete' | 'share' | null>(null);
   const [, startFavorite] = useTransition();
   const toggleFavorite = () =>
     startFavorite(async () => {
@@ -116,6 +122,12 @@ export function ProjectActionsMenu({
             <Pencil />
             Edit details
           </DropdownMenuItem>
+          {project.shareToken !== undefined && (
+            <DropdownMenuItem onSelect={() => setDialog('share')}>
+              <Link2 />
+              Share link…
+            </DropdownMenuItem>
+          )}
           {project.archived ? (
             <DropdownMenuItem onSelect={() => archive(false)}>
               <ArchiveRestore />
@@ -144,6 +156,15 @@ export function ProjectActionsMenu({
         open={dialog === 'edit'}
         onOpenChange={(open) => setDialog(open ? 'edit' : null)}
       />
+      {project.shareToken !== undefined && (
+        <ShareLinkDialog
+          projectId={project.id}
+          projectName={project.name}
+          token={project.shareToken}
+          open={dialog === 'share'}
+          onOpenChange={(open) => setDialog(open ? 'share' : null)}
+        />
+      )}
       {canDelete && (
         <DeleteProjectDialog
           project={project}

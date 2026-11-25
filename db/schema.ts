@@ -238,12 +238,21 @@ export const project = pgTable(
     status: projectStatusEnum('status'),
     /** Archived projects leave the sidebar and My tasks but stay searchable (B6). */
     archivedAt: timestamp('archived_at'),
+    /**
+     * C4: the token in the project's read-only share link (/share/<token>);
+     * null when sharing is off. Stored as-is so admins can copy the link
+     * again: it only grants what the project's own rows already hold.
+     */
+    shareToken: text('share_token'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index('project_workspaceId_idx').on(table.workspaceId)],
+  (table) => [
+    index('project_workspaceId_idx').on(table.workspaceId),
+    uniqueIndex('project_share_token_unique').on(table.shareToken),
+  ],
 );
 
 /**
