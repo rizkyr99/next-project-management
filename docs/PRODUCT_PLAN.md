@@ -36,31 +36,31 @@ Sizes: **S** ≈ a day, **M** ≈ 2–4 days, **L** ≈ a week or more.
 |---|---|---|---|---|
 | A1 | Functions in Singapore, next to the database | Every query crossed the Pacific (~220 ms each, ~1.2 s per page). Now ~13 ms. | S | Done (#68) |
 | A2 | Instant Board / List / Table switch | Switching re-ran the whole page on the server. | S | Done (#67) |
-| A3 | Navigation feedback | A thin progress bar and pressed states on sidebar links, so a click always shows something within 100 ms. | S | |
-| A4 | Optimistic edits everywhere | Audit every action (title, priority, due date, assignees, status, comments): the screen updates first, and rolls back with a message if the save fails. | M | |
-| A5 | Keyboard shortcuts | `C` new task, `/` filter, `⌘K` actions (not just search: "New project", "Assign to me", "Go to My tasks"), `?` shortcut list. Studios that live in the tool expect this. | M | |
-| A6 | Rich-text descriptions and comments | Headings, lists, links, checkboxes and pasted screenshots, instead of plain text. Briefs and feedback are long. | M | |
-| A7 | Upstash region | Make sure rate-limit Redis is also in Singapore (sign-in requests). | S | |
+| A3 | Navigation feedback | A thin progress bar and pressed states on sidebar links, so a click always shows something within 100 ms. | S | Done (#71) |
+| A4 | Optimistic edits everywhere | Audit every action (title, priority, due date, assignees, status, comments): the screen updates first, and rolls back with a message if the save fails. | M | Done (#72) |
+| A5 | Keyboard shortcuts | `C` new task, `/` filter, `⌘K` actions (not just search: "New project", "Assign to me", "Go to My tasks"), `?` shortcut list. Studios that live in the tool expect this. | M | Done (#73) |
+| A6 | Rich-text descriptions and comments | Headings, lists, links, checkboxes and pasted screenshots, instead of plain text. Briefs and feedback are long. | M | Done (#75) |
+| A7 | Upstash region | Make sure rate-limit Redis is also in Singapore (sign-in requests). | S | Done: already in Singapore |
 
 ## Phase A+: Improve what's already there
 
 Gaps inside existing features, checked against the code (none of these exist today). Most are small, and they're what someone trying the app notices first.
 
-| # | Feature | Improvement | Why | Size |
-|---|---|---|---|---|
-| I1 | Tasks | **Copy link** to a task | Deep links exist (`?task=`), but there's no button to share one; studios paste task links into chat all day. | S |
-| I2 | Tasks | **Duplicate task**, and **move to another project** | Repeating deliverables, and tasks created in the wrong project, currently mean retyping. | M |
-| I3 | Tasks | **Priority "Urgent" and "None"**, and an optional **due time** | Three levels (low/medium/high, default medium) can't mark "drop everything"; client deadlines are often "by 3 pm". | S |
-| I4 | Tasks | **Follow a task** | Today only assignees and @mentions are notified. An account manager wants updates on tasks they don't do. | M |
-| I5 | Board | **Collapse a column** | Long "Done" columns push the work off screen. | S |
-| I6 | List / Table | **Group by** assignee, priority or due date | The list is grouped by column only; standups and planning want "by person". | M |
-| I7 | Comments | **Reactions** (👍 ✅ 👀) | A quick "seen / approved" without another comment or notification. | S |
-| I8 | Sidebar | **Favourite projects**, and drag to reorder | With many client projects, the active few need to be at the top. | S |
-| I9 | My tasks | **Group by date**: overdue, today, this week, later | It's the screen people open first each morning. | S |
-| I10 | Activity | **Filter by project and person** | The feed is one stream for the whole workspace. | S |
-| I11 | Account | **Profile photo upload** | Only Google accounts have photos; email sign-ups are initials. Faces matter once clients are in. | M |
-| I12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M |
-| I13 | Search | **Recent items and filters** in ⌘K | Search shows nothing until you type, and can't narrow to tasks or a project. | S |
+| # | Feature | Improvement | Why | Size | Status |
+|---|---|---|---|---|---|
+| I1 | Tasks | **Copy link** to a task | Deep links exist (`?task=`), but there's no button to share one; studios paste task links into chat all day. | S | Done (#78) |
+| I2 | Tasks | **Duplicate task**, and **move to another project** | Repeating deliverables, and tasks created in the wrong project, currently mean retyping. | M |  |
+| I3 | Tasks | **Priority "Urgent" and "None"**, and an optional **due time** | Three levels (low/medium/high, default medium) can't mark "drop everything"; client deadlines are often "by 3 pm". | S | Done (#84) |
+| I4 | Tasks | **Follow a task** | Today only assignees and @mentions are notified. An account manager wants updates on tasks they don't do. | M |  |
+| I5 | Board | **Collapse a column** | Long "Done" columns push the work off screen. | S | Done (#79) |
+| I6 | List / Table | **Group by** assignee, priority or due date | The list is grouped by column only; standups and planning want "by person". | M |  |
+| I7 | Comments | **Reactions** (👍 ✅ 👀) | A quick "seen / approved" without another comment or notification. | S | Done (#84) |
+| I8 | Sidebar | **Favourite projects**, and drag to reorder | With many client projects, the active few need to be at the top. | S | Done (#84) |
+| I9 | My tasks | **Group by date**: overdue, today, this week, later | It's the screen people open first each morning. | S | Done (#80) |
+| I10 | Activity | **Filter by project and person** | The feed is one stream for the whole workspace. | S | Done (#81) |
+| I11 | Account | **Profile photo upload** | Only Google accounts have photos; email sign-ups are initials. Faces matter once clients are in. | M |  |
+| I12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M |  |
+| I13 | Search | **Recent items and filters** in ⌘K | Search shows nothing until you type, and can't narrow to tasks or a project. | S | Done (#82) |
 
 ## Phase B: Work the way studios work
 

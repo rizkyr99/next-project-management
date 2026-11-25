@@ -1,6 +1,9 @@
 "use client";
 
 import { PRIORITIES, priorityConfig } from "../priority";
+import type { LabelInfo } from "@/features/labels/schema";
+import { cn } from "@/lib/utils";
+import { statusDotClass } from "@/features/projects/status-colors";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,9 +28,12 @@ const ANY = "any";
 export function TaskFilterBar({
   members,
   currentUserId,
+  labels = [],
 }: {
   members: { id: string; name: string }[];
   currentUserId: string;
+  /** The workspace's labels; the filter shows only when there are some. */
+  labels?: LabelInfo[];
 }) {
   const { filters, active, setFilter, clear } = useTaskFilters();
   // Local text so typing stays smooth; the URL follows shortly after. The
@@ -55,7 +61,7 @@ export function TaskFilterBar({
   // stays one row; from sm up they are always shown inline.
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const selectCount = [filters.assignee, filters.priority, filters.due].filter(
+  const selectCount = [filters.assignee, filters.priority, filters.due, filters.label].filter(
     Boolean,
   ).length;
 
@@ -162,6 +168,32 @@ export function TaskFilterBar({
             <SelectItem value="none">No due date</SelectItem>
           </SelectContent>
         </Select>
+
+        {labels.length > 0 && (
+          <Select
+            value={filters.label ?? ANY}
+            onValueChange={(v) => setFilter("label", v === ANY ? null : v)}
+          >
+            <SelectTrigger
+              size="sm"
+              className="h-8 w-auto min-w-28 text-sm"
+              aria-label="Label"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any label</SelectItem>
+              {labels.map((l) => (
+                <SelectItem key={l.id} value={l.id}>
+                  <span className="flex items-center gap-2">
+                    <span className={cn("size-2 rounded-full", statusDotClass(l.color))} aria-hidden />
+                    {l.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {active && (

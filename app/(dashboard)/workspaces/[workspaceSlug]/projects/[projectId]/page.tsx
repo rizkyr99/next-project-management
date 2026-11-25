@@ -1,6 +1,6 @@
 import { db } from '@/db/drizzle';
-import { comment, member, project, user } from '@/db/schema';
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { comment, label, member, project, user } from '@/db/schema';
+import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import { CallButton } from '@/features/call/components/call-button';
 import { ProjectViews } from '@/features/projects/components/project-views';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
@@ -52,7 +52,7 @@ export default async function ProjectIdPage({
 
   // The snapshot is taken alongside the data, so the live stream can tell
   // whether anything changed between this render and its first poll.
-  const [snapshot, workspaceMembers, data] = await Promise.all([
+  const [snapshot, workspaceMembers, workspaceLabels, data] = await Promise.all([
     projectSnapshot(projectId),
     db
       .select({
@@ -64,6 +64,12 @@ export default async function ProjectIdPage({
       .from(member)
       .innerJoin(user, eq(member.userId, user.id))
       .where(eq(member.workspaceId, currentWorkspace.id)),
+
+    db
+      .select({ id: label.id, name: label.name, color: label.color })
+      .from(label)
+      .where(eq(label.workspaceId, currentWorkspace.id))
+      .orderBy(asc(label.name)),
 
     // Scoped to this workspace: a project ID from another tenant is a 404.
     db.query.project.findFirst({
@@ -77,6 +83,9 @@ export default async function ProjectIdPage({
               with: {
                 assignees: {
                   with: { user: true },
+                },
+                labels: {
+                  with: { label: { columns: { id: true, name: true, color: true } } },
                 },
               },
             },
@@ -117,6 +126,8 @@ export default async function ProjectIdPage({
             t.dueDate?.getTime() ?? null,
             Boolean(t.description),
             t.assignees.map((a) => a.user.id),
+            t.labels.map((l) => [l.label.id, l.label.name, l.label.color]),
+            t.dueHasTime,
           ]),
         ]),
       ),
@@ -154,6 +165,7 @@ export default async function ProjectIdPage({
             <TaskFilterBar
               members={workspaceMembers.map((m) => ({ id: m.id, name: m.name }))}
               currentUserId={session.user.id}
+              labels={workspaceLabels}
             />
           </div>
         </Suspense>
@@ -170,6 +182,7 @@ export default async function ProjectIdPage({
         <TaskDetailSheet
           projectId={data.id}
           projectName={data.name}
+          labels={workspaceLabels}
           statuses={data.statuses}
           members={workspaceMembers}
           currentUserId={session.user.id}

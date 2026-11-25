@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { priorityConfig, type Priority } from '../priority';
+import type { LabelInfo } from '@/features/labels/schema';
 
 export { priorityConfig, type Priority };
 
@@ -20,6 +21,7 @@ export interface TaskData {
   dueDate?: Date | null;
   /** The due date includes a time of day. */
   dueHasTime?: boolean;
+  labels?: { label: LabelInfo }[];
   assignees: { user: Person }[];
   /** Client-only: just added, still being saved. Not openable or draggable yet. */
   pending?: boolean;

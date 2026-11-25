@@ -9,6 +9,7 @@ import type { KeyboardEvent } from 'react';
 import { openTask } from '../task-link';
 import { PersonAvatar, priorityConfig, type TaskData } from './task-meta';
 import { formatDue, isOverdue } from '../due';
+import { LabelChips } from '@/features/labels/components/label-chip';
 
 interface TaskCardProps {
   task: TaskData;
@@ -27,6 +28,7 @@ export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
   return (
     <>
       <div className='text-sm font-medium leading-snug'>{task.title}</div>
+      <LabelChips labels={(task.labels ?? []).map((l) => l.label)} />
       <div className='flex items-center gap-1.5 flex-wrap'>
         {task.priority !== 'none' && (
           <Badge variant={p.variant} className='gap-1 text-xs font-normal px-1.5 py-0'>

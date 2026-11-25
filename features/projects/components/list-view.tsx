@@ -1,6 +1,7 @@
 'use client';
 
 import type { Priority } from '@/features/tasks/priority';
+import { LabelChips } from '@/features/labels/components/label-chip';
 
 import {
   AlertDialog,
@@ -56,6 +57,7 @@ interface ListViewProps {
         description?: string | null;
         priority: Priority;
         dueDate?: Date | null;
+        labels?: { label: { id: string; name: string; color: string | null } }[];
         assignees: {
           user: {
             id: string;
@@ -282,8 +284,9 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
               <button
                 type='button'
                 onClick={() => openTask(task.id)}
-                className='text-sm font-medium truncate pr-4 text-left hover:underline'>
-                {task.title}
+                className='min-w-0 pr-4 text-left'>
+                <span data-testid='list-task-title' className='block truncate text-sm font-medium hover:underline'>{task.title}</span>
+                <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={3} />
               </button>
               <div>
                 <TaskStatusSelect

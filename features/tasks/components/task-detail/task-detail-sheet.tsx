@@ -23,6 +23,9 @@ import { TaskComments } from '../task-comments';
 import type { Person, Priority, TaskData } from '../task-meta';
 import { deleteTaskWithUndo } from './delete-task';
 import { CopyTaskLink } from './copy-task-link';
+import { LabelPicker } from '@/features/labels/components/label-picker';
+import { setTaskLabels } from '@/features/labels/actions';
+import type { LabelInfo } from '@/features/labels/schema';
 import { TaskDescription } from './task-description';
 import { TaskProperties } from './task-properties';
 
@@ -32,6 +35,8 @@ interface TaskDetailSheetProps {
   projectId: string;
   /** Shown under the task in ⌘K's recent items. */
   projectName: string;
+  /** The workspace's labels, for the picker. */
+  labels: LabelInfo[];
   statuses: { id: string; name: string; tasks: SheetTask[] }[];
   members: Person[];
   currentUserId: string;
@@ -42,7 +47,7 @@ interface TaskDetailSheetProps {
  * task from the page's server data, so any refresh (our own revalidation or
  * another member's change) shows here too.
  */
-export function TaskDetailSheet({ projectId, projectName, statuses, members, currentUserId }: TaskDetailSheetProps) {
+export function TaskDetailSheet({ projectId, projectName, labels, statuses, members, currentUserId }: TaskDetailSheetProps) {
   const taskId = useSearchParams().get(TASK_PARAM);
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const hidden = usePendingDeletes();
@@ -126,6 +131,7 @@ export function TaskDetailSheet({ projectId, projectName, statuses, members, cur
             key={task.id}
             task={task}
             projectId={projectId}
+            labels={labels}
             statuses={statusOptions}
             members={members}
             currentUserId={currentUserId}
@@ -142,6 +148,7 @@ type Overrides = Partial<{
   priority: Priority;
   /** Date and whether it includes a time, saved together. */
   due: { date: Date | null; hasTime: boolean };
+  labelIds: string[];
   assigneeIds: string[];
   description: string | null;
 }>;
@@ -149,12 +156,14 @@ type Overrides = Partial<{
 function TaskDetailBody({
   task,
   projectId,
+  labels,
   statuses,
   members,
   currentUserId,
 }: {
   task: SheetTask;
   projectId: string;
+  labels: LabelInfo[];
   statuses: { id: string; name: string }[];
   members: Person[];
   currentUserId: string;
@@ -184,6 +193,7 @@ function TaskDetailBody({
   const statusId = overrides.statusId ?? task.statusId;
   const priority = overrides.priority ?? task.priority;
   const due = overrides.due ?? { date: task.dueDate ?? null, hasTime: Boolean(task.dueHasTime) };
+  const labelIds = overrides.labelIds ?? (task.labels ?? []).map((l) => l.label.id);
   const description = overrides.description !== undefined ? overrides.description : (task.description ?? null);
   const assigneeIds = overrides.assigneeIds ?? task.assignees.map((a) => a.user.id);
 
@@ -291,6 +301,14 @@ function TaskDetailBody({
           onPriorityChange={(next) => save('priority', next, () => updateTaskPriority(task.id, next))}
           onDueChange={(next) => save('due', next, () => updateTaskDueDate(task.id, next.date, next.hasTime))}
           onToggleAssignee={toggleAssignee}
+          labelsField={
+            <LabelPicker
+              projectId={projectId}
+              available={labels}
+              selectedIds={labelIds}
+              onChange={(next) => save('labelIds', next, () => setTaskLabels({ taskId: task.id, labelIds: next }))}
+            />
+          }
         />
 
         <TaskDescription
