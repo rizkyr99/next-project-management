@@ -357,6 +357,7 @@ function TaskDetailBody({
           taskId={task.id}
           viewerIsGuest={mentionable.some((m) => m.id === currentUserId && m.role === 'guest')}
           projectHasGuests={mentionable.some((m) => m.role === 'guest')}
+          everAsked={Boolean(task.approval)}
         />
         <TaskComments taskId={task.id} currentUserId={currentUserId} workspaceMembers={mentionable} />
         <Separator />

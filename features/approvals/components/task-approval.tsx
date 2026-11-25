@@ -24,16 +24,23 @@ export function TaskApproval({
   taskId,
   viewerIsGuest,
   projectHasGuests,
+  everAsked,
 }: {
   taskId: string;
   viewerIsGuest: boolean;
   projectHasGuests: boolean;
+  /** The task has an approval state (from the page), so there's history to show. */
+  everAsked: boolean;
 }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const queryKey = ['approvals', taskId];
+  // Server actions from a page run one at a time, so skip the request when
+  // there's nothing to show: no client to ask, and never asked.
+  const relevant = viewerIsGuest || projectHasGuests || everAsked;
   const { data: rounds = [], isLoading } = useQuery({
     queryKey,
+    enabled: relevant,
     queryFn: async () => {
       const res = await getTaskApprovals(taskId);
       return 'rounds' in res ? res.rounds : [];
@@ -61,7 +68,7 @@ export function TaskApproval({
 
   const pending = rounds.find((r) => r.status === 'pending');
   const history = rounds.filter((r) => r !== pending);
-  if (isLoading) return null;
+  if (!relevant || isLoading) return null;
   // Nothing to show or do: no client to ask, and never asked.
   if (!viewerIsGuest && !projectHasGuests && rounds.length === 0) return null;
   if (viewerIsGuest && rounds.length === 0) return null;
