@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { ChevronRight, Clock3, MessageSquare, UserPlus, Users } from 'lucide-react';
+import { ChevronRight, CircleCheck, Clock3, MessageSquare, Stamp, Undo2, UserPlus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { NotificationRow } from '../actions';
 import { isSafeNotificationHref } from '../href';
@@ -37,6 +37,36 @@ function describe(item: NotificationRow): { icon: ReactNode; title: string; desc
         description: (
           <>
             {strong(item.actorName)} mentioned you in {strong(item.taskTitle)}
+          </>
+        ),
+      };
+    case 'approval_requested':
+      return {
+        icon: <Stamp className='size-5 text-muted-foreground' />,
+        title: 'Approval needed',
+        description: (
+          <>
+            {strong(item.actorName)} asked for your approval on {strong(item.taskTitle)}
+          </>
+        ),
+      };
+    case 'task_approved':
+      return {
+        icon: <CircleCheck className='size-5 text-muted-foreground' />,
+        title: 'Approved',
+        description: (
+          <>
+            {strong(item.actorName)} approved {strong(item.taskTitle)}
+          </>
+        ),
+      };
+    case 'changes_requested':
+      return {
+        icon: <Undo2 className='size-5 text-muted-foreground' />,
+        title: 'Changes requested',
+        description: (
+          <>
+            {strong(item.actorName)} requested changes to {strong(item.taskTitle)}
           </>
         ),
       };

@@ -20,6 +20,7 @@ import {
 import { usePendingDeletes } from '../../pending-deletes';
 import { closeTask, TASK_PARAM } from '../../task-link';
 import { TaskComments } from '../task-comments';
+import { TaskApproval } from '@/features/approvals/components/task-approval';
 import type { Person, Priority, TaskData } from '../task-meta';
 import { deleteTaskWithUndo } from './delete-task';
 import { CopyTaskLink } from './copy-task-link';
@@ -352,6 +353,11 @@ function TaskDetailBody({
         <TaskChecklist taskId={task.id} items={task.checklist ?? []} />
 
         <Separator />
+        <TaskApproval
+          taskId={task.id}
+          viewerIsGuest={mentionable.some((m) => m.id === currentUserId && m.role === 'guest')}
+          projectHasGuests={mentionable.some((m) => m.role === 'guest')}
+        />
         <TaskComments taskId={task.id} currentUserId={currentUserId} workspaceMembers={mentionable} />
         <Separator />
         <TaskActivity taskId={task.id} />

@@ -1,6 +1,7 @@
 import { db } from '@/db/drizzle';
-import { comment, label, project, projectGuest } from '@/db/schema';
-import { and, asc, count, eq, inArray, isNull } from 'drizzle-orm';
+import { comment, label, project, projectGuest, taskApproval } from '@/db/schema';
+import { and, asc, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import type { ApprovalState } from '@/features/approvals/states';
 import { CallButton } from '@/features/call/components/call-button';
 import { ProjectViews } from '@/features/projects/components/project-views';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
@@ -132,6 +133,20 @@ export default async function ProjectIdPage({
       : [];
   const commentCountMap = Object.fromEntries(commentCounts.map((r) => [r.taskId, r.count]));
 
+  // Each task's latest approval round that wasn't withdrawn (C3), for the cards.
+  const approvals =
+    allTaskIds.length > 0
+      ? await db
+          .selectDistinctOn([taskApproval.taskId], { taskId: taskApproval.taskId, status: taskApproval.status })
+          .from(taskApproval)
+          .where(and(inArray(taskApproval.taskId, allTaskIds), ne(taskApproval.status, 'cancelled')))
+          .orderBy(taskApproval.taskId, desc(taskApproval.createdAt))
+      : [];
+  const approvalMap = new Map(approvals.map((a) => [a.taskId, a.status as ApprovalState]));
+  for (const status of data.statuses) {
+    for (const t of status.tasks) Object.assign(t, { approval: approvalMap.get(t.id) ?? null });
+  }
+
   // The list and table keep local state (optimistic edits); remount them
   // whenever the server data they show changes. The board syncs itself.
   const boardKey = createHash('sha1')
@@ -152,6 +167,7 @@ export default async function ProjectIdPage({
             t.labels.map((l) => [l.label.id, l.label.name, l.label.color]),
             t.dueHasTime,
             t.checklist.map((c) => [c.id, c.done]),
+            approvalMap.get(t.id) ?? null,
           ]),
         ]),
       ),

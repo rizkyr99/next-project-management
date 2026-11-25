@@ -4,7 +4,7 @@ import { user, userPreferences } from '@/db/schema';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { APP_URL, sendTaskNotificationEmail } from '@/lib/email';
 
-export type TaskEmailKind = 'assigned' | 'mentioned';
+export type TaskEmailKind = 'assigned' | 'mentioned' | 'approval_requested' | 'approved' | 'changes_requested';
 
 /**
  * Of `userIds`, who should get an email of this kind: verified addresses
@@ -13,6 +13,8 @@ export type TaskEmailKind = 'assigned' | 'mentioned';
  */
 export async function emailRecipients(userIds: string[], kind: TaskEmailKind) {
   if (userIds.length === 0) return [];
+  // Approvals ride on the "mentions" choice: like a mention, someone is
+  // asking (or answering) you directly.
   const pref = kind === 'assigned' ? userPreferences.emailOnAssign : userPreferences.emailOnMention;
   return db
     .select({ id: user.id, email: user.email })

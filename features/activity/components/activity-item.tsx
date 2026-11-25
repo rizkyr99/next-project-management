@@ -12,6 +12,10 @@ type ActivityAction =
   | 'task.assigned'
   | 'task.unassigned'
   | 'task.comment_added'
+  | 'task.approval_requested'
+  | 'task.approval_withdrawn'
+  | 'task.approved'
+  | 'task.changes_requested'
   | 'task.deleted'
   | 'project.created'
   | 'project.updated'
@@ -68,6 +72,14 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return `removed ${m.assigneeName ?? 'someone'} from ${task}`;
     case 'task.comment_added':
       return `commented on ${task}`;
+    case 'task.approval_requested':
+      return `asked the client to approve ${task}`;
+    case 'task.approval_withdrawn':
+      return `withdrew the approval request on ${task}`;
+    case 'task.approved':
+      return `approved ${task}`;
+    case 'task.changes_requested':
+      return `requested changes to ${task}`;
     case 'task.deleted':
       return `deleted task ${task}`;
     case 'project.created':

@@ -16,7 +16,11 @@ type Key = keyof EmailPreferences;
 
 const OPTIONS: { key: Key; label: string; hint: string }[] = [
   { key: 'emailOnAssign', label: 'When someone assigns me a task', hint: 'Sent right away.' },
-  { key: 'emailOnMention', label: 'When someone @mentions me in a comment', hint: 'Sent right away.' },
+  {
+    key: 'emailOnMention',
+    label: 'When someone @mentions me in a comment',
+    hint: 'Also approvals: requests sent to you, and answers to yours. Sent right away.',
+  },
   {
     key: 'emailDigest',
     label: 'Daily summary of unread notifications',
