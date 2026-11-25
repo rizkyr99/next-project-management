@@ -27,7 +27,7 @@ export default async function MyTasksPage({
   if (!session) redirect('/login');
 
   const [currentWorkspace] = await db
-    .select({ id: workspace.id })
+    .select({ id: workspace.id, role: member.role })
     .from(workspace)
     .innerJoin(member, eq(member.workspaceId, workspace.id))
     .where(
@@ -38,6 +38,8 @@ export default async function MyTasksPage({
     );
 
   if (!currentWorkspace) redirect('/create-workspace');
+  // Guests aren't assigned work.
+  if (currentWorkspace.role === 'guest') redirect(`/workspaces/${workspaceSlug}`);
 
   const myTasks = await db
     .select({

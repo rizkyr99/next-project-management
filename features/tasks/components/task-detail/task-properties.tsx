@@ -8,6 +8,8 @@ import { PersonAvatar, type Person } from '../task-meta';
 import { PRIORITIES, priorityConfig, type Priority } from '../../priority';
 import { AssigneePicker } from './assignee-picker';
 import { DatePicker } from './date-picker';
+import { useReadOnly } from '@/features/projects/read-only';
+import { formatDue } from '../../due';
 
 function Row({ icon, label, children, top }: { icon: ReactNode; label: string; children: ReactNode; top?: boolean }) {
   return (
@@ -47,6 +49,44 @@ export function TaskProperties({
   /** The label picker, built by the sheet. */
   labelsField?: ReactNode;
 }) {
+  const readOnly = useReadOnly();
+  if (readOnly) {
+    // Guests see the task's details as text.
+    return (
+      <div className='space-y-3 text-sm'>
+        <Row icon={<Target className='size-4' />} label='Status'>
+          <span>{statuses.find((s) => s.id === statusId)?.name}</span>
+        </Row>
+        <Row icon={priorityConfig[priority].icon} label='Priority'>
+          <span>{priorityConfig[priority].label}</span>
+        </Row>
+        {labelsField && (
+          <Row icon={<Tag className='size-4' />} label='Labels' top>
+            {labelsField}
+          </Row>
+        )}
+        <Row icon={<CalendarIcon className='size-4' />} label='Due date'>
+          <span className={due.date ? undefined : 'text-muted-foreground'}>
+            {due.date ? formatDue(due.date, due.hasTime) : 'No due date'}
+          </span>
+        </Row>
+        <Row icon={<Users className='size-4' />} label='Assignees' top>
+          {assignees.length > 0 ? (
+            <div className='flex flex-wrap gap-1.5'>
+              {assignees.map((a) => (
+                <div key={a.id} className='flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-xs'>
+                  <PersonAvatar person={a} className='size-4' fallbackClassName='text-[8px]' />
+                  {a.name || a.email}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span className='pt-1 text-muted-foreground'>Unassigned</span>
+          )}
+        </Row>
+      </div>
+    );
+  }
   return (
     <div className='space-y-3'>
       <Row icon={<Target className='size-4' />} label='Status'>

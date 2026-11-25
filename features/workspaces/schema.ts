@@ -13,8 +13,15 @@ export const workspaceFormSchema = z.object({
   description: z.string().max(500, 'Description must be 500 characters or fewer').optional(),
 });
 
-export const inviteMemberSchema = z.object({
-  workspaceSlug: z.string().min(1, 'Workspace is required'),
-  email: z.email('Enter a valid email'),
-  role: z.enum(['admin', 'member']),
-});
+export const inviteMemberSchema = z
+  .object({
+    workspaceSlug: z.string().min(1, 'Workspace is required'),
+    email: z.email('Enter a valid email'),
+    role: z.enum(['admin', 'member', 'guest']),
+    /** Guests: the projects to share. */
+    projectIds: z.array(z.string()).default([]),
+  })
+  .refine((v) => v.role !== 'guest' || v.projectIds.length > 0, {
+    message: 'Choose at least one project to share.',
+    path: ['projectIds'],
+  });

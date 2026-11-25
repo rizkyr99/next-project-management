@@ -15,6 +15,7 @@ vi.mock('@/lib/subscription', () => ({ checkWorkspaceLimit: vi.fn() }));
 vi.mock('@/lib/membership', () => ({
   lockWorkspace: vi.fn(() => ({ kind: 'lock' })),
   unassignFromWorkspaceTasks: vi.fn((userId: string) => ({ kind: 'unassign', userId })),
+  revokeGuestProjects: vi.fn((userId: string) => ({ kind: 'revoke-guest', userId })),
 }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn(), unstable_rethrow: vi.fn() }));
 vi.mock('next/headers', () => ({ headers: vi.fn(() => new Headers()) }));
@@ -72,7 +73,7 @@ describe('leaveWorkspace', () => {
     await leaveWorkspace({ workspaceId: ws.id });
 
     const batch = db.batch.mock.calls[0][0] as { kind: string; userId?: string }[];
-    expect(batch.map((q) => q.kind)).toEqual(['lock', 'delete', 'unassign']);
+    expect(batch.map((q) => q.kind)).toEqual(['lock', 'delete', 'unassign', 'revoke-guest']);
     expect(lockWorkspace).toHaveBeenCalledWith(ws.id);
     expect(unassignFromWorkspaceTasks).toHaveBeenCalledWith('u-owner', ws.id);
     expect(insertActivity).toHaveBeenCalledWith(expect.objectContaining({ action: 'member.left' }));
@@ -175,7 +176,7 @@ describe('removeMember', () => {
 
     expect(await removeMember(ws.slug, 'm-2')).toEqual({ success: true });
     const batch = db.batch.mock.calls[0][0] as { kind: string }[];
-    expect(batch.map((q) => q.kind)).toEqual(['lock', 'delete', 'unassign']);
+    expect(batch.map((q) => q.kind)).toEqual(['lock', 'delete', 'unassign', 'revoke-guest']);
     expect(unassignFromWorkspaceTasks).toHaveBeenCalledWith('u-2', ws.id);
   });
 

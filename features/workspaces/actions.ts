@@ -6,12 +6,12 @@ import { db } from '@/db/drizzle';
 import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { checkWorkspaceLimit } from '@/lib/subscription';
-import { and, eq, ne, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { isUniqueViolation } from '@/lib/db-errors';
-import { lockWorkspace, unassignFromWorkspaceTasks } from '@/lib/membership';
+import { lockWorkspace, revokeGuestProjects, unassignFromWorkspaceTasks } from '@/lib/membership';
 import { gettingStartedQueries } from '@/lib/onboarding';
 import { workspaceFormSchema } from './schema';
 
@@ -172,11 +172,13 @@ export async function removeMember(workspaceSlug: string, memberId: string) {
             eq(member.id, memberId),
             eq(member.workspaceId, targetWorkspace.id),
             ne(member.role, 'owner'),
-            or(actorRole("'owner'"), and(eq(member.role, 'member'), actorRole("'admin'"))),
+            // Admins can remove members and guests; owners anyone but themselves.
+            or(actorRole("'owner'"), and(inArray(member.role, ['member', 'guest']), actorRole("'admin'"))),
           ),
         )
         .returning({ id: member.id }),
       unassignFromWorkspaceTasks(targetMember.userId, targetWorkspace.id),
+      revokeGuestProjects(targetMember.userId, targetWorkspace.id),
     ]);
     if (removed.length === 0) {
       return { error: 'Roles changed while you were doing this. Refresh and try again.' };
@@ -230,6 +232,11 @@ export async function changeMemberRole(
 
     if (!targetMember) return { error: 'Member not found' };
     if (targetMember.role === 'owner') return { error: 'Cannot change the owner\'s role' };
+    // A guest only knows their clients' projects; giving them the whole
+    // workspace should be a deliberate new invite, not a role switch.
+    if (targetMember.role === 'guest') {
+      return { error: 'Guests can’t change role. Remove them and invite them as a member instead.' };
+    }
 
     const [changedUser] = await db
       .select({ name: userTable.name })
@@ -248,6 +255,7 @@ export async function changeMemberRole(
             eq(member.id, memberId),
             eq(member.workspaceId, targetWorkspace.id),
             ne(member.role, 'owner'),
+            ne(member.role, 'guest'),
             sql`exists (select 1 from ${workspace} where ${workspace.id} = ${targetWorkspace.id} and ${workspace.userId} = ${session.user.id})`,
           ),
         )

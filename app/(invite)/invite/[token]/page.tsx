@@ -72,7 +72,8 @@ export default async function InvitePage({
   }
 
   const state = evaluateInvite(invite, session?.user.email ?? null);
-  const roleLabel = invite.role === 'admin' ? 'an admin' : 'a member';
+  const roleLabel =
+    invite.role === 'admin' ? 'an admin' : invite.role === 'guest' ? 'a guest (you’ll see the projects shared with you)' : 'a member';
 
   switch (state.kind) {
     case 'expired':

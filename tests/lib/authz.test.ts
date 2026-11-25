@@ -253,3 +253,66 @@ describe('runAction', () => {
     expect(unstable_rethrow).toHaveBeenCalledWith(signal);
   });
 });
+
+describe('guests (C1): refused unless the action opts in, and only on shared projects', () => {
+  const guestWorkspace = { id: 'ws-1', slug: 'acme', name: 'Acme', role: 'guest' };
+  const projectRow = (shared: string | null) => ({
+    projectId: 'p-1',
+    projectName: 'Site',
+    workspaceId: 'ws-1',
+    workspaceSlug: 'acme',
+    role: 'guest',
+    shared,
+  });
+  const taskRow = (shared: string | null) => ({
+    taskId: 't-1',
+    taskTitle: 'Homepage',
+    statusId: 's-1',
+    projectId: 'p-1',
+    workspaceId: 'ws-1',
+    workspaceSlug: 'acme',
+    role: 'guest',
+    shared,
+  });
+
+  it('refuses a guest at workspace level by default', async () => {
+    mockSelect.mockReturnValueOnce(chain([guestWorkspace]));
+    await expect(requireWorkspaceMember('ws-1')).rejects.toBeInstanceOf(AuthzError);
+  });
+
+  it('lets a guest through at workspace level only with allowGuests (e.g. leaving)', async () => {
+    mockSelect.mockReturnValueOnce(chain([guestWorkspace]));
+    await expect(requireWorkspaceMember('ws-1', { allowGuests: true })).resolves.toMatchObject({ role: 'guest' });
+  });
+
+  it('refuses a guest on a shared project when the action does not opt in (edits)', async () => {
+    mockSelect.mockReturnValueOnce(chain([projectRow('p-1')]));
+    await expect(requireProjectAccess('p-1')).rejects.toBeInstanceOf(AuthzError);
+  });
+
+  it('refuses a guest on a project not shared with them, even with allowGuests', async () => {
+    mockSelect.mockReturnValueOnce(chain([projectRow(null)]));
+    await expect(requireProjectAccess('p-1', { allowGuests: true })).rejects.toBeInstanceOf(AuthzError);
+    mockSelect.mockReturnValueOnce(chain([taskRow(null)]));
+    await expect(requireTaskAccess('t-1', { allowGuests: true })).rejects.toBeInstanceOf(AuthzError);
+  });
+
+  it('allows a guest on a shared project when the action opts in (view, comment)', async () => {
+    mockSelect.mockReturnValueOnce(chain([projectRow('p-1')]));
+    await expect(requireProjectAccess('p-1', { allowGuests: true })).resolves.toMatchObject({ role: 'guest' });
+    mockSelect.mockReturnValueOnce(chain([taskRow('p-1')]));
+    await expect(requireTaskAccess('t-1', { allowGuests: true })).resolves.toMatchObject({ role: 'guest' });
+  });
+
+  it('never lets a guest past a roles list', async () => {
+    mockSelect.mockReturnValueOnce(chain([projectRow('p-1')]));
+    await expect(
+      requireProjectAccess('p-1', { allowGuests: true, roles: ['owner', 'admin'] }),
+    ).rejects.toBeInstanceOf(AuthzError);
+  });
+
+  it('leaves team members unaffected by sharing', async () => {
+    mockSelect.mockReturnValueOnce(chain([{ ...projectRow(null), role: 'member' }]));
+    await expect(requireProjectAccess('p-1')).resolves.toMatchObject({ role: 'member' });
+  });
+});

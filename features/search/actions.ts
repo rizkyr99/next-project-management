@@ -1,9 +1,9 @@
 'use server';
 
 import { db } from '@/db/drizzle';
-import { comment, member, project, task, taskStatus, workspace } from '@/db/schema';
+import { comment, member, project, projectGuest, task, taskStatus, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { and, eq, ilike, inArray, or } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { headers } from 'next/headers';
 
 export interface SearchResult {
@@ -27,18 +27,26 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
 
   // Resolve workspace and verify membership
   const [ws] = await db
-    .select({ id: workspace.id })
+    .select({ id: workspace.id, role: member.role })
     .from(workspace)
     .innerJoin(member, and(eq(member.workspaceId, workspace.id), eq(member.userId, session.user.id)))
     .where(eq(workspace.slug, workspaceSlug))
     .limit(1);
 
   if (!ws) return [];
+  const isGuest = ws.role === 'guest';
 
+  // Guests (clients) search only the active projects shared with them.
   const workspaceProjects = await db
     .select({ id: project.id, name: project.name })
     .from(project)
-    .where(eq(project.workspaceId, ws.id));
+    .leftJoin(projectGuest, and(eq(projectGuest.projectId, project.id), eq(projectGuest.userId, session.user.id)))
+    .where(
+      and(
+        eq(project.workspaceId, ws.id),
+        isGuest ? and(isNotNull(projectGuest.projectId), isNull(project.archivedAt)) : undefined,
+      ),
+    );
 
   const projectIds = workspaceProjects.map((p) => p.id);
   if (projectIds.length === 0) return [];
@@ -61,7 +69,7 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
     db
       .select({ id: project.id, name: project.name, archived: project.archivedAt })
       .from(project)
-      .where(and(eq(project.workspaceId, ws.id), ilike(project.name, term)))
+      .where(and(eq(project.workspaceId, ws.id), inArray(project.id, projectIds), ilike(project.name, term)))
       .limit(5),
 
     db

@@ -28,6 +28,8 @@ import { setTaskLabels } from '@/features/labels/actions';
 import type { LabelInfo } from '@/features/labels/schema';
 import { TaskDescription } from './task-description';
 import { TaskChecklist } from '@/features/checklists/components/task-checklist';
+import { useReadOnly } from '@/features/projects/read-only';
+import { LabelChips } from '@/features/labels/components/label-chip';
 import { TaskProperties } from './task-properties';
 
 type SheetTask = TaskData & { statusId: string };
@@ -39,7 +41,10 @@ interface TaskDetailSheetProps {
   /** The workspace's labels, for the picker. */
   labels: LabelInfo[];
   statuses: { id: string; name: string; tasks: SheetTask[] }[];
+  /** The team: who tasks can be assigned to. */
   members: Person[];
+  /** Everyone who can see the project (team and its guests), for @mentions. */
+  mentionable?: Person[];
   currentUserId: string;
 }
 
@@ -48,7 +53,15 @@ interface TaskDetailSheetProps {
  * task from the page's server data, so any refresh (our own revalidation or
  * another member's change) shows here too.
  */
-export function TaskDetailSheet({ projectId, projectName, labels, statuses, members, currentUserId }: TaskDetailSheetProps) {
+export function TaskDetailSheet({
+  projectId,
+  projectName,
+  labels,
+  statuses,
+  members,
+  mentionable = members,
+  currentUserId,
+}: TaskDetailSheetProps) {
   const taskId = useSearchParams().get(TASK_PARAM);
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
   const hidden = usePendingDeletes();
@@ -135,6 +148,7 @@ export function TaskDetailSheet({ projectId, projectName, labels, statuses, memb
             labels={labels}
             statuses={statusOptions}
             members={members}
+            mentionable={mentionable}
             currentUserId={currentUserId}
           />
         )}
@@ -160,6 +174,7 @@ function TaskDetailBody({
   labels,
   statuses,
   members,
+  mentionable,
   currentUserId,
 }: {
   task: SheetTask;
@@ -167,6 +182,7 @@ function TaskDetailBody({
   labels: LabelInfo[];
   statuses: { id: string; name: string }[];
   members: Person[];
+  mentionable: Person[];
   currentUserId: string;
 }) {
   // Optimistic edits sit on top of the server data. A refresh drops only the
@@ -187,6 +203,7 @@ function TaskDetailBody({
     });
   }
 
+  const readOnly = useReadOnly();
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(task.title);
 
@@ -270,6 +287,8 @@ function TaskDetailBody({
             }}
             className='w-full rounded-md border border-input bg-background px-2 py-1 text-lg font-semibold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
           />
+        ) : readOnly ? (
+          <SheetTitle className='px-2 py-1 text-lg font-semibold break-words'>{title}</SheetTitle>
         ) : (
           <SheetTitle asChild>
             <button
@@ -303,12 +322,20 @@ function TaskDetailBody({
           onDueChange={(next) => save('due', next, () => updateTaskDueDate(task.id, next.date, next.hasTime))}
           onToggleAssignee={toggleAssignee}
           labelsField={
+            readOnly ? (
+              labelIds.length > 0 ? (
+                <LabelChips labels={labelIds.map((id) => labels.find((l) => l.id === id)).filter((l) => l !== undefined)} max={10} />
+              ) : (
+                <span className='text-sm text-muted-foreground'>None</span>
+              )
+            ) : (
             <LabelPicker
               projectId={projectId}
               available={labels}
               selectedIds={labelIds}
               onChange={(next) => save('labelIds', next, () => setTaskLabels({ taskId: task.id, labelIds: next }))}
             />
+            )
           }
         />
 
@@ -325,19 +352,21 @@ function TaskDetailBody({
         <TaskChecklist taskId={task.id} items={task.checklist ?? []} />
 
         <Separator />
-        <TaskComments taskId={task.id} currentUserId={currentUserId} workspaceMembers={members} />
+        <TaskComments taskId={task.id} currentUserId={currentUserId} workspaceMembers={mentionable} />
         <Separator />
         <TaskActivity taskId={task.id} />
         <Separator />
 
-        <Button
-          variant='ghost'
-          size='sm'
-          className='text-destructive hover:text-destructive'
-          onClick={() => deleteTaskWithUndo({ id: task.id, title })}>
-          <Trash2 />
-          Delete task
-        </Button>
+        {!readOnly && (
+          <Button
+            variant='ghost'
+            size='sm'
+            className='text-destructive hover:text-destructive'
+            onClick={() => deleteTaskWithUndo({ id: task.id, title })}>
+            <Trash2 />
+            Delete task
+          </Button>
+        )}
       </div>
     </>
   );

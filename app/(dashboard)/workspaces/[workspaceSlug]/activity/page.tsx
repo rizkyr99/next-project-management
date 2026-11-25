@@ -32,11 +32,13 @@ export default async function ActivityPage({
   if (!currentWorkspace) redirect('/create-workspace');
 
   const [currentMember] = await db
-    .select({ id: member.id })
+    .select({ id: member.id, role: member.role })
     .from(member)
     .where(and(eq(member.workspaceId, currentWorkspace.id), eq(member.userId, session.user.id)));
 
   if (!currentMember) redirect('/create-workspace');
+  // The workspace feed covers every project; guests only see theirs.
+  if (currentMember.role === 'guest') redirect(`/workspaces/${workspaceSlug}`);
 
   const filters = {
     projectId: typeof query.project === 'string' ? query.project : undefined,

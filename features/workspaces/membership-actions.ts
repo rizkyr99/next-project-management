@@ -4,7 +4,7 @@ import { db } from '@/db/drizzle';
 import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { type ActionResult, requireWorkspaceMember, toActionError } from '@/lib/authz';
-import { lockWorkspace, unassignFromWorkspaceTasks } from '@/lib/membership';
+import { lockWorkspace, revokeGuestProjects, unassignFromWorkspaceTasks } from '@/lib/membership';
 import { checkWorkspaceLimit } from '@/lib/subscription';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
@@ -25,7 +25,8 @@ const leaveSchema = z.object({ workspaceId: z.string().min(1) });
 export async function leaveWorkspace(values: z.input<typeof leaveSchema>): Promise<ActionResult | void> {
   try {
     const input = leaveSchema.parse(values);
-    const ctx = await requireWorkspaceMember(input.workspaceId);
+    // Guests can leave too.
+    const ctx = await requireWorkspaceMember(input.workspaceId, { allowGuests: true });
     if (ctx.role === 'owner') {
       return { error: 'Transfer ownership to another member before leaving this workspace.' };
     }
@@ -46,6 +47,7 @@ export async function leaveWorkspace(values: z.input<typeof leaveSchema>): Promi
         )
         .returning({ id: member.id }),
       unassignFromWorkspaceTasks(userId, ctx.workspace.id),
+      revokeGuestProjects(userId, ctx.workspace.id),
     ]);
     if (removed.length === 0) {
       return { error: 'Transfer ownership to another member before leaving this workspace.' };
@@ -83,7 +85,7 @@ export async function transferOwnership(values: z.input<typeof transferSchema>):
     const fromUserId = ctx.session.user.id;
 
     const [target] = await db
-      .select({ id: member.id, userId: member.userId, name: userTable.name })
+      .select({ id: member.id, userId: member.userId, name: userTable.name, role: member.role })
       .from(member)
       .innerJoin(userTable, eq(member.userId, userTable.id))
       .where(and(eq(member.id, input.toMemberId), eq(member.workspaceId, ctx.workspace.id)))
@@ -91,6 +93,7 @@ export async function transferOwnership(values: z.input<typeof transferSchema>):
 
     if (!target) return { error: 'Not found.' };
     if (target.userId === fromUserId) return { error: 'You already own this workspace.' };
+    if (target.role === 'guest') return { error: 'Guests can’t own a workspace. Invite them as a member first.' };
 
     // The new owner's plan has to have room for one more owned workspace.
     const limit = await checkWorkspaceLimit(target.userId);
@@ -115,6 +118,7 @@ export async function transferOwnership(values: z.input<typeof transferSchema>):
             eq(member.workspaceId, ctx.workspace.id),
             eq(member.userId, target.userId),
             ne(member.role, 'owner'),
+            ne(member.role, 'guest'),
             sql`exists (select 1 from ${workspace} where ${workspace.id} = ${ctx.workspace.id} and ${workspace.userId} = ${fromUserId})`,
           ),
         )

@@ -15,6 +15,7 @@ vi.mock('@/lib/subscription', () => ({ checkWorkspaceLimit: vi.fn() }));
 vi.mock('@/lib/membership', () => ({
   lockWorkspace: vi.fn(() => 'lock'),
   unassignFromWorkspaceTasks: vi.fn(() => 'unassign'),
+  revokeGuestProjects: vi.fn(() => 'revoke-guest'),
 }));
 
 import { auth } from '@/lib/auth';
@@ -114,6 +115,8 @@ describe('removeMember', () => {
     const [ops] = db.batch.mock.calls[0];
     expect(ops[0]).toBe('lock');
     expect(ops[2]).toBe('unassign');
+    // A removed guest loses their shared projects in the same transaction.
+    expect(ops[3]).toBe('revoke-guest');
     expect(insertActivity).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'member.removed', metadata: { memberName: 'Bob' } }),
     );

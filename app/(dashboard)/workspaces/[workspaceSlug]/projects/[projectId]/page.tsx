@@ -1,6 +1,6 @@
 import { db } from '@/db/drizzle';
-import { comment, label, member, project, user } from '@/db/schema';
-import { and, asc, count, eq, inArray } from 'drizzle-orm';
+import { comment, label, project, projectGuest } from '@/db/schema';
+import { and, asc, count, eq, inArray, isNull } from 'drizzle-orm';
 import { CallButton } from '@/features/call/components/call-button';
 import { ProjectViews } from '@/features/projects/components/project-views';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
@@ -19,6 +19,8 @@ import { projectSnapshot } from '@/features/tasks/snapshot';
 import { ProjectDetails } from '@/features/projects/components/project-details';
 import { RestoreProjectButton } from '@/features/projects/components/restore-project-button';
 import { Archive } from 'lucide-react';
+import { ProjectReadOnly } from '@/features/projects/read-only';
+import { projectAudience } from '@/lib/project-audience';
 
 
 export async function generateMetadata({
@@ -30,13 +32,26 @@ export async function generateMetadata({
   const session = await getSession();
   const ws = session ? await getActiveWorkspace(workspaceSlug, session.user.id) : null;
   if (!ws) return {};
-  // Same scoping as the page: a project from another workspace gets no title.
+  // Same scoping as the page: a project from another workspace (or, for a
+  // guest, one not shared with them) gets no title.
+  if (ws.role === 'guest' && !(await sharedWithGuest(projectId, session!.user.id))) return {};
   const [row] = await db
     .select({ name: project.name })
     .from(project)
     .where(and(eq(project.id, projectId), eq(project.workspaceId, ws.id)))
     .limit(1);
   return row ? { title: row.name } : {};
+}
+
+/** A guest sees a project only while it's shared with them and not archived. */
+async function sharedWithGuest(projectId: string, userId: string) {
+  const [row] = await db
+    .select({ id: projectGuest.projectId })
+    .from(projectGuest)
+    .innerJoin(project, eq(project.id, projectGuest.projectId))
+    .where(and(eq(projectGuest.projectId, projectId), eq(projectGuest.userId, userId), isNull(project.archivedAt)))
+    .limit(1);
+  return Boolean(row);
 }
 
 export default async function ProjectIdPage({
@@ -52,21 +67,16 @@ export default async function ProjectIdPage({
   // Membership is resolved (and cached) by the workspace layout as well.
   const currentWorkspace = await getActiveWorkspace(workspaceSlug, session.user.id);
   if (!currentWorkspace) notFound();
+  // Clients (guests) see only projects shared with them, read-only but for comments.
+  const isGuest = currentWorkspace.role === 'guest';
+  if (isGuest && !(await sharedWithGuest(projectId, session.user.id))) notFound();
 
   // The snapshot is taken alongside the data, so the live stream can tell
   // whether anything changed between this render and its first poll.
   const [snapshot, workspaceMembers, workspaceLabels, data] = await Promise.all([
     projectSnapshot(projectId),
-    db
-      .select({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-      })
-      .from(member)
-      .innerJoin(user, eq(member.userId, user.id))
-      .where(eq(member.workspaceId, currentWorkspace.id)),
+    // The team plus this project's guests; never other clients.
+    projectAudience(currentWorkspace.id, projectId),
 
     db
       .select({ id: label.id, name: label.name, color: label.color })
@@ -142,7 +152,11 @@ export default async function ProjectIdPage({
     )
     .digest('base64url');
 
+  // Work is assigned to the team only; guests of this project can still be @mentioned.
+  const teamMembers = workspaceMembers.filter((m) => m.role !== 'guest');
+
   return (
+    <ProjectReadOnly readOnly={isGuest}>
     <div className='h-full flex flex-col'>
       <ProjectLiveUpdates projectId={data.id} snapshot={snapshot} />
       <RememberProject workspaceSlug={workspaceSlug} projectId={data.id} name={data.name} />
@@ -154,7 +168,7 @@ export default async function ProjectIdPage({
           <span className='flex-1'>
             This project is archived. It&apos;s hidden from the sidebar and My tasks, and sends no reminders.
           </span>
-          <RestoreProjectButton projectId={data.id} projectName={data.name} />
+          {!isGuest && <RestoreProjectButton projectId={data.id} projectName={data.name} />}
         </div>
       )}
       <div className='px-4 py-2 space-y-2 border-b'>
@@ -171,6 +185,7 @@ export default async function ProjectIdPage({
               className='mt-1'
             />
           </div>
+          {!isGuest && (
           <div className='flex items-center gap-2 shrink-0'>
             <CallButton
               projectId={projectId}
@@ -191,12 +206,13 @@ export default async function ProjectIdPage({
               variant='header'
             />
           </div>
+          )}
         </div>
         <Suspense>
           <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
             <ViewSwitcher />
             <TaskFilterBar
-              members={workspaceMembers.map((m) => ({ id: m.id, name: m.name }))}
+              members={teamMembers.map((m) => ({ id: m.id, name: m.name }))}
               currentUserId={session.user.id}
               labels={workspaceLabels}
             />
@@ -207,7 +223,7 @@ export default async function ProjectIdPage({
       <ProjectViews
         project={data}
         commentCountMap={commentCountMap}
-        workspaceMembers={workspaceMembers}
+        workspaceMembers={teamMembers}
         currentUserId={session.user.id}
         dataKey={boardKey}
       />
@@ -217,10 +233,12 @@ export default async function ProjectIdPage({
           projectName={data.name}
           labels={workspaceLabels}
           statuses={data.statuses}
-          members={workspaceMembers}
+          members={teamMembers}
+          mentionable={workspaceMembers}
           currentUserId={session.user.id}
         />
       </Suspense>
     </div>
+    </ProjectReadOnly>
   );
 }

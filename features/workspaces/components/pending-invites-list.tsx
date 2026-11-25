@@ -10,7 +10,7 @@ import { InviteLinkNotice, type SentInvite } from './invite-link-notice';
 interface PendingInvite {
   id: string;
   email: string;
-  role: 'owner' | 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member' | 'guest';
   expiresAt: Date;
   /** Computed server-side so rendering stays pure. */
   expired: boolean;

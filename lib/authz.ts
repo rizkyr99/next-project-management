@@ -1,10 +1,10 @@
 import 'server-only';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { ZodError } from 'zod';
 import { db } from '@/db/drizzle';
-import { comment, member, project, task, taskStatus, workspace } from '@/db/schema';
+import { comment, member, project, projectGuest, task, taskStatus, workspace } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { RateLimitError } from '@/lib/rate-limit';
 import { tagSentryUser } from '@/lib/sentry-user';
@@ -17,13 +17,22 @@ import { tagSentryUser } from '@/lib/sentry-user';
  * workspace the caller does not belong to, the helper throws `AuthzError`.
  * Both cases surface as the same "Not found" so callers cannot probe for the
  * existence of resources in other tenants.
+ *
+ * Guests (C1, clients) are refused by every helper unless the caller opts in
+ * with `allowGuests`, and even then only for projects shared with them
+ * (project_guest). So a new action is closed to clients by default.
  */
 
-export type Role = 'owner' | 'admin' | 'member';
+export type Role = 'owner' | 'admin' | 'member' | 'guest';
 
 export interface AccessOptions {
-  /** Restrict access to these roles. Omit to allow any member. */
+  /** Restrict access to these roles. Omit to allow any team member. */
   roles?: Role[];
+  /**
+   * Let guests through too, for the few things clients may do in a project
+   * shared with them: view it, comment and react. Off by default.
+   */
+  allowGuests?: boolean;
 }
 
 /** No valid session. Thrown so callers fail loudly, as before. */
@@ -42,11 +51,23 @@ export class AuthzError extends Error {
   }
 }
 
-function assertRole(role: Role, opts?: AccessOptions) {
+/**
+ * `sharedWithGuest`: for project-level checks, whether that project is shared
+ * with the guest. Workspace-level checks pass undefined: there `allowGuests`
+ * alone decides (e.g. a guest may leave the workspace).
+ */
+function assertRole(role: Role, opts?: AccessOptions, sharedWithGuest?: boolean) {
+  if (role === 'guest' && !(opts?.allowGuests && sharedWithGuest !== false)) {
+    throw new AuthzError();
+  }
   if (opts?.roles && !opts.roles.includes(role)) {
     throw new AuthzError();
   }
 }
+
+/** Joins the caller's project_guest row for a project (null unless shared with them). */
+const guestJoin = (projectIdColumn: typeof project.id, userId: string) =>
+  and(eq(projectGuest.projectId, projectIdColumn), eq(projectGuest.userId, userId));
 
 export async function requireSession() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -95,6 +116,7 @@ export async function requireProjectAccess(projectId: string, opts?: AccessOptio
       workspaceId: workspace.id,
       workspaceSlug: workspace.slug,
       role: member.role,
+      shared: projectGuest.projectId,
     })
     .from(project)
     .innerJoin(workspace, eq(workspace.id, project.workspaceId))
@@ -102,11 +124,12 @@ export async function requireProjectAccess(projectId: string, opts?: AccessOptio
       member,
       and(eq(member.workspaceId, project.workspaceId), eq(member.userId, session.user.id)),
     )
+    .leftJoin(projectGuest, guestJoin(project.id, session.user.id))
     .where(eq(project.id, projectId))
     .limit(1);
 
   if (!row) throw new AuthzError();
-  assertRole(row.role, opts);
+  assertRole(row.role, opts, row.shared !== null);
 
   return {
     session,
@@ -128,6 +151,7 @@ export async function requireTaskAccess(taskId: string, opts?: AccessOptions) {
       workspaceId: workspace.id,
       workspaceSlug: workspace.slug,
       role: member.role,
+      shared: projectGuest.projectId,
     })
     .from(task)
     .innerJoin(project, eq(project.id, task.projectId))
@@ -136,11 +160,12 @@ export async function requireTaskAccess(taskId: string, opts?: AccessOptions) {
       member,
       and(eq(member.workspaceId, project.workspaceId), eq(member.userId, session.user.id)),
     )
+    .leftJoin(projectGuest, guestJoin(project.id, session.user.id))
     .where(eq(task.id, taskId))
     .limit(1);
 
   if (!row) throw new AuthzError();
-  assertRole(row.role, opts);
+  assertRole(row.role, opts, row.shared !== null);
 
   return {
     session,
@@ -162,6 +187,7 @@ export async function requireCommentAccess(commentId: string, opts?: AccessOptio
       projectId: project.id,
       workspaceId: project.workspaceId,
       role: member.role,
+      shared: projectGuest.projectId,
     })
     .from(comment)
     .innerJoin(task, eq(task.id, comment.taskId))
@@ -170,11 +196,12 @@ export async function requireCommentAccess(commentId: string, opts?: AccessOptio
       member,
       and(eq(member.workspaceId, project.workspaceId), eq(member.userId, session.user.id)),
     )
+    .leftJoin(projectGuest, guestJoin(project.id, session.user.id))
     .where(eq(comment.id, commentId))
     .limit(1);
 
   if (!row) throw new AuthzError();
-  assertRole(row.role, opts);
+  assertRole(row.role, opts, row.shared !== null);
 
   return {
     session,
@@ -197,6 +224,7 @@ export async function requireStatusAccess(statusId: string, opts?: AccessOptions
       workspaceId: workspace.id,
       workspaceSlug: workspace.slug,
       role: member.role,
+      shared: projectGuest.projectId,
     })
     .from(taskStatus)
     .innerJoin(project, eq(project.id, taskStatus.projectId))
@@ -205,11 +233,12 @@ export async function requireStatusAccess(statusId: string, opts?: AccessOptions
       member,
       and(eq(member.workspaceId, project.workspaceId), eq(member.userId, session.user.id)),
     )
+    .leftJoin(projectGuest, guestJoin(project.id, session.user.id))
     .where(eq(taskStatus.id, statusId))
     .limit(1);
 
   if (!row) throw new AuthzError();
-  assertRole(row.role, opts);
+  assertRole(row.role, opts, row.shared !== null);
 
   return {
     session,
@@ -241,14 +270,17 @@ export async function assertTasksInProject(taskIds: string[], projectId: string)
   if (rows.length !== unique.length) throw new AuthzError();
 }
 
-/** Throws unless every user in `userIds` is a member of `workspaceId`. */
+/**
+ * Throws unless every user in `userIds` is on the team of `workspaceId`
+ * (owner, admin or member). Guests can't be assigned work.
+ */
 export async function assertWorkspaceMembers(userIds: string[], workspaceId: string) {
   const unique = [...new Set(userIds)];
   if (unique.length === 0) return;
   const rows = await db
     .select({ userId: member.userId })
     .from(member)
-    .where(and(eq(member.workspaceId, workspaceId), inArray(member.userId, unique)));
+    .where(and(eq(member.workspaceId, workspaceId), inArray(member.userId, unique), ne(member.role, 'guest')));
   if (rows.length !== unique.length) throw new AuthzError();
 }
 

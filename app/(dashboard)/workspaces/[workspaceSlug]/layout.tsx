@@ -2,11 +2,11 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { Header } from '@/components/header';
 import { VerifyEmailBanner } from '@/features/account/components/verify-email-banner';
 import { db } from '@/db/drizzle';
-import { member, project, workspace, projectFavorite } from '@/db/schema';
+import { member, project, projectGuest, workspace, projectFavorite } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
 import { checkWorkspaceLimit } from '@/lib/subscription';
 import { getActiveWorkspace } from '@/lib/workspace-context';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne, or } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 
@@ -78,7 +78,14 @@ export default async function WorkspaceLayout({
         projectFavorite,
         and(eq(projectFavorite.projectId, project.id), eq(projectFavorite.userId, session.user.id)),
       )
-      .where(eq(workspace.slug, workspaceSlug)),
+      .leftJoin(projectGuest, and(eq(projectGuest.projectId, project.id), eq(projectGuest.userId, session.user.id)))
+      .where(
+        and(
+          eq(workspace.slug, workspaceSlug),
+          // Guests (clients) see only the active projects shared with them.
+          or(ne(member.role, 'guest'), and(isNotNull(projectGuest.projectId), isNull(project.archivedAt))),
+        ),
+      ),
   ]);
 
   if (userWorkspaces.length === 0) {
@@ -94,7 +101,10 @@ export default async function WorkspaceLayout({
     <>
       <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} atWorkspaceLimit={!limitCheck.allowed} />
       <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
-        <Header />
+        <Header
+          role={activeWorkspace.role}
+          projects={workspaceProjects.filter((p) => !p.archivedAt).map((p) => ({ id: p.id, name: p.name }))}
+        />
         {!session.user.emailVerified && <VerifyEmailBanner email={session.user.email} />}
         <main className='flex-1'>{children}</main>
       </div>

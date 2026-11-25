@@ -25,7 +25,9 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'unpaid',
 ]);
 
-export const roleEnum = pgEnum('role', ['owner', 'admin', 'member']);
+// 'guest' (C1): a client who sees only the projects shared with them
+// (project_guest) and can comment and react there, nothing else.
+export const roleEnum = pgEnum('role', ['owner', 'admin', 'member', 'guest']);
 // Values come from features/tasks/priority.tsx (none … urgent).
 export const priorityEnum = pgEnum('priority', ['none', 'low', 'medium', 'high', 'urgent']);
 export const projectStatusEnum = pgEnum('project_status', PROJECT_STATUSES);
@@ -196,6 +198,8 @@ export const workspaceInvite = pgTable(
     invitedByUserId: text('invited_by_user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    /** Guest invites only: the projects shared on accepting. */
+    projectIds: text('project_ids').array(),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
@@ -234,6 +238,27 @@ export const project = pgTable(
       .notNull(),
   },
   (table) => [index('project_workspaceId_idx').on(table.workspaceId)],
+);
+
+/**
+ * Which projects a guest (member.role = 'guest') can see. Team members see
+ * every project in the workspace and never have rows here.
+ */
+export const projectGuest = pgTable(
+  'project_guest',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.userId] }),
+    index('project_guest_userId_idx').on(table.userId),
+  ],
 );
 
 export const taskStatus = pgTable('task_status', {
