@@ -1,5 +1,7 @@
 'use client';
 
+import { useReadOnly } from '@/features/projects/read-only';
+
 import type { Priority } from '@/features/tasks/priority';
 import { LabelChips } from '@/features/labels/components/label-chip';
 import { ChecklistBadge } from '@/features/checklists/components/checklist-badge';
@@ -83,6 +85,7 @@ function getInitials(name: string) {
 }
 
 export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps>) {
+  const readOnly = useReadOnly();
   const projectId = project?.id;
   const statuses = project?.statuses ?? [];
   const initialTasks = statuses.flatMap((status) =>
@@ -263,12 +266,16 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
       <div className='flex-1 overflow-y-auto p-4'>
         <div>
           <div className='grid grid-cols-[32px_1fr_160px_200px_40px] px-4 py-2 text-sm uppercase font-medium text-muted-foreground bg-muted rounded-lg'>
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={toggleAll}
-              aria-label='Select all'
-              className='mt-0.5'
-            />
+            {readOnly ? (
+              <span />
+            ) : (
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={toggleAll}
+                aria-label='Select all'
+                className='mt-0.5'
+              />
+            )}
             <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
             <SortButton label='Status' sortKey='status' sort={sort} setSort={setSort} />
             <span>Assignees</span>
@@ -278,11 +285,15 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
             <div
               key={task.id}
               className='group grid grid-cols-[32px_1fr_160px_200px_40px] px-4 py-2 items-center hover:bg-muted/30 transition-colors'>
-              <Checkbox
-                checked={selectedIds.has(task.id)}
-                onCheckedChange={() => toggleOne(task.id)}
-                aria-label={`Select ${task.title}`}
-              />
+              {readOnly ? (
+                <span />
+              ) : (
+                <Checkbox
+                  checked={selectedIds.has(task.id)}
+                  onCheckedChange={() => toggleOne(task.id)}
+                  aria-label={`Select ${task.title}`}
+                />
+              )}
               <button
                 type='button'
                 onClick={() => openTask(task.id)}
@@ -326,6 +337,9 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
                   })
                 )}
               </div>
+              {readOnly ? (
+                <span />
+              ) : (
               <AlertDialog>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -365,6 +379,7 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+              )}
             </div>
           ))}
         </div>

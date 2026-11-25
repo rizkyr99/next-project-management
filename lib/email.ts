@@ -51,15 +51,17 @@ export async function sendWorkspaceInviteEmail({
   inviterName,
   workspaceName,
   role,
+  projectNames,
   inviteUrl,
 }: {
   to: string;
   inviterName: string;
   workspaceName: string;
-  role: 'admin' | 'member';
+  role: 'admin' | 'member' | 'guest';
+  projectNames?: string[];
   inviteUrl: string;
 }): Promise<{ sent: boolean }> {
-  const props = { inviterName, workspaceName, role, inviteUrl, appUrl: APP_URL };
+  const props = { inviterName, workspaceName, role, projectNames, inviteUrl, appUrl: APP_URL };
 
   if (isReservedTestAddress(to)) {
     console.info('[email] skipped invite to reserved test address');

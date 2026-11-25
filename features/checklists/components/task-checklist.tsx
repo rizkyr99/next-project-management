@@ -14,6 +14,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { boardInstructions } from '@/features/projects/components/board-announcements';
+import { useReadOnly } from '@/features/projects/read-only';
 import {
   arrayMove,
   SortableContext,
@@ -39,6 +40,7 @@ const fail = (message?: string) =>
  * undone with a message if the save fails.
  */
 export function TaskChecklist({ taskId, items: serverItems }: Readonly<{ taskId: string; items: ChecklistItemInfo[] }>) {
+  const readOnly = useReadOnly();
   const [items, setItems] = useState<Item[]>(serverItems);
   // New server data replaces the local list, unless a save is still running
   // (it would briefly bring back what was just changed).
@@ -147,6 +149,8 @@ export function TaskChecklist({ taskId, items: serverItems }: Readonly<{ taskId:
   };
 
   const progress = checklistProgress(items);
+  // Guests see the checklist (if there is one) but can't change it.
+  if (readOnly && items.length === 0) return null;
 
   // Screen readers hear step names, not internal ids.
   const nameOf = (id: string | number | undefined) => items.find((i) => i.id === id)?.title ?? '';
@@ -199,7 +203,8 @@ export function TaskChecklist({ taskId, items: serverItems }: Readonly<{ taskId:
                 <ChecklistRow
                   key={item.id}
                   item={item}
-                  dragDisabled={anyPending}
+                  readOnly={readOnly}
+                  dragDisabled={anyPending || readOnly}
                   onToggle={(done) => patch(item.id, { done })}
                   onRename={(title) => patch(item.id, { title })}
                   onDelete={() => remove(item.id)}
@@ -210,7 +215,7 @@ export function TaskChecklist({ taskId, items: serverItems }: Readonly<{ taskId:
         </DndContext>
       )}
 
-      {items.length < MAX_CHECKLIST_ITEMS && (
+      {!readOnly && items.length < MAX_CHECKLIST_ITEMS && (
         <Input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -244,12 +249,14 @@ export function TaskChecklist({ taskId, items: serverItems }: Readonly<{ taskId:
 
 function ChecklistRow({
   item,
+  readOnly = false,
   dragDisabled,
   onToggle,
   onRename,
   onDelete,
 }: Readonly<{
   item: Item;
+  readOnly?: boolean;
   dragDisabled: boolean;
   onToggle: (done: boolean) => void;
   onRename: (title: string) => void;
@@ -278,6 +285,7 @@ function ChecklistRow({
         isDragging && 'relative z-10 bg-muted shadow-sm',
         item.pending && 'opacity-60',
       )}>
+      {!readOnly && (
       <button
         type='button'
         ref={setActivatorNodeRef}
@@ -288,9 +296,10 @@ function ChecklistRow({
         className='-ml-1 cursor-grab touch-none rounded text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:cursor-default'>
         <GripVertical className='size-3.5' aria-hidden />
       </button>
+      )}
       <Checkbox
         checked={item.done}
-        disabled={item.pending}
+        disabled={item.pending || readOnly}
         onCheckedChange={(v) => onToggle(v === true)}
         aria-label={item.title}
       />
@@ -315,6 +324,10 @@ function ChecklistRow({
           }}
           className='min-w-0 flex-1 rounded border border-input bg-background px-1.5 py-0.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
         />
+      ) : readOnly ? (
+        <span className={cn('min-w-0 flex-1 break-words px-1.5 py-0.5 text-sm', item.done && 'text-muted-foreground line-through')}>
+          {item.title}
+        </span>
       ) : (
         <button
           type='button'
@@ -331,6 +344,7 @@ function ChecklistRow({
           {item.title}
         </button>
       )}
+      {!readOnly && (
       <button
         type='button'
         onClick={onDelete}
@@ -339,6 +353,7 @@ function ChecklistRow({
         className='rounded p-0.5 text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100'>
         <X className='size-3.5' aria-hidden />
       </button>
+      )}
     </li>
   );
 }

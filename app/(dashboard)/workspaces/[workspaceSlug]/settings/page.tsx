@@ -5,10 +5,10 @@ import { PendingInvitesList } from '@/features/workspaces/components/pending-inv
 import { DeleteWorkspaceButton } from '@/features/workspaces/components/delete-workspace-button';
 import { LeaveWorkspaceButton } from '@/features/workspaces/components/leave-workspace-button';
 import { db } from '@/db/drizzle';
-import { label, member, taskLabel, user, workspace, workspaceInvite } from '@/db/schema';
+import { label, member, project, projectGuest, taskLabel, user, workspace, workspaceInvite } from '@/db/schema';
 import { LabelManager } from '@/features/labels/components/label-manager';
 import { auth } from '@/lib/auth';
-import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
@@ -67,7 +67,54 @@ export default async function WorkspaceSettingsPage({
     redirect('/create-workspace');
   }
 
+  // Guests (clients) see nothing of the workspace's people or setup, only
+  // the way out. The member list would show other clients' names and emails.
+  if (membership.role === 'guest') {
+    return (
+      <div className='flex-1'>
+        <div className='max-w-3xl space-y-6 p-4 md:p-8'>
+          <div>
+            <h1 className='text-2xl font-semibold'>Settings</h1>
+            <p className='text-sm text-muted-foreground'>
+              You&apos;re a guest in <span className='font-medium text-foreground'>{membership.workspaceName}</span>.
+            </p>
+          </div>
+          <Card className='border-destructive/40'>
+            <CardHeader>
+              <CardTitle className='text-destructive'>Leave workspace</CardTitle>
+              <CardDescription>
+                You&apos;ll lose access to the projects shared with you. They can invite you again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LeaveWorkspaceButton workspaceId={membership.workspaceId} workspaceName={membership.workspaceName} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   const canManage = membership.role === 'owner' || membership.role === 'admin';
+
+  // Active projects (to share with guests) and what each guest can see.
+  const [activeProjects, guestShares] = await Promise.all([
+    db
+      .select({ id: project.id, name: project.name })
+      .from(project)
+      .where(and(eq(project.workspaceId, membership.workspaceId), isNull(project.archivedAt)))
+      .orderBy(asc(project.name)),
+    db
+      .select({ userId: projectGuest.userId, projectId: project.id, projectName: project.name })
+      .from(projectGuest)
+      .innerJoin(project, eq(project.id, projectGuest.projectId))
+      .where(eq(project.workspaceId, membership.workspaceId))
+      .orderBy(asc(project.name)),
+  ]);
+  const sharedWith = new Map<string, { id: string; name: string }[]>();
+  for (const s of guestShares) {
+    sharedWith.set(s.userId, [...(sharedWith.get(s.userId) ?? []), { id: s.projectId, name: s.projectName }]);
+  }
 
   const members = await db
     .select({
@@ -230,13 +277,14 @@ export default async function WorkspaceSettingsPage({
                 <CardHeader>
                   <CardTitle>Invite members</CardTitle>
                   <CardDescription>
-                    Add teammates by email and assign their role.
+                    Add teammates by email and assign their role, or share projects with a client as a guest.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <InviteMemberForm
                     workspaceSlug={workspaceSlug}
                     canInvite={canManage}
+                    projects={activeProjects}
                   />
                 </CardContent>
               </Card>
@@ -256,14 +304,16 @@ export default async function WorkspaceSettingsPage({
                     id: m.id,
                     name: m.name,
                     email: m.email,
-                    role: m.role as 'owner' | 'admin' | 'member',
+                    role: m.role,
                     createdAt: m.createdAt,
+                    ...(m.role === 'guest' && { projects: sharedWith.get(m.userId) ?? [] }),
                   }))}
+                  projects={activeProjects}
                   workspaceSlug={workspaceSlug}
                   workspaceId={membership.workspaceId}
                   workspaceName={membership.workspaceName}
                   currentUserId={membership.memberId}
-                  currentUserRole={membership.role as 'owner' | 'admin' | 'member'}
+                  currentUserRole={membership.role}
                 />
               </CardContent>
             </Card>
@@ -281,7 +331,7 @@ export default async function WorkspaceSettingsPage({
                   invites={pendingInvites.map((i) => ({
                     id: i.id,
                     email: i.email,
-                    role: i.role as 'owner' | 'admin' | 'member',
+                    role: i.role,
                     expiresAt: i.expiresAt,
                     expired: i.expired,
                   }))}

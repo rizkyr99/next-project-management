@@ -1,3 +1,4 @@
+import { useReadOnly } from '@/features/projects/read-only';
 import { TaskCard } from './task-card';
 import type { TaskData } from './task-meta';
 import { AddTaskInline, type AddTaskCallbacks } from './add-task-inline';
@@ -43,6 +44,7 @@ export function BoardColumn({
   tasks = [],
   filtering = false,
 }: Readonly<BoardColumnProps>) {
+  const readOnly = useReadOnly();
   // The whole column is sortable horizontally (dragged by its header grip),
   // while the task list is the drop target for tasks, keyed by the status ID.
   const {
@@ -52,7 +54,7 @@ export function BoardColumn({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: columnDragId(id), data: { type: 'column', statusId: id } });
+  } = useSortable({ id: columnDragId(id), data: { type: 'column', statusId: id }, disabled: readOnly });
   const { setNodeRef: setDropRef } = useDroppable({ id, data: { type: 'column-drop' } });
 
   const column: ColumnInfo = { id, name: title, color, isDefault, taskCount: tasks.length };
@@ -107,19 +109,19 @@ export function BoardColumn({
         strategy={verticalListSortingStrategy}>
         <div ref={setDropRef} className='space-y-1 min-h-2'>
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} commentCount={task.commentCount} dragDisabled={filtering} />
+            <TaskCard key={task.id} task={task} commentCount={task.commentCount} dragDisabled={filtering || readOnly} />
           ))}
           {/* Empty columns read as drop targets; only the default (where new
               tasks land) says what to do, so an empty board isn't repetitive. */}
           {tasks.length === 0 &&
-            (isDefault && !filtering ? (
+            (isDefault && !filtering && !readOnly ? (
               <p className='rounded-md border border-dashed border-muted-foreground/25 px-2 py-4 text-center text-xs text-muted-foreground'>
                 No tasks yet. Add the first one below.
               </p>
             ) : (
               <div aria-hidden className='h-12 rounded-md border border-dashed border-muted-foreground/20' />
             ))}
-          <AddTaskInline statusId={id} {...addTask} answersShortcut={isDefault} />
+          {!readOnly && <AddTaskInline statusId={id} {...addTask} answersShortcut={isDefault} />}
         </div>
       </SortableContext>
     </div>

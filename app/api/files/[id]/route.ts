@@ -25,7 +25,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .where(eq(attachment.id, id))
       .limit(1);
     if (!file) throw new AuthzError();
-    await requireProjectAccess(file.projectId);
+    await requireProjectAccess(file.projectId, { allowGuests: true });
 
     const stream = await readFileStream(file.storageKey);
     if (!stream) throw new AuthzError();

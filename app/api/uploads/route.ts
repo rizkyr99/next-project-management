@@ -27,7 +27,8 @@ export async function POST(request: Request) {
   }
   try {
     const { taskId } = fields.parse({ taskId: form.get('taskId') });
-    const ctx = await requireTaskAccess(taskId);
+    // Guests may paste screenshots into comments on shared projects.
+    const ctx = await requireTaskAccess(taskId, { allowGuests: true });
     await enforceRateLimit('uploads', ctx.session.user.id);
 
     const file = form.get('file');

@@ -9,11 +9,12 @@ import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { emailTaskNotification } from '@/lib/notification-emails';
 import { db } from '@/db/drizzle';
-import { comment, commentReaction, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
+import { comment, commentReaction, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { REACTIONS, type Reaction, type ReactionSummary } from './reaction-kinds';
 import { insertActivity } from '@/lib/activity';
 import { mentionedNames } from './mentions';
 import { taskHref } from './task-link';
+import { projectAudience } from '@/lib/project-audience';
 import {
   type ActionResult,
   AuthzError,
@@ -447,7 +448,7 @@ const commentWithAuthor = {
 
 export async function getComments(taskId: string): Promise<ActionResult<{ comments: CommentWithAuthor[] }>> {
   try {
-    const ctx = await requireTaskAccess(idSchema.parse(taskId));
+    const ctx = await requireTaskAccess(idSchema.parse(taskId), { allowGuests: true });
 
     const rows = await db
       .select(commentWithAuthor)
@@ -490,7 +491,8 @@ export async function getComments(taskId: string): Promise<ActionResult<{ commen
 
 export async function addComment(taskId: string, body: string): Promise<ActionResult<{ comment: CommentWithAuthor }>> {
   try {
-    const ctx = await requireTaskAccess(idSchema.parse(taskId));
+    // Clients (guests) can comment on projects shared with them.
+    const ctx = await requireTaskAccess(idSchema.parse(taskId), { allowGuests: true });
     const text = commentBodySchema.parse(body);
     const actorId = ctx.session.user.id;
     await enforceRateLimit('comments', actorId);
@@ -507,11 +509,9 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
     // a duplicate comment).
     if (text.includes('@')) {
       try {
-        const members = await db
-          .select({ id: userTable.id, name: userTable.name })
-          .from(member)
-          .innerJoin(userTable, eq(member.userId, userTable.id))
-          .where(eq(member.workspaceId, ctx.workspace.id));
+        // Only people who can see this project: a client can't be pinged
+        // about (or learn the title of) another client's task.
+        const members = await projectAudience(ctx.workspace.id, ctx.project.id);
 
         // Longest name wins at each "@" (features/tasks/mentions.ts), the same
         // rule the comment view uses to highlight.
@@ -569,7 +569,7 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
 
 export async function updateComment(commentId: string, body: string): Promise<ActionResult> {
   try {
-    const ctx = await requireCommentAccess(idSchema.parse(commentId));
+    const ctx = await requireCommentAccess(idSchema.parse(commentId), { allowGuests: true });
     const text = commentBodySchema.parse(body);
 
     if (ctx.comment.authorId !== ctx.session.user.id) {
@@ -589,7 +589,7 @@ export async function updateComment(commentId: string, body: string): Promise<Ac
 
 export async function deleteComment(commentId: string): Promise<ActionResult> {
   try {
-    const ctx = await requireCommentAccess(idSchema.parse(commentId));
+    const ctx = await requireCommentAccess(idSchema.parse(commentId), { allowGuests: true });
 
     if (ctx.comment.authorId !== ctx.session.user.id) {
       return { error: 'Not authorized to delete this comment.' };
@@ -614,7 +614,7 @@ const reactionSchema = z.object({ commentId: z.uuid(), reaction: z.enum(REACTION
 export async function toggleReaction(commentId: string, reaction: Reaction): Promise<ActionResult<{ reacted: boolean }>> {
   try {
     const input = reactionSchema.parse({ commentId, reaction });
-    const ctx = await requireCommentAccess(input.commentId);
+    const ctx = await requireCommentAccess(input.commentId, { allowGuests: true });
     await enforceRateLimit('reactions', ctx.session.user.id);
     const mine = and(
       eq(commentReaction.commentId, ctx.comment.id),

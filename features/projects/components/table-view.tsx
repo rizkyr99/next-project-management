@@ -1,5 +1,7 @@
 'use client';
 
+import { useReadOnly } from '@/features/projects/read-only';
+
 import { priorityConfig, type Priority } from '@/features/tasks/priority';
 import { formatDue, isOverdue } from '@/features/tasks/due';
 import { LabelChips } from '@/features/labels/components/label-chip';
@@ -102,6 +104,7 @@ function formatDate(date: Date | null, hasTime = false) {
 }
 
 export function TableView({ project, currentUserId = '' }: Readonly<TableViewProps>) {
+  const readOnly = useReadOnly();
   const projectId = project?.id;
   const statuses = project?.statuses ?? [];
   const initialTasks = statuses.flatMap((status) =>
@@ -281,11 +284,13 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
           <TableHeader>
             <TableRow className='hover:bg-transparent'>
               <TableHead className='w-10'>
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={toggleAll}
-                  aria-label='Select all'
-                />
+                {!readOnly && (
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label='Select all'
+                  />
+                )}
               </TableHead>
               <TableHead aria-sort={ariaSort(sort, 'title')}>
                 <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
@@ -311,11 +316,13 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
               return (
                 <TableRow key={task.id} data-state={selectedIds.has(task.id) ? 'selected' : undefined}>
                   <TableCell>
-                    <Checkbox
-                      checked={selectedIds.has(task.id)}
-                      onCheckedChange={() => toggleOne(task.id)}
-                      aria-label={`Select ${task.title}`}
-                    />
+                    {!readOnly && (
+                      <Checkbox
+                        checked={selectedIds.has(task.id)}
+                        onCheckedChange={() => toggleOne(task.id)}
+                        aria-label={`Select ${task.title}`}
+                      />
+                    )}
                   </TableCell>
 
                   <TableCell className='font-medium max-w-xs'>
@@ -393,6 +400,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                   </TableCell>
 
                   <TableCell>
+                    {!readOnly && (
                     <AlertDialog>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -427,6 +435,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
+                    )}
                   </TableCell>
                 </TableRow>
               );

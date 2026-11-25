@@ -1,11 +1,11 @@
 'use server';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { db } from '@/db/drizzle';
-import { member, notification, user, workspace, workspaceInvite } from '@/db/schema';
+import { member, notification, project, user, workspace, workspaceInvite } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { AuthzError, requireSession, toActionError, type ActionResult } from '@/lib/authz';
 import { APP_URL, sendWorkspaceInviteEmail } from '@/lib/email';
@@ -19,14 +19,21 @@ import {
 import { findInviteById, findInviteByToken, type InviteRow } from '@/lib/invites';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
-const inviteSchema = z.object({
-  email: z
+const inviteSchema = z
+  .object({
+    email: z
     .email('Enter a valid email')
-    .max(254, 'Email is too long')
-    .transform((e) => e.trim().toLowerCase()),
-  // Owners can't be invited: ownership is never granted by invite.
-  role: z.enum(['member', 'admin']),
-});
+      .max(254, 'Email is too long')
+      .transform((e) => e.trim().toLowerCase()),
+    // Owners can't be invited: ownership is never granted by invite.
+    role: z.enum(['member', 'admin', 'guest']),
+    /** Guests only: the projects to share (at least one). */
+    projectIds: z.array(z.uuid()).max(50).optional(),
+  })
+  .refine((v) => v.role !== 'guest' || (v.projectIds?.length ?? 0) > 0, {
+    message: 'Choose at least one project to share.',
+    path: ['projectIds'],
+  });
 
 const inviteRefSchema = z.union([
   z.object({ token: z.string().min(1).max(100) }),
@@ -69,12 +76,26 @@ function managerError(error: unknown, fallback: string) {
 
 export async function inviteUserToWorkspace(
   workspaceSlug: string,
-  values: { email: string; role: 'member' | 'admin' },
+  values: { email: string; role: 'member' | 'admin' | 'guest'; projectIds?: string[] },
 ): Promise<ActionResult<InviteSent>> {
   try {
-    const { email, role } = inviteSchema.parse(values);
+    const { email, role, projectIds: requested } = inviteSchema.parse(values);
     const { session, workspace: ws } = await requireInviteManager(workspaceSlug);
     await enforceRateLimit('invites', session.user.id);
+
+    // A guest's projects must all be in this workspace (a foreign id is "not found").
+    let projectIds: string[] | null = null;
+    let projectNames: string[] = [];
+    if (role === 'guest') {
+      const ids = [...new Set(requested)];
+      const found = await db
+        .select({ id: project.id, name: project.name })
+        .from(project)
+        .where(and(eq(project.workspaceId, ws.id), inArray(project.id, ids)));
+      if (found.length !== ids.length) throw new AuthzError();
+      projectIds = found.map((p) => p.id);
+      projectNames = found.map((p) => p.name);
+    }
 
     if (email === session.user.email.toLowerCase()) {
       return { error: "You're already a member of this workspace." };
@@ -87,7 +108,12 @@ export async function inviteUserToWorkspace(
       .where(and(eq(member.workspaceId, ws.id), sql`lower(${user.email}) = ${email}`))
       .limit(1);
     if (existingMember) {
-      return { error: `${email} is already a member of this workspace.` };
+      return {
+        error:
+          role === 'guest'
+            ? `${email} is already in this workspace. Change a guest’s projects under Members.`
+            : `${email} is already a member of this workspace.`,
+      };
     }
 
     // TODO(plan-limits): count pending invites + members against a member cap
@@ -102,6 +128,7 @@ export async function inviteUserToWorkspace(
         workspaceId: ws.id,
         email,
         role,
+        projectIds,
         status: 'pending',
         token: hash,
         invitedByUserId: session.user.id,
@@ -112,6 +139,7 @@ export async function inviteUserToWorkspace(
         targetWhere: sql`status = 'pending'`,
         set: {
           role,
+          projectIds,
           token: hash,
           invitedByUserId: session.user.id,
           expiresAt: inviteExpiry(),
@@ -145,6 +173,7 @@ export async function inviteUserToWorkspace(
       inviterName: session.user.name,
       workspaceName: ws.name,
       role,
+      projectNames,
       inviteUrl,
     });
 
@@ -182,7 +211,7 @@ export async function resendInvite(
           eq(workspaceInvite.status, 'pending'),
         ),
       )
-      .returning({ email: workspaceInvite.email, role: workspaceInvite.role });
+      .returning({ email: workspaceInvite.email, role: workspaceInvite.role, projectIds: workspaceInvite.projectIds });
 
     if (!updated) return { error: 'Invite not found.' };
 
@@ -191,7 +220,15 @@ export async function resendInvite(
       to: updated.email,
       inviterName: session.user.name,
       workspaceName: ws.name,
-      role: updated.role === 'admin' ? 'admin' : 'member',
+      role: updated.role === 'owner' ? 'member' : updated.role,
+      projectNames: updated.projectIds?.length
+        ? (
+            await db
+              .select({ name: project.name })
+              .from(project)
+              .where(and(eq(project.workspaceId, ws.id), inArray(project.id, updated.projectIds)))
+          ).map((p) => p.name)
+        : undefined,
       inviteUrl,
     });
 
@@ -301,11 +338,19 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
           where ${workspaceInvite.id} = ${invite.id}
             and ${workspaceInvite.status} = 'pending'
             and ${workspaceInvite.expiresAt} > now()
-          returning "workspace_id", "role"
+          returning "workspace_id", "role", "project_ids"
         ), joined as (
           insert into ${member} ("id", "workspace_id", "user_id", "role")
           select ${crypto.randomUUID()}, "workspace_id", ${session.user.id}, "role" from claimed
           on conflict ("workspace_id", "user_id") do nothing
+        ), shared as (
+          -- Guests get the invite's projects, if they're still in that workspace.
+          insert into "project_guest" ("project_id", "user_id")
+          select p."id", ${session.user.id}
+          from claimed c
+          join "project" p on p."workspace_id" = c."workspace_id" and p."id" = any(c."project_ids")
+          where c."role" = 'guest'
+          on conflict do nothing
         )
         select count(*)::int as claimed from claimed
       `);

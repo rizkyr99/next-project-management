@@ -27,7 +27,15 @@ import {
 import { InviteMemberForm } from '@/features/workspaces/components/invite-member-form';
 import { Button } from './ui/button';
 
-export function Header() {
+export function Header({
+  role,
+  projects = [],
+}: Readonly<{
+  /** The viewer's role in the current workspace, if inside one. */
+  role?: 'owner' | 'admin' | 'member' | 'guest';
+  /** The workspace's active projects, to share with a guest from the invite form. */
+  projects?: { id: string; name: string }[];
+}>) {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const params = useParams();
@@ -59,7 +67,7 @@ export function Header() {
       <SidebarTrigger />
       <div className='flex items-center gap-2 sm:gap-4 min-w-0'>
         {workspaceSlug && <GlobalSearch />}
-        {typeof workspaceSlug === 'string' && (
+        {typeof workspaceSlug === 'string' && role !== 'guest' && (
           <Dialog>
             <DialogTrigger asChild>
               <Button size='sm' className='sm:size-auto' aria-label='Invite to workspace'>
@@ -74,7 +82,7 @@ export function Header() {
                   They&apos;ll get an email with a link to join. Only owners and admins can invite.
                 </DialogDescription>
               </DialogHeader>
-              <InviteMemberForm workspaceSlug={workspaceSlug} canInvite compact />
+              <InviteMemberForm workspaceSlug={workspaceSlug} canInvite compact projects={projects} />
             </DialogContent>
           </Dialog>
         )}

@@ -25,6 +25,7 @@ export default async function ArchivedProjectsPage({
   if (!session) redirect('/login');
   const ws = await getActiveWorkspace(workspaceSlug, session.user.id);
   if (!ws) redirect('/create-workspace');
+  if (ws.role === 'guest') redirect(`/workspaces/${workspaceSlug}`);
 
   const projects = await db
     .select({

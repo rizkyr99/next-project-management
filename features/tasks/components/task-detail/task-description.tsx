@@ -9,6 +9,7 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { MAX_DESCRIPTION_LENGTH } from '../../schema';
 import { uploadTaskImage } from '../../upload-image';
+import { useReadOnly } from '@/features/projects/read-only';
 
 // The editor is the heaviest part of the sheet; load it only to edit.
 const RichTextEditor = dynamic(() => import('@/components/rich-text-editor'), {
@@ -30,6 +31,7 @@ export function TaskDescription({
   value: string | null;
   onSave: (description: string) => void;
 }) {
+  const readOnly = useReadOnly();
   const [editing, setEditing] = useState(false);
   const editor = useRef<Editor | null>(null);
 
@@ -68,7 +70,15 @@ export function TaskDescription({
         <AlignLeft className='size-4' />
         Description
       </h3>
-      {editing ? (
+      {readOnly ? (
+        value ? (
+          <div data-testid='task-description'>
+            <Markdown text={value} />
+          </div>
+        ) : (
+          <p className='text-sm text-muted-foreground'>No description.</p>
+        )
+      ) : editing ? (
         <div
           className='space-y-2'
           onKeyDownCapture={(e) => {
