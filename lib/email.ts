@@ -8,6 +8,7 @@ import { PasswordResetEmail, passwordResetText } from '@/emails/password-reset';
 import { VerifyEmail, verifyEmailText } from '@/emails/verify-email';
 import {
   TaskNotificationEmail,
+  taskNotificationSubject,
   taskNotificationText,
   type TaskNotificationEmailProps,
 } from '@/emails/task-notification';
@@ -198,10 +199,7 @@ export function sendTaskNotificationEmail(
   props: Omit<TaskNotificationEmailProps, 'appUrl' | 'preferencesUrl'>,
 ) {
   const full = { ...props, appUrl: APP_URL, preferencesUrl: PREFERENCES_URL };
-  const subject =
-    props.kind === 'assigned'
-      ? `${props.actorName} assigned you to ${props.taskTitle}`
-      : `${props.actorName} mentioned you in ${props.taskTitle}`;
+  const subject = taskNotificationSubject(props);
   return deliver({
     to,
     subject,

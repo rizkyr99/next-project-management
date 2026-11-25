@@ -5,6 +5,7 @@ import {
   project,
   projectGuest,
   task,
+  taskApproval,
   taskStatus,
   user,
   workspaceInvite,
@@ -30,7 +31,8 @@ import {
 } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Briefcase, CheckSquare, Users, ArrowRight } from 'lucide-react';
+import { Briefcase, CheckSquare, Users, ArrowRight, Stamp } from 'lucide-react';
+import { taskHref } from '@/features/tasks/task-link';
 
 export default async function WorkspaceHomePage({
   params,
@@ -290,6 +292,16 @@ async function GuestHome({
     .innerJoin(project, eq(project.id, projectGuest.projectId))
     .where(and(eq(projectGuest.userId, userId), eq(project.workspaceId, workspace.id), isNull(project.archivedAt)))
     .orderBy(project.name);
+  // C3: what's waiting on this client, across the projects shared with them.
+  const waiting = await db
+    .select({ taskId: task.id, title: task.title, projectId: project.id, projectName: project.name })
+    .from(taskApproval)
+    .innerJoin(task, eq(task.id, taskApproval.taskId))
+    .innerJoin(project, eq(project.id, task.projectId))
+    .innerJoin(projectGuest, and(eq(projectGuest.projectId, project.id), eq(projectGuest.userId, userId)))
+    .where(and(eq(taskApproval.status, 'pending'), eq(project.workspaceId, workspace.id), isNull(project.archivedAt)))
+    .orderBy(taskApproval.createdAt)
+    .limit(20);
   const firstName = userName?.split(' ')[0] ?? 'there';
 
   return (
@@ -301,6 +313,26 @@ async function GuestHome({
           follow progress and leave comments.
         </p>
       </div>
+      {waiting.length > 0 && (
+        <section className='space-y-2'>
+          <h2 className='text-sm font-semibold flex items-center gap-1.5'>
+            <Stamp className='size-4 text-amber-600 dark:text-amber-400' aria-hidden />
+            Waiting for your approval
+          </h2>
+          <ul aria-label='Waiting for your approval' className='divide-y rounded-lg border'>
+            {waiting.map((w) => (
+              <li key={w.taskId}>
+                <Link
+                  href={taskHref(workspace.slug, w.projectId, w.taskId)}
+                  className='flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-muted/50'>
+                  <span className='truncate font-medium'>{w.title}</span>
+                  <span className='shrink-0 text-xs text-muted-foreground'>{w.projectName}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {shared.length === 0 ? (
         <Card className='border-dashed'>
           <EmptyState icon={Briefcase} title='Nothing shared yet'>

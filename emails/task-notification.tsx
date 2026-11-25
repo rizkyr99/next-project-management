@@ -2,10 +2,10 @@ import { Button, Heading, Link, Text } from '@react-email/components';
 import { EmailLayout } from './components/email-layout';
 
 export interface TaskNotificationEmailProps {
-  kind: 'assigned' | 'mentioned';
+  kind: 'assigned' | 'mentioned' | 'approval_requested' | 'approved' | 'changes_requested';
   actorName: string;
   taskTitle: string;
-  /** The comment text, for mentions (shortened). */
+  /** The comment, request message or client's note (shortened). */
   excerpt?: string;
   taskUrl: string;
   appUrl: string;
@@ -13,9 +13,37 @@ export interface TaskNotificationEmailProps {
 }
 
 const COPY = {
-  assigned: { verb: 'assigned you to', heading: 'You have a new task' },
-  mentioned: { verb: 'mentioned you in', heading: 'You were mentioned' },
+  assigned: {
+    verb: 'assigned you to',
+    heading: 'You have a new task',
+    footer: 'You received this because someone assigned you a task on Tide.',
+  },
+  mentioned: {
+    verb: 'mentioned you in',
+    heading: 'You were mentioned',
+    footer: 'You received this because someone mentioned you in a comment on Tide.',
+  },
+  approval_requested: {
+    verb: 'asked for your approval on',
+    heading: 'Your approval is needed',
+    footer: 'You received this because a project shared with you on Tide needs your approval.',
+  },
+  approved: {
+    verb: 'approved',
+    heading: 'Approved',
+    footer: 'You received this because you asked for, or are assigned to, an approval on Tide.',
+  },
+  changes_requested: {
+    verb: 'requested changes to',
+    heading: 'Changes requested',
+    footer: 'You received this because you asked for, or are assigned to, an approval on Tide.',
+  },
 } as const;
+
+/** The email's subject line, e.g. "Ada approved Homepage". */
+export function taskNotificationSubject(props: Pick<TaskNotificationEmailProps, 'kind' | 'actorName' | 'taskTitle'>) {
+  return `${props.actorName} ${COPY[props.kind].verb} ${props.taskTitle}`;
+}
 
 /** "Ada assigned you to …" / "Ada mentioned you in …". All props are escaped by React. */
 export function TaskNotificationEmail(props: TaskNotificationEmailProps) {
@@ -26,11 +54,7 @@ export function TaskNotificationEmail(props: TaskNotificationEmailProps) {
       preview={`${actorName} ${copy.verb} ${taskTitle}`}
       appUrl={appUrl}
       preferencesUrl={preferencesUrl}
-      footerNote={
-        kind === 'assigned'
-          ? 'You received this because someone assigned you a task on Tide.'
-          : 'You received this because someone mentioned you in a comment on Tide.'
-      }>
+      footerNote={copy.footer}>
       <Heading as='h1' style={heading}>
         {copy.heading}
       </Heading>

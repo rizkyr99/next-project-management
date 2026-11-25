@@ -1,6 +1,7 @@
 import { relations, sql } from 'drizzle-orm';
 import { REACTIONS } from '../features/tasks/reaction-kinds';
 import { PROJECT_STATUSES } from '../features/projects/details';
+import { APPROVAL_STATUSES } from '../features/approvals/states';
 import {
   pgTable,
   text,
@@ -36,7 +37,12 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'workspace_invite',
   'comment_mention',
   'due_soon',
+  // C3 approvals: asked of a client; answered by them.
+  'approval_requested',
+  'task_approved',
+  'changes_requested',
 ]);
+export const approvalStatusEnum = pgEnum('approval_status', APPROVAL_STATUSES);
 export const inviteStatusEnum = pgEnum('invite_status', [
   'pending',
   'accepted',
@@ -402,6 +408,36 @@ export const checklistItem = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [index('checklist_item_taskId_idx').on(table.taskId)],
+);
+
+/**
+ * C3: the team asks a project's client (guests) to approve a task; a client
+ * approves or requests changes. One row per round, so the history stays. At
+ * most one round per task waits at a time (the partial unique index).
+ */
+export const taskApproval = pgTable(
+  'task_approval',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id, { onDelete: 'cascade' }),
+    status: approvalStatusEnum('status').default('pending').notNull(),
+    requestedById: text('requested_by_id').references(() => user.id, { onDelete: 'set null' }),
+    /** What the team wants the client to look at (optional). */
+    message: text('message'),
+    respondedById: text('responded_by_id').references(() => user.id, { onDelete: 'set null' }),
+    /** The client's note; required when they request changes. */
+    responseNote: text('response_note'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    respondedAt: timestamp('responded_at'),
+  },
+  (table) => [
+    index('task_approval_taskId_idx').on(table.taskId, table.createdAt),
+    uniqueIndex('task_approval_one_pending').on(table.taskId).where(sql`${table.status} = 'pending'`),
+  ],
 );
 
 export const checklistItemRelations = relations(checklistItem, ({ one }) => ({
