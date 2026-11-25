@@ -4,9 +4,10 @@
 import { db } from '@/db/drizzle';
 import { member, project, taskStatus, workspace, projectFavorite } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import z from 'zod';
-import { createProjectSchema, deleteProjectSchema, updateProjectSchema } from './schema';
+import { archiveProjectSchema, createProjectSchema, deleteProjectSchema, updateProjectSchema } from './schema';
+import type { ProjectStatus } from './details';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireProjectAccess, requireSession, runAction, toActionError, type ActionResult } from '@/lib/authz';
@@ -82,8 +83,19 @@ export async function createProject(
 
 /** Rename or re-describe a project. Any member of its workspace may do this. */
 export async function updateProject(
-  values: z.infer<typeof updateProjectSchema>,
-): Promise<ActionResult<{ project: { id: string; name: string; description: string | null } }>> {
+  values: z.input<typeof updateProjectSchema>,
+): Promise<
+  ActionResult<{
+    project: {
+      id: string;
+      name: string;
+      description: string | null;
+      clientName: string | null;
+      deadline: string | null;
+      status: ProjectStatus | null;
+    };
+  }>
+> {
   try {
     const input = updateProjectSchema.parse(values);
     const ctx = await requireProjectAccess(input.projectId);
@@ -91,9 +103,22 @@ export async function updateProject(
     const description = input.description ? input.description : null;
     const [updated] = await db
       .update(project)
-      .set({ name: input.name, description })
+      .set({
+        name: input.name,
+        description,
+        ...(input.clientName !== undefined && { clientName: input.clientName }),
+        ...(input.deadline !== undefined && { deadline: input.deadline }),
+        ...(input.status !== undefined && { status: input.status }),
+      })
       .where(eq(project.id, ctx.project.id))
-      .returning({ id: project.id, name: project.name, description: project.description });
+      .returning({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        clientName: project.clientName,
+        deadline: project.deadline,
+        status: project.status,
+      });
 
     if (input.name !== ctx.project.name) {
       await insertActivity({
@@ -112,6 +137,46 @@ export async function updateProject(
   } catch (error) {
     return toActionError(error, 'Failed to update project.');
   }
+}
+
+/**
+ * Archive a finished project, or bring it back. Archived projects leave the
+ * sidebar, the home page and My tasks, and stop sending due-date reminders,
+ * but keep everything and stay searchable. Any member may (it's reversible).
+ */
+export async function setProjectArchived(values: z.infer<typeof archiveProjectSchema>): Promise<ActionResult> {
+  try {
+    const input = archiveProjectSchema.parse(values);
+    const ctx = await requireProjectAccess(input.projectId);
+    const [changed] = await db
+      .update(project)
+      .set({ archivedAt: input.archived ? new Date() : null })
+      .where(
+        and(
+          eq(project.id, ctx.project.id),
+          input.archived ? isNull(project.archivedAt) : isNotNull(project.archivedAt),
+        ),
+      )
+      .returning({ id: project.id });
+    // Already in that state (a double click, or another member got there first).
+    if (!changed) return { success: true };
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: input.archived ? 'project.archived' : 'project.restored',
+      projectId: ctx.project.id,
+      metadata: { projectName: ctx.project.name },
+    });
+    revalidatePath(`/workspaces/${ctx.workspace.slug}`, 'layout');
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, archiveErrorMessage(values));
+  }
+}
+
+function archiveErrorMessage(values: { archived?: unknown }) {
+  return values?.archived === false ? 'Could not restore the project.' : 'Could not archive the project.';
 }
 
 /**

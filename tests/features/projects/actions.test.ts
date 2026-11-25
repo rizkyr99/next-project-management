@@ -16,7 +16,7 @@ vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
 import { auth } from '@/lib/auth';
 import { insertActivity } from '@/lib/activity';
 import { redirect } from 'next/navigation';
-import { createProject, deleteProject, updateProject } from '@/features/projects/actions';
+import { createProject, deleteProject, setProjectArchived, updateProject } from '@/features/projects/actions';
 
 const session = { user: { id: 'user-1', name: 'Alice' } };
 
@@ -145,6 +145,88 @@ describe('updateProject', () => {
 
     expect(sets[0]).toEqual({ name: 'Old name', description: null });
     expect(insertActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateProject: details (B7)', () => {
+  function captureSet() {
+    const sets: unknown[] = [];
+    db.update.mockImplementation(() => ({
+      set: (v: unknown) => {
+        sets.push(v);
+        return { where: () => ({ returning: async () => [{ id: PROJECT_ID }] }) };
+      },
+    }));
+    return sets;
+  }
+
+  it('saves client, deadline and status, clearing blanks to null', async () => {
+    db.select.mockReturnValue(chain(access('member')));
+    const sets = captureSet();
+    await updateProject({ projectId: PROJECT_ID, name: 'Old name', clientName: ' Acme Co ', deadline: '2026-12-01', status: 'at_risk' });
+    expect(sets[0]).toMatchObject({ clientName: 'Acme Co', deadline: '2026-12-01', status: 'at_risk' });
+
+    await updateProject({ projectId: PROJECT_ID, name: 'Old name', clientName: '  ', deadline: '', status: null });
+    expect(sets[1]).toMatchObject({ clientName: null, deadline: null, status: null });
+  });
+
+  it('leaves details alone when they are not sent', async () => {
+    db.select.mockReturnValue(chain(access('member')));
+    const sets = captureSet();
+    await updateProject({ projectId: PROJECT_ID, name: 'Old name' });
+    expect(sets[0]).not.toHaveProperty('clientName');
+    expect(sets[0]).not.toHaveProperty('deadline');
+    expect(sets[0]).not.toHaveProperty('status');
+  });
+
+  it('rejects a bad deadline or status before any query', async () => {
+    expect(await updateProject({ projectId: PROJECT_ID, name: 'X', deadline: '12/01/2026' })).toHaveProperty('error');
+    expect(
+      await updateProject({ projectId: PROJECT_ID, name: 'X', status: 'great' as never }),
+    ).toHaveProperty('error');
+    expect(db.select).not.toHaveBeenCalled();
+  });
+});
+
+describe('setProjectArchived (B6)', () => {
+  function captureArchive(changed: boolean) {
+    const sets: unknown[] = [];
+    db.update.mockImplementation(() => ({
+      set: (v: unknown) => {
+        sets.push(v);
+        return { where: () => ({ returning: async () => (changed ? [{ id: PROJECT_ID }] : []) }) };
+      },
+    }));
+    return sets;
+  }
+
+  it('lets any member archive, and logs it', async () => {
+    db.select.mockReturnValue(chain(access('member')));
+    const sets = captureArchive(true);
+    expect(await setProjectArchived({ projectId: PROJECT_ID, archived: true })).toEqual({ success: true });
+    expect((sets[0] as { archivedAt: unknown }).archivedAt).toBeInstanceOf(Date);
+    expect(insertActivity).toHaveBeenCalledWith(expect.objectContaining({ action: 'project.archived' }));
+  });
+
+  it('restores by clearing the date', async () => {
+    db.select.mockReturnValue(chain(access('member')));
+    const sets = captureArchive(true);
+    await setProjectArchived({ projectId: PROJECT_ID, archived: false });
+    expect(sets[0]).toEqual({ archivedAt: null });
+    expect(insertActivity).toHaveBeenCalledWith(expect.objectContaining({ action: 'project.restored' }));
+  });
+
+  it('does nothing more when it was already archived', async () => {
+    db.select.mockReturnValue(chain(access('member')));
+    captureArchive(false);
+    expect(await setProjectArchived({ projectId: PROJECT_ID, archived: true })).toEqual({ success: true });
+    expect(insertActivity).not.toHaveBeenCalled();
+  });
+
+  it('refuses a project outside the caller\'s workspaces', async () => {
+    db.select.mockReturnValue(chain([]));
+    expect(await setProjectArchived({ projectId: PROJECT_ID, archived: true })).toEqual({ error: 'Not found.' });
+    expect(db.update).not.toHaveBeenCalled();
   });
 });
 

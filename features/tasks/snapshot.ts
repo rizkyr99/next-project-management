@@ -49,7 +49,7 @@ export async function projectSnapshot(projectId: string): Promise<string> {
         from checklist_item ci join task t on t.id = ci.task_id
         where t.project_id = ${projectId}
       ), '')
-      || '#' || coalesce((select name || '|' || coalesce(description, '') from project where id = ${projectId}), '')
+      || '#' || coalesce((select concat_ws('|', name, coalesce(description, ''), client_name, deadline, status, archived_at) from project where id = ${projectId}), '')
     ) as snap
   `);
   return result.rows[0]?.snap ?? '';

@@ -8,7 +8,7 @@ import {
   workspace,
 } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { MyTasksView } from '@/features/tasks/components/my-tasks-view';
@@ -60,6 +60,8 @@ export default async function MyTasksPage({
       and(
         eq(taskAssignee.userId, session.user.id),
         eq(project.workspaceId, currentWorkspace.id),
+        // Finished (archived) projects drop out of the daily list.
+        isNull(project.archivedAt),
       ),
     )
     .orderBy(asc(task.createdAt));

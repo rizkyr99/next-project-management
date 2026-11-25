@@ -1,5 +1,6 @@
 import { relations, sql } from 'drizzle-orm';
 import { REACTIONS } from '../features/tasks/reaction-kinds';
+import { PROJECT_STATUSES } from '../features/projects/details';
 import {
   pgTable,
   text,
@@ -10,6 +11,7 @@ import {
   integer,
   pgEnum,
   primaryKey,
+  date,
   jsonb,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
@@ -26,6 +28,7 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
 export const roleEnum = pgEnum('role', ['owner', 'admin', 'member']);
 // Values come from features/tasks/priority.tsx (none … urgent).
 export const priorityEnum = pgEnum('priority', ['none', 'low', 'medium', 'high', 'urgent']);
+export const projectStatusEnum = pgEnum('project_status', PROJECT_STATUSES);
 export const notificationTypeEnum = pgEnum('notification_type', [
   'task_assigned',
   'workspace_invite',
@@ -218,6 +221,13 @@ export const project = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
+    // Project details (B7), all optional.
+    clientName: varchar('client_name', { length: 100 }),
+    /** A calendar day: deadlines are "due on the 1st", not a moment. */
+    deadline: date('deadline', { mode: 'string' }),
+    status: projectStatusEnum('status'),
+    /** Archived projects leave the sidebar and My tasks but stay searchable (B6). */
+    archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .$onUpdate(() => new Date())

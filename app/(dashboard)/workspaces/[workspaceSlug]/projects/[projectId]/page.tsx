@@ -16,6 +16,9 @@ import { TaskFilterBar } from '@/features/tasks/components/task-filter-bar';
 import { ProjectLiveUpdates } from '@/features/tasks/components/project-live-updates';
 import { RememberProject } from '@/features/search/components/remember-project';
 import { projectSnapshot } from '@/features/tasks/snapshot';
+import { ProjectDetails } from '@/features/projects/components/project-details';
+import { RestoreProjectButton } from '@/features/projects/components/restore-project-button';
+import { Archive } from 'lucide-react';
 
 
 export async function generateMetadata({
@@ -143,6 +146,17 @@ export default async function ProjectIdPage({
     <div className='h-full flex flex-col'>
       <ProjectLiveUpdates projectId={data.id} snapshot={snapshot} />
       <RememberProject workspaceSlug={workspaceSlug} projectId={data.id} name={data.name} />
+      {data.archivedAt && (
+        <div
+          role='status'
+          className='flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-muted/60 px-4 py-2 text-sm'>
+          <Archive className='size-4 text-muted-foreground' aria-hidden />
+          <span className='flex-1'>
+            This project is archived. It&apos;s hidden from the sidebar and My tasks, and sends no reminders.
+          </span>
+          <RestoreProjectButton projectId={data.id} projectName={data.name} />
+        </div>
+      )}
       <div className='px-4 py-2 space-y-2 border-b'>
         <div className='flex items-start justify-between gap-4'>
           <div className='min-w-0'>
@@ -150,6 +164,12 @@ export default async function ProjectIdPage({
             {data.description && (
               <p className='text-sm text-muted-foreground line-clamp-2'>{data.description}</p>
             )}
+            <ProjectDetails
+              clientName={data.clientName}
+              deadline={data.deadline}
+              status={data.status}
+              className='mt-1'
+            />
           </div>
           <div className='flex items-center gap-2 shrink-0'>
             <CallButton
@@ -158,7 +178,15 @@ export default async function ProjectIdPage({
               currentUserName={session.user.name ?? 'User'}
             />
             <ProjectActionsMenu
-              project={{ id: data.id, name: data.name, description: data.description }}
+              project={{
+                id: data.id,
+                name: data.name,
+                description: data.description,
+                clientName: data.clientName,
+                deadline: data.deadline,
+                status: data.status,
+                archived: data.archivedAt !== null,
+              }}
               canDelete={currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin'}
               variant='header'
             />

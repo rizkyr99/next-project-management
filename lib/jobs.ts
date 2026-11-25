@@ -27,7 +27,8 @@ export async function sendDueSoonReminders(now = new Date()): Promise<number> {
       join workspace w on w.id = p.workspace_id
       -- Only current members get reminders.
       join member m on m.workspace_id = p.workspace_id and m.user_id = ta.user_id
-      where t.due_date > ${now.toISOString()}::timestamptz
+      where p.archived_at is null
+        and t.due_date > ${now.toISOString()}::timestamptz
         and t.due_date <= ${until.toISOString()}::timestamptz
         and ta.due_soon_notified_for is distinct from t.due_date
         and t.status_id <> (
