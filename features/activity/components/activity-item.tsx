@@ -16,6 +16,8 @@ type ActivityAction =
   | 'project.created'
   | 'project.updated'
   | 'project.deleted'
+  | 'project.archived'
+  | 'project.restored'
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'
@@ -72,6 +74,10 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return `created project "${m.projectName ?? 'Untitled'}"`;
     case 'project.updated':
       return `renamed project "${m.from ?? '?'}" to "${m.to ?? '?'}"`;
+    case 'project.archived':
+      return `archived project "${m.projectName ?? 'Untitled'}"`;
+    case 'project.restored':
+      return `restored project "${m.projectName ?? 'Untitled'}" from the archive`;
     case 'project.deleted':
       return `deleted project "${m.projectName ?? 'Untitled'}"`;
     case 'member.invited':

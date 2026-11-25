@@ -10,7 +10,8 @@ import {
 } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
 import { getActiveWorkspace } from '@/lib/workspace-context';
-import { and, count, eq, ne, sql } from 'drizzle-orm';
+import { and, count, eq, isNull, ne, sql } from 'drizzle-orm';
+import { ProjectDetails } from '@/features/projects/components/project-details';
 import { GETTING_STARTED_NAME } from '@/lib/onboarding';
 import { cookies } from 'next/headers';
 import { EmptyState } from '@/components/empty-state';
@@ -52,16 +53,20 @@ export default async function WorkspaceHomePage({
         id: project.id,
         name: project.name,
         description: project.description,
+        clientName: project.clientName,
+        deadline: project.deadline,
+        status: project.status,
         createdAt: project.createdAt,
       })
       .from(project)
-      .where(eq(project.workspaceId, currentWorkspace.id)),
+      // Archived projects have their own page.
+      .where(and(eq(project.workspaceId, currentWorkspace.id), isNull(project.archivedAt))),
     db
       .select({ projectId: task.projectId, count: count() })
       .from(task)
       .innerJoin(taskStatus, eq(task.statusId, taskStatus.id))
       .innerJoin(project, eq(taskStatus.projectId, project.id))
-      .where(eq(project.workspaceId, currentWorkspace.id))
+      .where(and(eq(project.workspaceId, currentWorkspace.id), isNull(project.archivedAt)))
       .groupBy(task.projectId),
     db
       .select({
@@ -211,6 +216,7 @@ export default async function WorkspaceHomePage({
                         {p.description}
                       </CardDescription>
                     )}
+                    <ProjectDetails clientName={p.clientName} deadline={p.deadline} status={p.status} />
                   </CardHeader>
                   <CardContent className='flex items-center justify-between'>
                     <span className='text-xs text-muted-foreground'>

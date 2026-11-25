@@ -59,7 +59,7 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
       .limit(8),
 
     db
-      .select({ id: project.id, name: project.name })
+      .select({ id: project.id, name: project.name, archived: project.archivedAt })
       .from(project)
       .where(and(eq(project.workspaceId, ws.id), ilike(project.name, term)))
       .limit(5),
@@ -93,7 +93,7 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
     type: 'project',
     id: p.id,
     title: p.name,
-    subtitle: 'Project',
+    subtitle: p.archived ? 'Archived project' : 'Project',
     projectId: p.id,
     workspaceSlug,
   }));

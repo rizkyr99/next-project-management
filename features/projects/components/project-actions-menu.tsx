@@ -19,18 +19,32 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { PROJECT_STATUSES, projectStatusConfig, type ProjectStatus } from '../details';
 import { SidebarMenuAction } from '@/components/ui/sidebar';
 import { unstable_rethrow } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useResetOnOpen } from '@/hooks/use-reset-on-open';
-import { deleteProject, setProjectFavorite, updateProject } from '../actions';
+import { deleteProject, setProjectArchived, setProjectFavorite, updateProject } from '../actions';
 
 export interface ProjectSummary {
   id: string;
   name: string;
   description: string | null;
+  clientName?: string | null;
+  /** "YYYY-MM-DD" */
+  deadline?: string | null;
+  status?: ProjectStatus | null;
+  archived?: boolean;
   /** Starred by me (sidebar only; the header doesn't offer favourites). */
   favorite?: boolean;
 }
@@ -58,6 +72,24 @@ export function ProjectActionsMenu({
       if (result.error !== undefined) toast.error(result.error, { position: 'top-center' });
     });
   const align = variant === 'sidebar' ? 'start' : 'end';
+  const [, startArchive] = useTransition();
+  const archive = (archived: boolean) =>
+    startArchive(async () => {
+      const result = await setProjectArchived({ projectId: project.id, archived });
+      if (result.error !== undefined) {
+        toast.error(result.error, { position: 'top-center' });
+        return;
+      }
+      if (archived) {
+        toast.success(`Archived ${project.name}`, {
+          position: 'top-center',
+          description: 'It’s out of the sidebar, and still in search and Archived projects.',
+          action: { label: 'Undo', onClick: () => archive(false) },
+        });
+      } else {
+        toast.success(`Restored ${project.name}`, { position: 'top-center' });
+      }
+    });
   const trigger: ReactNode =
     variant === 'sidebar' ? (
       <SidebarMenuAction showOnHover aria-label={`${project.name} options`}>
@@ -84,6 +116,17 @@ export function ProjectActionsMenu({
             <Pencil />
             Edit details
           </DropdownMenuItem>
+          {project.archived ? (
+            <DropdownMenuItem onSelect={() => archive(false)}>
+              <ArchiveRestore />
+              Restore project
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => archive(true)}>
+              <Archive />
+              Archive project
+            </DropdownMenuItem>
+          )}
           {canDelete && (
             <>
               <DropdownMenuSeparator />
@@ -123,17 +166,30 @@ function EditProjectDialog({
 }) {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
+  const [clientName, setClientName] = useState(project.clientName ?? '');
+  const [deadline, setDeadline] = useState(project.deadline ?? '');
+  const [status, setStatus] = useState<ProjectStatus | null>(project.status ?? null);
   const [isPending, startTransition] = useTransition();
 
   // Start from the current values every time the dialog opens.
   useResetOnOpen(open, () => {
     setName(project.name);
     setDescription(project.description ?? '');
+    setClientName(project.clientName ?? '');
+    setDeadline(project.deadline ?? '');
+    setStatus(project.status ?? null);
   });
 
   const save = () =>
     startTransition(async () => {
-      const result = await updateProject({ projectId: project.id, name, description });
+      const result = await updateProject({
+        projectId: project.id,
+        name,
+        description,
+        clientName,
+        deadline,
+        status,
+      });
       if (result.error !== undefined) {
         toast.error(result.error, { position: 'top-center' });
         return;
@@ -149,7 +205,7 @@ function EditProjectDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit project</DialogTitle>
-          <DialogDescription>Any workspace member can rename a project.</DialogDescription>
+          <DialogDescription>Any workspace member can change these.</DialogDescription>
         </DialogHeader>
         <form
           className='space-y-4'
@@ -177,6 +233,46 @@ function EditProjectDialog({
               placeholder='What is this project about?'
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor={`project-client-${project.id}`}>Client</Label>
+            <Input
+              id={`project-client-${project.id}`}
+              value={clientName}
+              maxLength={100}
+              placeholder='Who is it for?'
+              onChange={(e) => setClientName(e.target.value)}
+            />
+          </div>
+          <div className='grid gap-4 sm:grid-cols-2'>
+            <div className='space-y-2'>
+              <Label htmlFor={`project-deadline-${project.id}`}>Deadline</Label>
+              <Input
+                id={`project-deadline-${project.id}`}
+                type='date'
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor={`project-status-${project.id}`}>Status</Label>
+              <Select value={status ?? 'none'} onValueChange={(v) => setStatus(v === 'none' ? null : (v as ProjectStatus))}>
+                <SelectTrigger id={`project-status-${project.id}`} className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='none'>No status</SelectItem>
+                  {PROJECT_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      <span className='flex items-center gap-2'>
+                        <span className={cn('size-2 rounded-full', projectStatusConfig[s].dot)} aria-hidden />
+                        {projectStatusConfig[s].label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
