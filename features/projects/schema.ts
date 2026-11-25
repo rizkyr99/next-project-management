@@ -1,5 +1,6 @@
 import z from 'zod';
 import { STATUS_COLOR_KEYS } from './status-colors';
+import { PROJECT_STATUSES } from './details';
 
 export const createProjectSchema = z.object({
   workspaceSlug: z.string(),
@@ -19,7 +20,22 @@ export const updateProjectSchema = z.object({
     .trim()
     .max(500, 'Description must be 500 characters or fewer')
     .optional(),
+  // Details (B7). Left out: unchanged. Empty or null: cleared.
+  clientName: z
+    .string()
+    .trim()
+    .max(100, 'Client name must be 100 characters or fewer')
+    .nullable()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v || null)),
+  deadline: z
+    .union([z.iso.date('Pick a valid deadline.'), z.literal(''), z.null()])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v || null)),
+  status: z.enum(PROJECT_STATUSES).nullable().optional(),
 });
+
+export const archiveProjectSchema = z.object({ projectId: z.uuid(), archived: z.boolean() });
 
 export const deleteProjectSchema = z.object({
   projectId: z.uuid(),
