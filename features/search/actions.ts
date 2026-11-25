@@ -82,7 +82,14 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
       })
       .from(comment)
       .innerJoin(task, eq(comment.taskId, task.id))
-      .where(and(inArray(task.projectId, projectIds), ilike(comment.body, term)))
+      .where(
+        and(
+          inArray(task.projectId, projectIds),
+          ilike(comment.body, term),
+          // Internal comments never surface for a client.
+          isGuest ? eq(comment.clientVisible, true) : undefined,
+        ),
+      )
       .limit(5),
   ]);
 

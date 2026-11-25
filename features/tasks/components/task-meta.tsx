@@ -11,6 +11,8 @@ export interface Person {
   name: string;
   email?: string;
   image?: string | null;
+  /** Workspace role, where known (guests are clients). */
+  role?: string;
 }
 
 /** The task shape the board, the card and the detail sheet share. */

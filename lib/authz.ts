@@ -183,6 +183,7 @@ export async function requireCommentAccess(commentId: string, opts?: AccessOptio
     .select({
       commentId: comment.id,
       authorId: comment.authorId,
+      clientVisible: comment.clientVisible,
       taskId: comment.taskId,
       projectId: project.id,
       workspaceId: project.workspaceId,
@@ -201,12 +202,13 @@ export async function requireCommentAccess(commentId: string, opts?: AccessOptio
     .limit(1);
 
   if (!row) throw new AuthzError();
-  assertRole(row.role, opts, row.shared !== null);
+  // To a guest, an internal comment doesn't exist.
+  assertRole(row.role, opts, row.shared !== null && row.clientVisible);
 
   return {
     session,
     role: row.role,
-    comment: { id: row.commentId, authorId: row.authorId, taskId: row.taskId },
+    comment: { id: row.commentId, authorId: row.authorId, taskId: row.taskId, clientVisible: row.clientVisible },
     project: { id: row.projectId },
     workspace: { id: row.workspaceId },
   };

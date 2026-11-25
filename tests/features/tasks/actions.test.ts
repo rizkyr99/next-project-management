@@ -58,6 +58,7 @@ import {
   deleteTask,
   getComments,
   reorderTasks,
+  setCommentVisibility,
   updateTaskAssignees,
   updateTaskDescription,
   updateTaskStatus,
@@ -466,6 +467,93 @@ describe('addComment', () => {
     db.select.mockReturnValueOnce(chain([{ id: COMMENT, body: 'plain' }]));
     await addComment(TASK, 'plain comment');
     expect(db.select).toHaveBeenCalledOnce();
+  });
+});
+
+describe('internal vs client-visible comments (C2)', () => {
+  /** Runs addComment; returns the saved comment row and who was notified. */
+  async function post(
+    role: 'member' | 'guest',
+    body: string,
+    options: { clientVisible?: boolean },
+    members: { id: string; name: string; role: string }[] = [],
+  ) {
+    vi.mocked(requireTaskAccess).mockResolvedValue({ ...taskCtx, role } as never);
+    const saved: Record<string, unknown>[] = [];
+    const notified: string[] = [];
+    db.insert.mockImplementationOnce(() => ({
+      values: (row: Record<string, unknown>) => {
+        saved.push(row);
+        return chain([{ id: COMMENT }]);
+      },
+    }));
+    if (body.includes('@'))
+      db.insert.mockImplementationOnce(() => ({
+        values: (rows: { userId: string }[]) => {
+          notified.push(...rows.map((r) => r.userId));
+          return chain(undefined);
+        },
+      }));
+    if (body.includes('@')) db.select.mockReturnValueOnce(chain(members));
+    db.select.mockReturnValueOnce(chain([{ id: COMMENT, body }]));
+    await addComment(TASK, body, options);
+    return { saved: saved[0], notified };
+  }
+
+  const audience = [
+    { id: 'user-1', name: 'Alice', role: 'member' },
+    { id: 'user-2', name: 'Bob', role: 'member' },
+    { id: 'guest-1', name: 'Cleo', role: 'guest' },
+  ];
+
+  it('keeps a team comment internal unless it is posted to the client', async () => {
+    expect((await post('member', 'note', {})).saved.clientVisible).toBe(false);
+    expect((await post('member', 'for you', { clientVisible: true })).saved.clientVisible).toBe(true);
+  });
+
+  it("always shows a guest's comment to the client side", async () => {
+    expect((await post('guest', 'hi', { clientVisible: false })).saved.clientVisible).toBe(true);
+  });
+
+  it('never notifies a client about an internal comment, even if mentioned', async () => {
+    const { notified } = await post('member', '@Cleo @Bob see this', {}, audience);
+    expect(notified).toEqual(['user-2']);
+  });
+
+  it('notifies a mentioned client about a comment posted to them', async () => {
+    const { notified } = await post('member', '@Cleo see this', { clientVisible: true }, audience);
+    expect(notified).toEqual(['guest-1']);
+  });
+
+  const commentCtx = (role: string, authorId: string) => ({
+    session,
+    role,
+    comment: { id: COMMENT, authorId, taskId: TASK, clientVisible: false },
+    project: { id: PROJECT },
+    workspace: { id: 'ws-1' },
+  });
+
+  it("refuses to share someone else's comment unless you're an admin", async () => {
+    vi.mocked(requireCommentAccess).mockResolvedValue(commentCtx('member', 'user-2') as never);
+    expect((await setCommentVisibility(COMMENT, true)).error).toMatch(/author or an admin/);
+    expectNoWrites();
+  });
+
+  it("refuses to make a client's own comment internal", async () => {
+    vi.mocked(requireCommentAccess).mockResolvedValue(commentCtx('admin', 'guest-1') as never);
+    db.select.mockReturnValueOnce(chain([{ role: 'guest' }]));
+    expect((await setCommentVisibility(COMMENT, false)).error).toMatch(/always visible/);
+    expectNoWrites();
+  });
+
+  it('lets the author share their comment, and is closed to guests', async () => {
+    vi.mocked(requireCommentAccess).mockResolvedValue(commentCtx('member', 'user-1') as never);
+    db.select.mockReturnValueOnce(chain([{ role: 'member' }]));
+    db.update.mockReturnValueOnce(chain(undefined));
+    expect(await setCommentVisibility(COMMENT, true)).toEqual({ success: true });
+    expect(db.update).toHaveBeenCalledOnce();
+    // No allowGuests: a guest is refused by requireCommentAccess itself.
+    expect(vi.mocked(requireCommentAccess).mock.calls[0][1]).toBeUndefined();
   });
 });
 
