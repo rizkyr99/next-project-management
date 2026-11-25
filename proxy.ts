@@ -62,6 +62,8 @@ export async function proxy(request: NextRequest) {
   // someone is signed in (links are often opened in another browser).
   const isPublicPage =
     pathname.startsWith('/invite/') ||
+    // C4: a project's read-only share link, for clients without an account.
+    pathname.startsWith('/share/') ||
     pathname.startsWith('/opengraph-image') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
