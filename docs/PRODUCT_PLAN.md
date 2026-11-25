@@ -71,8 +71,8 @@ Gaps inside existing features, checked against the code (none of these exist tod
 | B3 | **File attachments** | Upload or paste files and images onto tasks and comments (Vercel Blob). Handover lives with the work. Storage limit per plan. | L | Free: small quota; paid: more |
 | B4 | **Start dates + Calendar view** | A date range per task, and a month/week calendar across a project, with drag to reschedule. Studios plan by dates, not columns. | L | Pro |
 | B5 | **Project templates** | Save a project (columns, tasks, checklists, relative due dates) as a template; start new client jobs from it. Includes a few built-in studio templates (website build, brand identity, content calendar). | M | Pro |
-| B6 | **Archive projects** | Finished client jobs leave the sidebar but stay searchable. | S | Free |
-| B7 | **Project details** | Client name, project deadline and status ("On track", "At risk", "Done") on each project. | S | Free |
+| B6 | **Archive projects** | Finished client jobs leave the sidebar but stay searchable. | S | Free. Done (#94) |
+| B7 | **Project details** | Client name, project deadline and status ("On track", "At risk", "Off track", "Done") on each project. | S | Free. Done (#94) |
 
 ## Phase C: Clients in the loop (the agency feature)
 
