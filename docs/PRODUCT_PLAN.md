@@ -78,7 +78,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 
 | # | Item | Why | Size | Plan |
 |---|---|---|---|---|
-| C1 | **Client guests** | A guest role scoped to chosen projects: they see those boards, comment and approve, and nothing else in the workspace. **Guests are free and unlimited:** studios won't want to pay per client login, and several tools limit or charge for guests. | L | Pro |
+| C1 | **Client guests** | A guest role scoped to chosen projects: they see those boards, comment and approve, and nothing else in the workspace. **Guests are free and unlimited:** studios won't want to pay per client login, and several tools limit or charge for guests. | L | Pro. Done (#96, released #97); approvals come with C3 |
 | C2 | **Internal vs client-visible** | Comments, and optionally tasks, are internal by default in projects with guests; posting to the client is deliberate. | M | Pro |
 | C3 | **Approvals** | "Request approval" on a task: the client approves or requests changes, which is recorded in activity and notifies the team. | M | Pro |
 | C4 | **Read-only share link** | A link to a project's board or timeline for clients who won't sign in. | S | Pro |
