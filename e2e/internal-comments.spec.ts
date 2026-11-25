@@ -24,7 +24,10 @@ async function post(page: Page, text: string) {
   const sheet = page.getByRole('dialog', { name: 'Homepage' });
   await sheet.getByPlaceholder(/Add (a|an internal) comment/).fill(text);
   await sheet.getByRole('button', { name: 'Send comment' }).click();
-  await expect(sheet.getByRole('list', { name: 'Comments' }).getByText(text.split('\n')[0])).toBeVisible({ timeout: 15000 });
+  // Wait for the save, not just the optimistic copy (aria-busy while pending).
+  const item = sheet.getByRole('list', { name: 'Comments' }).getByRole('listitem').filter({ hasText: text.split('\n')[0] });
+  await expect(item).toBeVisible({ timeout: 15000 });
+  await expect(item).not.toHaveAttribute('aria-busy', 'true', { timeout: 15000 });
 }
 
 test('internal comments stay with the team; shared ones reach the client', async ({ browser }) => {
@@ -73,7 +76,9 @@ test('internal comments stay with the team; shared ones reach the client', async
   await owner.page.goto(projectUrl);
   await owner.page.getByRole('button', { name: 'Open task Homepage' }).click();
   const comments = sheet.getByRole('list', { name: 'Comments' });
-  await expect(comments.getByRole('listitem').filter({ hasText: 'Early note' })).toContainText('Internal');
+  await expect(comments.getByRole('listitem').filter({ hasText: 'Early note' })).toContainText('Internal', {
+    timeout: 15000,
+  });
   const choice = sheet.getByRole('radiogroup', { name: 'Who sees this comment' });
   await expect(choice.getByRole('radio', { name: 'Internal' })).toHaveAttribute('aria-checked', 'true');
   const upload = await owner.page.request.post('/api/uploads', {
