@@ -2,6 +2,7 @@
 
 import type { Priority } from '@/features/tasks/priority';
 import { LabelChips } from '@/features/labels/components/label-chip';
+import { ChecklistBadge } from '@/features/checklists/components/checklist-badge';
 
 import {
   AlertDialog,
@@ -58,6 +59,7 @@ interface ListViewProps {
         priority: Priority;
         dueDate?: Date | null;
         labels?: { label: { id: string; name: string; color: string | null } }[];
+        checklist?: { done: boolean }[];
         assignees: {
           user: {
             id: string;
@@ -286,7 +288,10 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
                 onClick={() => openTask(task.id)}
                 className='min-w-0 pr-4 text-left'>
                 <span data-testid='list-task-title' className='block truncate text-sm font-medium hover:underline'>{task.title}</span>
-                <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={3} />
+                <span className='flex flex-wrap items-center gap-1.5'>
+                  <ChecklistBadge items={task.checklist} />
+                  <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={3} />
+                </span>
               </button>
               <div>
                 <TaskStatusSelect

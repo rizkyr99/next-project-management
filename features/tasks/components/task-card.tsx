@@ -10,6 +10,7 @@ import { openTask } from '../task-link';
 import { PersonAvatar, priorityConfig, type TaskData } from './task-meta';
 import { formatDue, isOverdue } from '../due';
 import { LabelChips } from '@/features/labels/components/label-chip';
+import { ChecklistBadge } from '@/features/checklists/components/checklist-badge';
 
 interface TaskCardProps {
   task: TaskData;
@@ -42,6 +43,7 @@ export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
           </span>
         )}
         <div className='flex items-center gap-2 ml-auto text-muted-foreground'>
+          <ChecklistBadge items={task.checklist} />
           {task.description && <AlignLeft className='size-3' aria-label='Has description' />}
           {commentCount > 0 && (
             <span className='flex items-center gap-0.5 text-xs'>

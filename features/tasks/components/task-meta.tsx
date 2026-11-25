@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { priorityConfig, type Priority } from '../priority';
 import type { LabelInfo } from '@/features/labels/schema';
+import type { ChecklistItemInfo } from '@/features/checklists/schema';
 
 export { priorityConfig, type Priority };
 
@@ -22,6 +23,7 @@ export interface TaskData {
   /** The due date includes a time of day. */
   dueHasTime?: boolean;
   labels?: { label: LabelInfo }[];
+  checklist?: ChecklistItemInfo[];
   assignees: { user: Person }[];
   /** Client-only: just added, still being saved. Not openable or draggable yet. */
   pending?: boolean;

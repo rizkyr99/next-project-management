@@ -27,6 +27,7 @@ import { LabelPicker } from '@/features/labels/components/label-picker';
 import { setTaskLabels } from '@/features/labels/actions';
 import type { LabelInfo } from '@/features/labels/schema';
 import { TaskDescription } from './task-description';
+import { TaskChecklist } from '@/features/checklists/components/task-checklist';
 import { TaskProperties } from './task-properties';
 
 type SheetTask = TaskData & { statusId: string };
@@ -320,6 +321,8 @@ function TaskDetailBody({
             )
           }
         />
+
+        <TaskChecklist taskId={task.id} items={task.checklist ?? []} />
 
         <Separator />
         <TaskComments taskId={task.id} currentUserId={currentUserId} workspaceMembers={members} />

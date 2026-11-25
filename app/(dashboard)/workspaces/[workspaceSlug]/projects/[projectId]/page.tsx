@@ -87,6 +87,10 @@ export default async function ProjectIdPage({
                 labels: {
                   with: { label: { columns: { id: true, name: true, color: true } } },
                 },
+                checklist: {
+                  columns: { id: true, title: true, done: true, position: true },
+                  orderBy: (c, { asc }) => [asc(c.position), asc(c.createdAt)],
+                },
               },
             },
           },
@@ -128,6 +132,7 @@ export default async function ProjectIdPage({
             t.assignees.map((a) => a.user.id),
             t.labels.map((l) => [l.label.id, l.label.name, l.label.color]),
             t.dueHasTime,
+            t.checklist.map((c) => [c.id, c.done]),
           ]),
         ]),
       ),
