@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { priorityConfig, type Priority } from '../priority';
 import type { LabelInfo } from '@/features/labels/schema';
 import type { ChecklistItemInfo } from '@/features/checklists/schema';
+import type { ApprovalState } from '@/features/approvals/states';
 
 export { priorityConfig, type Priority };
 
@@ -27,6 +28,8 @@ export interface TaskData {
   labels?: { label: LabelInfo }[];
   checklist?: ChecklistItemInfo[];
   assignees: { user: Person }[];
+  /** The latest approval round's state (C3), if it was ever asked for. */
+  approval?: ApprovalState | null;
   /** Client-only: just added, still being saved. Not openable or draggable yet. */
   pending?: boolean;
 }

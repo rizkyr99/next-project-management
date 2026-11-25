@@ -119,6 +119,12 @@ function digestLine(n: {
       return `${n.actorName ?? 'Someone'} invited you to ${n.workspaceName ?? 'a workspace'}`;
     case 'due_soon':
       return `${n.taskTitle ?? 'A task'} is due ${n.dueLabel ?? 'soon'}`;
+    case 'approval_requested':
+      return `${n.actorName ?? 'Someone'} asked for your approval on ${n.taskTitle ?? 'a task'}`;
+    case 'task_approved':
+      return `${n.actorName ?? 'Someone'} approved ${n.taskTitle ?? 'a task'}`;
+    case 'changes_requested':
+      return `${n.actorName ?? 'Someone'} requested changes to ${n.taskTitle ?? 'a task'}`;
     default:
       return 'New notification';
   }

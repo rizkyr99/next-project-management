@@ -5,7 +5,8 @@ import { sql } from 'drizzle-orm';
 
 /**
  * A fingerprint of everything a project's board, list and task panel show:
- * each task's fields, the columns, the assignees and the comments.
+ * each task's fields, the columns, the assignees, the comments (and who
+ * can see them) and approvals.
  *
  * It's built from the data itself, not from `updated_at`, so every kind of
  * change shows up: edits, moves, reorders, deletes, column renames, and
@@ -35,7 +36,7 @@ export async function projectSnapshot(projectId: string): Promise<string> {
         where t.project_id = ${projectId}
       ), '')
       || '#' || coalesce((
-        select string_agg(concat_ws('|', c.id, md5(c.body), c.updated_at), ',' order by c.id)
+        select string_agg(concat_ws('|', c.id, md5(c.body), c.updated_at, c.client_visible), ',' order by c.id)
         from comment c join task t on t.id = c.task_id
         where t.project_id = ${projectId}
       ), '')
@@ -47,6 +48,11 @@ export async function projectSnapshot(projectId: string): Promise<string> {
       || '#' || coalesce((
         select string_agg(concat_ws('|', ci.id, ci.task_id, ci.title, ci.done, ci.position), ',' order by ci.id)
         from checklist_item ci join task t on t.id = ci.task_id
+        where t.project_id = ${projectId}
+      ), '')
+      || '#' || coalesce((
+        select string_agg(concat_ws('|', ta.id, ta.status), ',' order by ta.id)
+        from task_approval ta join task t on t.id = ta.task_id
         where t.project_id = ${projectId}
       ), '')
       || '#' || coalesce((select concat_ws('|', name, coalesce(description, ''), client_name, deadline, status, archived_at) from project where id = ${projectId}), '')

@@ -11,6 +11,7 @@ import { PersonAvatar, priorityConfig, type TaskData } from './task-meta';
 import { formatDue, isOverdue } from '../due';
 import { LabelChips } from '@/features/labels/components/label-chip';
 import { ChecklistBadge } from '@/features/checklists/components/checklist-badge';
+import { ApprovalBadge } from '@/features/approvals/components/approval-badge';
 
 interface TaskCardProps {
   task: TaskData;
@@ -30,6 +31,7 @@ export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
     <>
       <div className='text-sm font-medium leading-snug'>{task.title}</div>
       <LabelChips labels={(task.labels ?? []).map((l) => l.label)} />
+      {task.approval && <ApprovalBadge state={task.approval} className='self-start' />}
       <div className='flex items-center gap-1.5 flex-wrap'>
         {task.priority !== 'none' && (
           <Badge variant={p.variant} className='gap-1 text-xs font-normal px-1.5 py-0'>
