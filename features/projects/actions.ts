@@ -10,7 +10,7 @@ import { archiveProjectSchema, createProjectSchema, deleteProjectSchema, updateP
 import type { ProjectStatus } from './details';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { generateShareToken } from './share-link';
+import { generateShareToken } from './share-token';
 import { requireProjectAccess, requireSession, runAction, toActionError, type ActionResult } from '@/lib/authz';
 
 export async function createProject(

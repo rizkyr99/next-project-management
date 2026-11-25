@@ -1,9 +1,4 @@
-import { randomBytes } from 'node:crypto';
-
-/** Share-link tokens: 32 random bytes, base64url (43 chars), like invites. */
-export function generateShareToken(): string {
-  return randomBytes(32).toString('base64url');
-}
+// Safe for the browser: no Node APIs here (tokens are made in share-token.ts).
 
 /** Rejects anything that can't be a token we issued, before touching the DB. */
 export function isWellFormedShareToken(token: string): boolean {
