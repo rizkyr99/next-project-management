@@ -4,12 +4,12 @@ import type { Priority } from './priority';
 
 import { enforceRateLimit } from '@/lib/rate-limit';
 import z from 'zod';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { emailTaskNotification } from '@/lib/notification-emails';
 import { db } from '@/db/drizzle';
-import { comment, commentReaction, notification, task, taskAssignee, user as userTable } from '@/db/schema';
+import { comment, commentReaction, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { REACTIONS, type Reaction, type ReactionSummary } from './reaction-kinds';
 import { insertActivity } from '@/lib/activity';
 import { mentionedNames } from './mentions';
@@ -60,6 +60,8 @@ export type CommentWithAuthor = {
   body: string;
   createdAt: Date;
   updatedAt: Date | null;
+  /** Whether the project's guests (clients) can see it. */
+  clientVisible: boolean;
   author: { id: string; name: string; image: string | null };
   /** Absent on a comment that was just posted (it has none yet). */
   reactions?: ReactionSummary[];
@@ -439,6 +441,7 @@ const commentWithAuthor = {
   body: comment.body,
   createdAt: comment.createdAt,
   updatedAt: comment.updatedAt,
+  clientVisible: comment.clientVisible,
   author: {
     id: userTable.id,
     name: userTable.name,
@@ -454,7 +457,13 @@ export async function getComments(taskId: string): Promise<ActionResult<{ commen
       .select(commentWithAuthor)
       .from(comment)
       .innerJoin(userTable, eq(comment.authorId, userTable.id))
-      .where(eq(comment.taskId, ctx.task.id))
+      .where(
+        and(
+          eq(comment.taskId, ctx.task.id),
+          // Guests (clients) see only what was shared with them.
+          ctx.role === 'guest' ? eq(comment.clientVisible, true) : undefined,
+        ),
+      )
       .orderBy(asc(comment.createdAt));
 
     // Reactions on these comments, summarised per comment and kind.
@@ -489,18 +498,28 @@ export async function getComments(taskId: string): Promise<ActionResult<{ commen
   }
 }
 
-export async function addComment(taskId: string, body: string): Promise<ActionResult<{ comment: CommentWithAuthor }>> {
+/**
+ * Posts a comment. A team comment is internal unless `clientVisible` is set;
+ * a guest's (client's) comment is always visible to the client side.
+ */
+export async function addComment(
+  taskId: string,
+  body: string,
+  options: { clientVisible?: boolean } = {},
+): Promise<ActionResult<{ comment: CommentWithAuthor }>> {
   try {
     // Clients (guests) can comment on projects shared with them.
     const ctx = await requireTaskAccess(idSchema.parse(taskId), { allowGuests: true });
     const text = commentBodySchema.parse(body);
+    const clientVisible = ctx.role === 'guest' || z.boolean().optional().parse(options.clientVisible) === true;
     const actorId = ctx.session.user.id;
     await enforceRateLimit('comments', actorId);
     const taskLink = notificationLink(ctx);
 
     const [newComment] = await db
       .insert(comment)
-      .values({ taskId: ctx.task.id, authorId: actorId, body: text })
+      // updated_at's $onUpdate would also fire on insert; a new comment isn't edited.
+      .values({ taskId: ctx.task.id, authorId: actorId, body: text, clientVisible, updatedAt: null })
       .returning({ id: comment.id });
 
     // Resolve @Name mentions against the workspace's real members, never
@@ -511,7 +530,9 @@ export async function addComment(taskId: string, body: string): Promise<ActionRe
       try {
         // Only people who can see this project: a client can't be pinged
         // about (or learn the title of) another client's task.
-        const members = await projectAudience(ctx.workspace.id, ctx.project.id);
+        // An internal comment reaches the team only.
+        const audience = await projectAudience(ctx.workspace.id, ctx.project.id);
+        const members = clientVisible ? audience : audience.filter((m) => m.role !== 'guest');
 
         // Longest name wins at each "@" (features/tasks/mentions.ts), the same
         // rule the comment view uses to highlight.
@@ -602,6 +623,40 @@ export async function deleteComment(commentId: string): Promise<ActionResult> {
     return { success: true };
   } catch (error) {
     return toActionError(error, 'Failed to delete comment.');
+  }
+}
+
+const visibilitySchema = z.object({ commentId: z.uuid(), clientVisible: z.boolean() });
+
+/**
+ * Shares a team comment with the project's guests (clients), or makes it
+ * internal again. Only its author or a workspace owner/admin can, and a
+ * guest's own comments always stay visible to them.
+ */
+export async function setCommentVisibility(commentId: string, clientVisible: boolean): Promise<ActionResult> {
+  try {
+    const input = visibilitySchema.parse({ commentId, clientVisible });
+    const ctx = await requireCommentAccess(input.commentId);
+    const isAdmin = ctx.role === 'owner' || ctx.role === 'admin';
+    if (ctx.comment.authorId !== ctx.session.user.id && !isAdmin) {
+      return { error: 'Only its author or an admin can change who sees this comment.' };
+    }
+    const [author] = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.userId, ctx.comment.authorId), eq(member.workspaceId, ctx.workspace.id)));
+    if (author?.role === 'guest') {
+      return { error: 'A client’s own comments are always visible to them.' };
+    }
+
+    await db
+      .update(comment)
+      // Keep updated_at: sharing isn't an edit (it would show "edited").
+      .set({ clientVisible: input.clientVisible, updatedAt: sql`${comment.updatedAt}` })
+      .where(eq(comment.id, ctx.comment.id));
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Could not change who sees this comment.');
   }
 }
 
