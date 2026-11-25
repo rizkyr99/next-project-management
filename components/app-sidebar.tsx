@@ -14,7 +14,8 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { Activity, CheckSquare, CreditCard, Home, List, Settings, Sparkles, Star } from 'lucide-react';
+import { Activity, Archive, CheckSquare, CreditCard, Home, List, Settings, Sparkles, Star } from 'lucide-react';
+import type { ProjectStatus } from '@/features/projects/details';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { LinkPending } from './link-pending';
@@ -33,6 +34,11 @@ interface AppSidebarProps {
     id: string;
     name: string;
     description: string | null;
+    clientName: string | null;
+    deadline: string | null;
+    status: ProjectStatus | null;
+    /** Archived projects aren't listed; they're counted under "Archived". */
+    archivedAt: Date | null;
     /** When I starred it; null if not a favourite. */
     favoritedAt: Date | null;
   }[];
@@ -79,11 +85,16 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
     },
   ];
 
+  // Archived projects live on their own page, linked under the list.
+  const active = projects.filter((p) => !p.archivedAt);
+  const archivedCount = projects.length - active.length;
+  const archivedUrl = `/workspaces/${workspaceSlug}/archived`;
+
   // Starred projects get their own group at the top, in the order starred.
-  const favorites = projects
+  const favorites = active
     .filter((p) => p.favoritedAt)
     .sort((a, b) => new Date(a.favoritedAt!).getTime() - new Date(b.favoritedAt!).getTime());
-  const others = projects.filter((p) => !p.favoritedAt);
+  const others = active.filter((p) => !p.favoritedAt);
 
   const renderProject = (project: AppSidebarProps['projects'][number], favorite: boolean) => (
     <SidebarMenuItem key={project.id}>
@@ -144,13 +155,31 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
           <CreateProjectDialog />
           <SidebarGroupContent>
             <SidebarMenu aria-label='Projects'>
-              {projects.length === 0 && (
+              {active.length === 0 && (
                 <div className='text-xs text-muted-foreground p-2'>
-                  No projects yet. Use + to create one.
+                  {archivedCount > 0 ? 'No active projects. Use + to start one.' : 'No projects yet. Use + to create one.'}
                 </div>
               )}
               {others.map((project) => renderProject(project, false))}
             </SidebarMenu>
+            {archivedCount > 0 && (
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === archivedUrl} size='sm'>
+                    <Link
+                      href={archivedUrl}
+                      onClick={closeSidebarOnMobile}
+                      aria-current={pathname === archivedUrl ? 'page' : undefined}
+                      className='text-muted-foreground'>
+                      <Archive />
+                      <span>Archived</span>
+                      <span className='ml-auto text-xs tabular-nums'>{archivedCount}</span>
+                      <LinkPending />
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

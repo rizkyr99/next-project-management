@@ -15,6 +15,8 @@ export type ActivityAction =
   | 'project.created'
   | 'project.updated'
   | 'project.deleted'
+  | 'project.archived'
+  | 'project.restored'
   | 'member.invited'
   | 'member.joined'
   | 'member.removed'
