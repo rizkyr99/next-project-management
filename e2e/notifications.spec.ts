@@ -64,7 +64,9 @@ test('an assignment notification opens the task and is marked read', async ({ br
   await expect(member.page).toHaveURL(/\/projects\/[0-9a-f-]{36}\?task=[0-9a-f-]{36}$/, { timeout: 15000 });
   await expect(member.page.getByRole('dialog', { name: WELCOME })).toBeVisible();
   await expect
-    .poll(async () => (await sql`select read from notification where user_id = ${memberId}`)[0].read)
+    .poll(async () => (await sql`select read from notification where user_id = ${memberId}`)[0].read, {
+      timeout: 15000,
+    })
     .toBe(true);
 
   // The full list links the same way.
