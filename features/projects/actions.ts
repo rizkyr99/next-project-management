@@ -2,9 +2,9 @@
 
 
 import { db } from '@/db/drizzle';
-import { member, project, taskStatus, workspace, projectFavorite } from '@/db/schema';
+import { checklistItem, label, member, project, task, taskLabel, taskStatus, workspace, projectFavorite } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
-import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne } from 'drizzle-orm';
 import z from 'zod';
 import { archiveProjectSchema, createProjectSchema, deleteProjectSchema, updateProjectSchema } from './schema';
 import type { ProjectStatus } from './details';
@@ -12,6 +12,11 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { generateShareToken } from './share-token';
 import { requireProjectAccess, requireSession, runAction, toActionError, type ActionResult } from '@/lib/authz';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { loadTemplate } from '@/features/templates/load';
+import { templateToRows } from '@/features/templates/convert';
+import { dayInZone, safeTimeZone } from '@/features/templates/dates';
+import { MAX_LABELS_PER_WORKSPACE } from '@/features/labels/schema';
 
 export async function createProject(
   values: z.infer<typeof createProjectSchema>,
@@ -23,62 +28,87 @@ export async function createProject(
     if (!parsed.success) {
       return { error: parsed.error.issues[0]?.message ?? 'Invalid project details.' };
     }
-    const { name, description, workspaceSlug } = parsed.data;
+    const { name, description, workspaceSlug, templateId, startDate } = parsed.data;
     const userId = session.user.id;
 
-    try {
-      const [membership] = await db
-        .select({
-          workspaceId: workspace.id,
-        })
-        .from(workspace)
-        .innerJoin(member, eq(member.workspaceId, workspace.id))
-        .where(and(eq(workspace.slug, workspaceSlug), eq(member.userId, userId)))
-        .limit(1);
+    const [membership] = await db
+      .select({ workspaceId: workspace.id })
+      .from(workspace)
+      .innerJoin(member, eq(member.workspaceId, workspace.id))
+      // Clients (guests) only see the projects shared with them; they can't add any.
+      .where(and(eq(workspace.slug, workspaceSlug), eq(member.userId, userId), ne(member.role, 'guest')))
+      .limit(1);
 
-      if (!membership) {
-        return { error: 'Workspace not found.' };
-      }
+    if (!membership) {
+      return { error: 'Workspace not found.' };
+    }
 
-      // IDs are generated up front so the project and its default columns can
-      // be written in one batch (a single transaction). A failure can never
-      // leave a project without columns. New projects start empty; the guided
-      // tour lives in each workspace's "Getting started" project (P4.3).
-      const projectId = crypto.randomUUID();
-      const todoId = crypto.randomUUID();
+    // IDs are generated up front so the project and everything in it can be
+    // written in one batch (a single transaction): a failure can never leave
+    // a project without columns, or half a template. New blank projects start
+    // empty; the guided tour lives in each workspace's "Getting started"
+    // project (P4.3).
+    const projectId = crypto.randomUUID();
+    const insertProject = () =>
+      db
+        .insert(project)
+        .values({ id: projectId, name, description: description?.trim() || null, workspaceId: membership.workspaceId })
+        .returning();
 
-      const [[newProject]] = await db.batch([
-        db
-          .insert(project)
-          .values({
-            id: projectId,
-            name,
-            description: description?.trim() || null,
-            workspaceId: membership.workspaceId,
-          })
-          .returning(),
+    let templateName: string | undefined;
+    let newProject: typeof project.$inferSelect;
+    if (templateId) {
+      await enforceRateLimit('templates', userId);
+      const template = await loadTemplate(templateId, membership.workspaceId);
+      if (!template) return { error: 'That template no longer exists. Pick another one.' };
+      templateName = template.name;
+
+      const timeZone = safeTimeZone(parsed.data.timeZone);
+      const existingLabels = await db
+        .select({ id: label.id, name: label.name })
+        .from(label)
+        .where(eq(label.workspaceId, membership.workspaceId));
+      const rows = templateToRows(template.data, {
+        projectId,
+        workspaceId: membership.workspaceId,
+        startDay: startDate || dayInZone(new Date(), timeZone),
+        timeZone,
+        existingLabels,
+        labelSlots: Math.max(0, MAX_LABELS_PER_WORKSPACE - existingLabels.length),
+      });
+
+      const [[created]] = await db.batch([
+        insertProject(),
+        db.insert(taskStatus).values(rows.statuses),
+        ...(rows.labels.length ? [db.insert(label).values(rows.labels)] : []),
+        ...(rows.tasks.length ? [db.insert(task).values(rows.tasks)] : []),
+        ...(rows.taskLabels.length ? [db.insert(taskLabel).values(rows.taskLabels)] : []),
+        ...(rows.checklist.length ? [db.insert(checklistItem).values(rows.checklist)] : []),
+      ]);
+      newProject = created;
+    } else {
+      const [[created]] = await db.batch([
+        insertProject(),
         db.insert(taskStatus).values([
-          { id: todoId, name: 'To Do', order: 1, projectId, isDefault: true },
+          { name: 'To Do', order: 1, projectId, isDefault: true },
           { name: 'In Progress', order: 2, projectId },
           { name: 'Done', order: 3, projectId },
         ]),
       ]);
-
-      await insertActivity({
-        workspaceId: membership.workspaceId,
-        actorId: userId,
-        action: 'project.created',
-        projectId,
-        metadata: { projectName: name },
-      });
-
-      revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');
-
-      return { project: newProject };
-    } catch (error) {
-      console.error('Project Creation Error:', error);
-      return { error: 'Failed to create project.' };
+      newProject = created;
     }
+
+    await insertActivity({
+      workspaceId: membership.workspaceId,
+      actorId: userId,
+      action: 'project.created',
+      projectId,
+      metadata: { projectName: name, ...(templateName && { templateName }) },
+    });
+
+    revalidatePath(`/workspaces/${workspaceSlug}`, 'layout');
+
+    return { project: newProject };
   });
 }
 

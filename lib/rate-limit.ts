@@ -44,6 +44,8 @@ export const LIMITS = {
   reactions: { limit: 120, windowMs: 60_000 },
   /** Files uploaded (pasted screenshots), per user. */
   uploads: { limit: 30, windowMs: 60_000 },
+  /** Templates saved, and projects started from one (each writes up to hundreds of rows), per user. */
+  templates: { limit: 30, windowMs: 60 * 60_000 },
   /** Account deletion attempts (password checks), per user. */
   accountDelete: { limit: 5, windowMs: 15 * 60_000 },
 } as const satisfies Record<string, RateLimitOptions>;
