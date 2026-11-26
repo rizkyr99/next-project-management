@@ -1,5 +1,5 @@
 import { db } from '@/db/drizzle';
-import { attachment, comment, label, member, project, projectGuest, taskApproval, user } from '@/db/schema';
+import { attachment, comment, label, member, project, projectGuest, savedView, taskApproval, user } from '@/db/schema';
 import { and, asc, count, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import type { ApprovalState } from '@/features/approvals/states';
 import type { TaskFile } from '@/features/attachments/types';
@@ -15,6 +15,7 @@ import type { Metadata } from 'next';
 import { createHash } from 'node:crypto';
 import { TaskDetailSheet } from '@/features/tasks/components/task-detail/task-detail-sheet';
 import { TaskFilterBar } from '@/features/tasks/components/task-filter-bar';
+import { ViewsMenu } from '@/features/views/components/views-menu';
 import { ProjectLiveUpdates } from '@/features/tasks/components/project-live-updates';
 import { RememberProject } from '@/features/search/components/remember-project';
 import { projectSnapshot } from '@/features/tasks/snapshot';
@@ -75,7 +76,7 @@ export default async function ProjectIdPage({
 
   // The snapshot is taken alongside the data, so the live stream can tell
   // whether anything changed between this render and its first poll.
-  const [snapshot, workspaceMembers, workspaceLabels, data] = await Promise.all([
+  const [snapshot, workspaceMembers, workspaceLabels, data, savedViews] = await Promise.all([
     projectSnapshot(projectId),
     // The team plus this project's guests; never other clients.
     projectAudience(currentWorkspace.id, projectId),
@@ -112,6 +113,15 @@ export default async function ProjectIdPage({
         },
       },
     }),
+
+    // D3: my saved views of this project (the team's only; clients get the filters alone).
+    isGuest
+      ? []
+      : db
+          .select({ id: savedView.id, name: savedView.name, query: savedView.query })
+          .from(savedView)
+          .where(and(eq(savedView.projectId, projectId), eq(savedView.userId, session.user.id)))
+          .orderBy(asc(savedView.name)),
   ]);
 
   if (!data) notFound();
@@ -277,10 +287,12 @@ export default async function ProjectIdPage({
         <Suspense>
           <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
             <ViewSwitcher />
+            {!isGuest && <ViewsMenu projectId={data.id} saved={savedViews} approvals={approvals.length > 0} />}
             <TaskFilterBar
               members={teamMembers.map((m) => ({ id: m.id, name: m.name }))}
               currentUserId={session.user.id}
               labels={workspaceLabels}
+              showApproval={approvals.length > 0}
             />
           </div>
         </Suspense>

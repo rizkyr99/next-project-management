@@ -6,9 +6,12 @@
  */
 
 import { PRIORITIES, PRIORITY_RANK, type Priority } from './priority';
+import type { ApprovalState } from '@/features/approvals/states';
 
 export type { Priority };
 export type DueFilter = 'overdue' | 'week' | 'none';
+/** The latest client approval round (C3); "pending" is "waiting on the client". */
+export type ApprovalFilter = ApprovalState;
 
 export interface TaskFilters {
   /** 'me', 'unassigned', or a user id. */
@@ -17,6 +20,7 @@ export interface TaskFilters {
   due: DueFilter | null;
   /** A label id. */
   label: string | null;
+  approval: ApprovalFilter | null;
   q: string;
 }
 
@@ -27,26 +31,30 @@ export interface FilterableTask {
   dueDate?: Date | null;
   assignees: { user: { id: string } }[];
   labels?: { label: { id: string } }[];
+  approval?: ApprovalState | null;
 }
 
 const DUES: DueFilter[] = ['overdue', 'week', 'none'];
+const APPROVALS: ApprovalFilter[] = ['pending', 'changes_requested', 'approved'];
 
-export const FILTER_PARAMS = ['assignee', 'priority', 'due', 'label', 'q'] as const;
+export const FILTER_PARAMS = ['assignee', 'priority', 'due', 'label', 'approval', 'q'] as const;
 
 export function parseFilters(params: Pick<URLSearchParams, 'get'>): TaskFilters {
   const priority = params.get('priority');
   const due = params.get('due');
+  const approval = params.get('approval');
   return {
     assignee: params.get('assignee')?.trim() || null,
     priority: (PRIORITIES as readonly string[]).includes(priority ?? '') ? (priority as Priority) : null,
     due: DUES.includes(due as DueFilter) ? (due as DueFilter) : null,
     label: params.get('label')?.trim() || null,
+    approval: APPROVALS.includes(approval as ApprovalFilter) ? (approval as ApprovalFilter) : null,
     q: (params.get('q') ?? '').trim().slice(0, 200),
   };
 }
 
 export function filtersActive(f: TaskFilters) {
-  return Boolean(f.assignee || f.priority || f.due || f.label || f.q);
+  return Boolean(f.assignee || f.priority || f.due || f.label || f.approval || f.q);
 }
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -58,6 +66,7 @@ export function matchesFilters(
 ): boolean {
   if (f.priority && task.priority !== f.priority) return false;
   if (f.label && !(task.labels ?? []).some((l) => l.label.id === f.label)) return false;
+  if (f.approval && task.approval !== f.approval) return false;
 
   if (f.assignee) {
     const ids = task.assignees.map((a) => a.user.id);
