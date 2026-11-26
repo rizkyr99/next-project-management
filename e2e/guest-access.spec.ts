@@ -20,11 +20,13 @@ async function newUser(browser: Browser, email: string, name: string) {
 }
 
 async function createProject(page: Page, name: string) {
+  const from = new URL(page.url()).pathname;
   await page.getByRole('button', { name: 'Add project' }).click();
   await page.getByLabel('Name').fill(name);
   await page.getByRole('button', { name: 'Create project' }).click();
-  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 15000 });
-  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+  // A new project page, not the one we may already be on.
+  await page.waitForURL((u) => u.pathname !== from && /\/projects\/[0-9a-f-]{36}$/.test(u.pathname), { timeout: 15000 });
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({ timeout: 15000 });
   return page.url().split('/projects/')[1];
 }
 
