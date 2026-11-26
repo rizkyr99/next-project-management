@@ -82,13 +82,18 @@ test('the workspace home shows what is late, due, at risk and waiting on clients
   await guest.page.getByRole('button', { name: 'Accept invite' }).click();
   await expect(guest.page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
 
+  // One page load, then each task from the board: navigating again while the
+  // request's refresh is still running would cancel one of them.
+  await page.goto(projectUrl);
   for (const title of ['Kickoff call', 'Wireframes']) {
-    await page.goto(projectUrl);
-    await page.getByRole('button', { name: `Open task ${title}` }).click();
-    const approval = page.getByRole('dialog', { name: title }).getByRole('region', { name: 'Approval' });
+    await page.locator(`[aria-label="Open task ${title}"]`).click();
+    const sheet = page.getByRole('dialog', { name: title });
+    const approval = sheet.getByRole('region', { name: 'Approval' });
     await approval.getByRole('button', { name: 'Request approval' }).click();
     await approval.getByRole('button', { name: 'Send to client' }).click();
     await expect(approval.getByText('Waiting for the client')).toBeVisible({ timeout: 15000 });
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
   }
 
   await guest.page.goto(projectUrl);

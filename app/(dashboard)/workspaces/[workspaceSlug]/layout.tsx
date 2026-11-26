@@ -1,5 +1,5 @@
 import { UpgradeProvider } from '@/features/billing/components/upgrade';
-import { getWorkspacePlan, teamMemberCount } from '@/lib/subscription';
+import { planSummaryBySlug } from '@/lib/subscription';
 import { AppSidebar } from '@/components/app-sidebar';
 import { Header } from '@/components/header';
 import { VerifyEmailBanner } from '@/features/account/components/verify-email-banner';
@@ -42,7 +42,7 @@ export default async function WorkspaceLayout({
     redirect('/login');
   }
 
-  const [userWorkspaces, activeWorkspace, workspaceProjects] = await Promise.all([
+  const [userWorkspaces, activeWorkspace, workspaceProjects, planSummary] = await Promise.all([
     db
       .select({
         id: workspace.id,
@@ -86,6 +86,9 @@ export default async function WorkspaceLayout({
           or(ne(member.role, 'guest'), and(isNotNull(projectGuest.projectId), isNull(project.archivedAt))),
         ),
       ),
+    // E3: the plan behind upgrade prompts, in one query alongside the rest.
+    // Only used once membership is confirmed below; the server enforces every gate too.
+    planSummaryBySlug(workspaceSlug),
   ]);
 
   if (userWorkspaces.length === 0) {
@@ -97,18 +100,12 @@ export default async function WorkspaceLayout({
     notFound();
   }
 
-  // E3: the plan behind upgrade prompts. The server enforces every gate too.
-  const [plan, teamMembers] = await Promise.all([
-    getWorkspacePlan(activeWorkspace.id),
-    teamMemberCount(activeWorkspace.id),
-  ]);
-
   return (
     <UpgradeProvider
       workspaceSlug={workspaceSlug}
-      plan={plan}
+      plan={planSummary?.plan ?? 'free'}
       isOwner={activeWorkspace.role === 'owner'}
-      teamMembers={teamMembers}>
+      teamMembers={planSummary?.teamMembers ?? 1}>
       <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} />
       <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
         <Header
