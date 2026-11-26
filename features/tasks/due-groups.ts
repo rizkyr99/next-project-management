@@ -12,11 +12,13 @@ export const DUE_GROUPS = [
   { key: 'week', label: 'Next 7 days' },
   { key: 'later', label: 'Later' },
   { key: 'none', label: 'No due date' },
+  // Finished work (in its project's last column), whatever its date said.
+  { key: 'done', label: 'Done' },
 ] as const;
 
 export type DueGroupKey = (typeof DUE_GROUPS)[number]['key'];
 
-type Dated = { dueDate: Date | string | null; priority: Priority };
+type Dated = { dueDate: Date | string | null; priority: Priority; done?: boolean };
 
 
 export function dueGroup(dueDate: Date | string | null, now = new Date()): DueGroupKey {
@@ -33,7 +35,7 @@ export function dueGroup(dueDate: Date | string | null, now = new Date()): DueGr
 export function groupByDue<T extends Dated>(tasks: T[], now = new Date()) {
   const byKey = new Map<DueGroupKey, T[]>();
   for (const task of tasks) {
-    const key = dueGroup(task.dueDate, now);
+    const key = task.done ? 'done' : dueGroup(task.dueDate, now);
     byKey.set(key, [...(byKey.get(key) ?? []), task]);
   }
   return DUE_GROUPS.filter((g) => byKey.has(g.key)).map((g) => ({

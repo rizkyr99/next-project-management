@@ -114,8 +114,10 @@ export default async function SharedBoardPage({ params }: { params: Promise<{ to
 
       <main className='flex-1 overflow-x-auto px-4 py-4 md:px-8'>
         <div className='flex gap-4 items-start min-w-max'>
-          {columns.map((column) => {
+          {columns.map((column, index) => {
             const columnTasks = tasks.filter((t) => t.statusId === column.id);
+            // The last column means done: a past due date there isn't overdue.
+            const done = index === columns.length - 1;
             return (
               <section
                 key={column.id}
@@ -132,7 +134,7 @@ export default async function SharedBoardPage({ params }: { params: Promise<{ to
                   <ul className='space-y-2'>
                     {columnTasks.map((t) => (
                       <li key={t.id} className='bg-white dark:bg-card shadow p-2.5 rounded-md space-y-2'>
-                        <TaskCardPreview task={card(t)} />
+                        <TaskCardPreview task={card(t)} done={done} />
                       </li>
                     ))}
                   </ul>

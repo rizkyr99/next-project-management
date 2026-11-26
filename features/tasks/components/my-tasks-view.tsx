@@ -38,6 +38,8 @@ interface MyTask {
   createdAt: Date;
   statusId: string;
   statusName: string;
+  /** In its project's last column: finished. */
+  done: boolean;
   projectId: string;
   projectName: string;
 }
@@ -47,9 +49,9 @@ interface MyTasksViewProps {
   workspaceSlug: string;
 }
 
-function formatDate(date: Date | null, hasTime = false) {
+function formatDate(date: Date | null, hasTime = false, done = false) {
   if (!date) return null;
-  return { label: formatDue(date, hasTime), isOverdue: isOverdue(date, hasTime) };
+  return { label: formatDue(date, hasTime), isOverdue: !done && isOverdue(date, hasTime) };
 }
 
 export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>) {
@@ -149,7 +151,7 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
                   <TableBody>
                     {group.tasks.map((t) => {
                       const priority = priorityConfig[t.priority];
-                      const due = formatDate(t.dueDate, t.dueHasTime);
+                      const due = formatDate(t.dueDate, t.dueHasTime, t.done);
 
                       return (
                         <TableRow key={t.id}>
