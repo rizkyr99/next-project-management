@@ -39,6 +39,7 @@ import {
   updateTaskDescriptionSchema,
   updateTaskDueDateSchema,
   updateTaskStartDateSchema,
+  updateTaskScheduleSchema,
   updateTaskPrioritySchema,
   updateTaskStatusSchema,
   updateTaskTitleSchema,
@@ -348,6 +349,35 @@ export async function updateTaskDueDate(taskId: string, dueDate: Date | null, ha
     return { success: true };
   } catch (error) {
     return toActionError(error, 'Failed to update due date.');
+  }
+}
+
+/**
+ * B4: a task dragged to another day on the calendar. Its start and due
+ * date move together in one write, so a range never ends up half-moved.
+ */
+export async function updateTaskSchedule(input: z.input<typeof updateTaskScheduleSchema>): Promise<ActionResult> {
+  try {
+    const { taskId, startDate, dueDate, hasTime } = updateTaskScheduleSchema.parse(input);
+    const ctx = await requireTaskAccess(taskId);
+
+    await db
+      .update(task)
+      .set({ startDate, dueDate, dueHasTime: dueDate !== null && hasTime })
+      .where(eq(task.id, ctx.task.id));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.due_date_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title, dueDate: dueDate?.toISOString() ?? '' },
+    });
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Couldn’t move the task. Please try again.');
   }
 }
 

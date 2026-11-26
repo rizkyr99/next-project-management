@@ -5,6 +5,7 @@ import type { ComponentProps } from 'react';
 import BoardView from './board-view-client';
 import { ListView } from './list-view';
 import { TableView } from './table-view';
+import { CalendarView } from '@/features/calendar/components/calendar-view';
 import { parseView } from '../view';
 
 /** The page's project data, which each view reads its own subset of. */
@@ -30,6 +31,10 @@ export function ProjectViews({ project, commentCountMap, workspaceMembers, curre
 
   if (view === 'list') {
     return <ListView key={dataKey} project={project} workspaceMembers={workspaceMembers} currentUserId={currentUserId} />;
+  }
+  if (view === 'calendar') {
+    // Remounted when the data changes, like the list and table; the month lives in the URL.
+    return <CalendarView key={dataKey} project={project} currentUserId={currentUserId} />;
   }
   if (view === 'table') {
     return <TableView key={dataKey} project={project} workspaceMembers={workspaceMembers} currentUserId={currentUserId} />;

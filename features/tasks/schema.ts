@@ -89,6 +89,14 @@ export const updateTaskStartDateSchema = z.object({
   startDate: z.iso.date('Pick a valid start date.').nullable(),
 });
 
+/** B4: a task moved on the calendar: its start and due date together, in one save. */
+export const updateTaskScheduleSchema = z.object({
+  taskId: z.uuid(),
+  startDate: z.iso.date('Pick a valid start date.').nullable(),
+  dueDate: z.date().nullable(),
+  hasTime: z.boolean().default(false),
+});
+
 export const updateTaskAssigneesSchema = z.object({
   taskId: z.uuid(),
   // Better Auth user IDs are not UUIDs.

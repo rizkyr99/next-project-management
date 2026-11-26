@@ -1,15 +1,15 @@
 /**
- * The project page's view (board, list or table) lives in the URL as
+ * The project page's view (board, list, table or calendar) lives in the URL as
  * `?view=…`, so it survives reloads and can be shared. Switching changes the
  * URL without a server round trip: all three views show the same data the
  * page already has. Next.js syncs `history.replaceState` with
  * `useSearchParams`.
  */
-export const VIEWS = ['board', 'list', 'table'] as const;
+export const VIEWS = ['board', 'list', 'table', 'calendar'] as const;
 export type View = (typeof VIEWS)[number];
 
 export function parseView(value: string | null | undefined): View {
-  return value === 'list' || value === 'table' ? value : 'board';
+  return value === 'list' || value === 'table' || value === 'calendar' ? value : 'board';
 }
 
 export function setView(view: View) {
