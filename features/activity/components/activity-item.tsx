@@ -17,6 +17,8 @@ type ActivityAction =
   | 'task.approved'
   | 'task.changes_requested'
   | 'task.deleted'
+  | 'task.file_added'
+  | 'task.file_removed'
   | 'project.created'
   | 'project.updated'
   | 'project.deleted'
@@ -82,6 +84,10 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return `approved ${task}`;
     case 'task.changes_requested':
       return `requested changes to ${task}`;
+    case 'task.file_added':
+      return `attached “${m.fileName ?? 'a file'}” to ${task}`;
+    case 'task.file_removed':
+      return `removed “${m.fileName ?? 'a file'}” from ${task}`;
     case 'task.deleted':
       return `deleted task ${task}`;
     case 'project.created':

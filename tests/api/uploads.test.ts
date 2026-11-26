@@ -9,8 +9,16 @@ vi.mock('@/lib/authz', async (orig) => ({
   requireTaskAccess: vi.fn(),
   requireProjectAccess: vi.fn(),
 }));
-const storage = vi.hoisted(() => ({ storageAvailable: vi.fn(), saveFile: vi.fn(), readFileStream: vi.fn() }));
+const storage = vi.hoisted(() => ({
+  storageAvailable: vi.fn(),
+  directUploadsAvailable: vi.fn(),
+  saveFile: vi.fn(),
+  readFileStream: vi.fn(),
+}));
 vi.mock('@/lib/storage', () => storage);
+const files = vi.hoisted(() => ({ storageProblem: vi.fn(), recordTaskFile: vi.fn() }));
+vi.mock('@/features/attachments/server', () => files);
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { AuthzError, requireProjectAccess, requireTaskAccess } from '@/lib/authz';
 import { POST as upload } from '@/app/api/uploads/route';
@@ -21,9 +29,10 @@ const TASK = '11111111-1111-4111-8111-111111111111';
 const FILE_ID = '22222222-2222-4222-8222-222222222222';
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
-function form(bytes: Uint8Array<ArrayBuffer>, name = 'shot.png', type = 'image/png') {
+function form(bytes: Uint8Array<ArrayBuffer>, name = 'shot.png', type = 'image/png', kind?: 'file') {
   const f = new FormData();
   f.set('taskId', TASK);
+  if (kind) f.set('kind', kind);
   f.set('file', new File([bytes], name, { type }));
   return new Request('http://t/api/uploads', { method: 'POST', body: f });
 }
@@ -31,9 +40,14 @@ function form(bytes: Uint8Array<ArrayBuffer>, name = 'shot.png', type = 'image/p
 beforeEach(() => {
   vi.clearAllMocks();
   storage.storageAvailable.mockReturnValue(true);
+  storage.directUploadsAvailable.mockReturnValue(false);
+  files.storageProblem.mockResolvedValue(null);
   vi.mocked(requireTaskAccess).mockResolvedValue({
     session: { user: { id: 'u-1' } },
+    role: 'member',
+    task: { id: TASK, title: 'Homepage' },
     project: { id: 'p-1' },
+    workspace: { id: 'ws-1', slug: 'acme' },
   } as never);
   const values = vi.fn(async () => undefined);
   db.insert.mockReturnValue({ values });
@@ -92,6 +106,49 @@ describe('POST /api/uploads', () => {
   });
 });
 
+describe('POST /api/uploads, kind=file (B3)', () => {
+  it('stores a listed file as plain bytes and records it', async () => {
+    const res = await upload(form(new TextEncoder().encode('%PDF-1.7'), 'Brand guide.pdf', 'application/pdf', 'file'));
+    expect(res.status).toBe(200);
+    const [key, , type] = storage.saveFile.mock.calls[0];
+    expect(key).toMatch(/^attachments\/p-1\/[0-9a-f-]{36}$/);
+    expect(type).toBe('application/octet-stream');
+    expect(files.recordTaskFile).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'member' }),
+      expect.objectContaining({ key, name: 'Brand guide.pdf', size: 8 }),
+    );
+  });
+
+  it('refuses programs and scripts, whatever they claim to be', async () => {
+    for (const name of ['setup.exe', 'run.sh', 'page.html', 'noext']) {
+      const res = await upload(form(new TextEncoder().encode('x'), name, 'application/pdf', 'file'));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/can’t be attached/);
+    }
+    expect(storage.saveFile).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the workspace is out of storage, before storing', async () => {
+    files.storageProblem.mockResolvedValue('This workspace is out of file storage.');
+    const res = await upload(form(new TextEncoder().encode('x'), 'a.pdf', 'application/pdf', 'file'));
+    expect(res.status).toBe(400);
+    expect(storage.saveFile).not.toHaveBeenCalled();
+  });
+
+  it('sends files over 4 MB elsewhere when storage takes direct uploads', async () => {
+    storage.directUploadsAvailable.mockReturnValue(true);
+    const res = await upload(form(new Uint8Array(4 * 1024 * 1024 + 1), 'big.zip', 'application/zip', 'file'));
+    expect(res.status).toBe(400);
+    expect(storage.saveFile).not.toHaveBeenCalled();
+  });
+
+  it('counts pasted images against the storage limit too', async () => {
+    files.storageProblem.mockResolvedValue('This workspace is out of file storage.');
+    expect((await upload(form(PNG))).status).toBe(413);
+    expect(storage.saveFile).not.toHaveBeenCalled();
+  });
+});
+
 describe('GET /api/files/[id]', () => {
   const get = (id = FILE_ID) => serve(new Request(`http://t/api/files/${id}`), { params: Promise.resolve({ id }) });
   const stored = { projectId: 'p-1', storageKey: 'attachments/p-1/x', name: 'shot.png', contentType: 'image/png' };
@@ -115,6 +172,38 @@ describe('GET /api/files/[id]', () => {
     expect(storage.readFileStream).not.toHaveBeenCalled();
 
     db.select.mockReturnValue(chain([]));
+    expect((await get()).status).toBe(404);
+  });
+
+  it('downloads anything that is not a checked image, as plain bytes', async () => {
+    db.select.mockReturnValue(chain([{ ...stored, name: 'guide.pdf', contentType: 'application/octet-stream', listed: true }]));
+    vi.mocked(requireProjectAccess).mockResolvedValue({ role: 'member' } as never);
+    storage.readFileStream.mockResolvedValue(new Response('%PDF').body);
+    const res = await get();
+    expect(res.headers.get('content-type')).toBe('application/octet-stream');
+    expect(res.headers.get('content-disposition')).toBe("attachment; filename*=UTF-8''guide.pdf");
+  });
+
+  it('downloads an image too when asked', async () => {
+    db.select.mockReturnValue(chain([stored]));
+    vi.mocked(requireProjectAccess).mockResolvedValue({} as never);
+    storage.readFileStream.mockResolvedValue(new Response('png').body);
+    const res = await serve(new Request(`http://t/api/files/${FILE_ID}?download`), { params: Promise.resolve({ id: FILE_ID }) });
+    expect(res.headers.get('content-disposition')).toMatch(/^attachment;/);
+  });
+
+  it('lets a client open listed files shared with them, and nothing internal', async () => {
+    const guest = { role: 'guest', session: { user: { id: 'client-1' } } };
+    vi.mocked(requireProjectAccess).mockResolvedValue(guest as never);
+    storage.readFileStream.mockResolvedValue(new Response('x').body);
+
+    db.select.mockReturnValueOnce(chain([{ ...stored, uploadedById: 'u-1', listed: true, clientVisible: true }]));
+    expect((await get()).status).toBe(200);
+
+    db.select
+      .mockReturnValueOnce(chain([{ ...stored, uploadedById: 'u-1', listed: true, clientVisible: false }]))
+      // Not referenced in anything shared either.
+      .mockReturnValueOnce(chain([]));
     expect((await get()).status).toBe(404);
   });
 
