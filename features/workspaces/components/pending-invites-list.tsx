@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { resendInvite, revokeInvite } from '../invite-actions';
 import { InviteLinkNotice, type SentInvite } from './invite-link-notice';
+import { useUpgrade } from '@/features/billing/components/upgrade';
 
 interface PendingInvite {
   id: string;
@@ -28,13 +29,15 @@ export function PendingInvitesList({
   canRevoke,
 }: PendingInvitesListProps) {
   const [isPending, startTransition] = useTransition();
+  // E3: a plan gate's error opens the upgrade prompt; anything else is a toast.
+  const { showError } = useUpgrade();
   const [resent, setResent] = useState<SentInvite | null>(null);
 
   const handleRevoke = (inviteId: string, email: string) =>
     startTransition(async () => {
       const result = await revokeInvite(workspaceSlug, inviteId);
       if (result.error !== undefined) {
-        toast.error(result.error, { position: 'top-center' });
+        showError(result.error);
       } else {
         toast.success(`Invite to ${email} revoked`, { position: 'top-center' });
         if (resent?.email === email) setResent(null);
@@ -45,7 +48,7 @@ export function PendingInvitesList({
     startTransition(async () => {
       const result = await resendInvite(workspaceSlug, inviteId);
       if (result.error !== undefined) {
-        toast.error(result.error, { position: 'top-center' });
+        showError(result.error);
         return;
       }
       setResent({ email: result.email, inviteUrl: result.inviteUrl, emailSent: result.emailSent });

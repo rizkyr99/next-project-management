@@ -82,13 +82,24 @@ test('the workspace home shows what is late, due, at risk and waiting on clients
   await guest.page.getByRole('button', { name: 'Accept invite' }).click();
   await expect(guest.page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
 
+  // Each task by its link. Before moving on, wait for the card to show the
+  // request: then the page's refresh is done, and the next navigation can't
+  // cancel it (or be cancelled by it) on a slow machine.
+  await page.goto(projectUrl);
+  const ids: Record<string, string> = {};
   for (const title of ['Kickoff call', 'Wireframes']) {
-    await page.goto(projectUrl);
-    await page.getByRole('button', { name: `Open task ${title}` }).click();
+    const testId = await page.locator(`[aria-label="Open task ${title}"]`).getAttribute('data-testid');
+    ids[title] = testId!.replace(/^task-/, '');
+  }
+  for (const title of ['Kickoff call', 'Wireframes']) {
+    await page.goto(`${projectUrl}?task=${ids[title]}`);
     const approval = page.getByRole('dialog', { name: title }).getByRole('region', { name: 'Approval' });
     await approval.getByRole('button', { name: 'Request approval' }).click();
     await approval.getByRole('button', { name: 'Send to client' }).click();
     await expect(approval.getByText('Waiting for the client')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(`[aria-label="Open task ${title}"]`)).toContainText('Awaiting approval', {
+      timeout: 30000,
+    });
   }
 
   await guest.page.goto(projectUrl);

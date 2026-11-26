@@ -40,28 +40,36 @@ test('Free limits client features and seats; Pro lifts them; billing lives with 
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 15000 });
   const projectUrl = new URL(page.url()).pathname;
 
-  // Free: share links and saved templates explain they're Pro.
+  // Free: gated controls carry a Pro mark and open the upgrade prompt (E3).
+  const prompt = page.getByRole('dialog');
   await page.getByRole('button', { name: 'Project options' }).click();
-  await page.getByRole('menuitem', { name: 'Share link…' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Create link' }).click();
-  await expect(page.getByText(/Share links are part of Pro/)).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Share link… Pro' }).click();
+  await expect(prompt.getByRole('heading', { name: 'Share read-only links with Pro' })).toBeVisible();
+  await expect(prompt).toContainText(`1 × $${price} = $${price} a month`);
+  await expect(prompt.getByRole('list', { name: 'Pro includes' })).toContainText('Read-only share links');
+  await expect(prompt.getByRole('button', { name: 'Upgrade to Pro' })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Project options' }).click();
-  await page.getByRole('menuitem', { name: 'Save as template…' }).click();
-  await page.getByRole('dialog', { name: 'Save as template' }).getByRole('button', { name: 'Save template' }).click();
-  await expect(page.getByText(/Saving your own templates is part of Pro/)).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Save as template… Pro' }).click();
+  await expect(prompt.getByRole('heading', { name: 'Save your own templates with Pro' })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // Free: no clients, and three team seats, pending invites included.
   await page.goto(`/workspaces/${slug}/settings?tab=members`);
-  await invite(page, `bill-client+${s}@example.com`, 'Guest (client)');
-  await expect(page.getByText(/Inviting clients is part of Pro/)).toBeVisible();
+  const card = page.locator('[data-slot="card"]', { hasText: 'Invite members' });
+  await card.getByRole('combobox', { name: 'Role' }).click();
+  await page.getByRole('option', { name: 'Guest (client) Pro' }).click();
+  await expect(prompt.getByRole('heading', { name: 'Invite clients with Pro' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(card.getByRole('combobox', { name: 'Role' })).toHaveText('Member');
   await invite(page, `bill-a+${s}@example.com`, 'Member');
   await expect(page.getByRole('textbox', { name: 'Invite link', exact: true })).toBeVisible({ timeout: 15000 });
   await invite(page, `bill-b+${s}@example.com`, 'Member');
   await expect(page.getByText(`bill-b+${s}@example.com`).first()).toBeVisible({ timeout: 15000 });
+  // The fourth seat is refused by the server; its message opens the prompt.
   await invite(page, `bill-c+${s}@example.com`, 'Member');
-  await expect(page.getByText(/Free workspaces have up to 3 team members/)).toBeVisible();
+  await expect(prompt.getByRole('heading', { name: 'Grow your team with Pro' })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // The Billing tab: Free, 1 of 3 members, what Pro would cost and add.
   await page.goto(`/workspaces/${slug}/settings?tab=billing`);

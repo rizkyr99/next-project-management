@@ -1,8 +1,8 @@
 import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import { db } from '@/db/drizzle';
-import { member, subscription, workspaceInvite } from '@/db/schema';
-import { and, count, eq, gt, ne } from 'drizzle-orm';
+import { member, subscription, workspace, workspaceInvite } from '@/db/schema';
+import { and, count, eq, gt, ne, sql } from 'drizzle-orm';
 import {
   memberLimitMessage,
   PLAN_DETAILS,
@@ -39,6 +39,27 @@ export async function teamMemberCount(workspaceId: string): Promise<number> {
     .from(member)
     .where(and(eq(member.workspaceId, workspaceId), ne(member.role, 'guest')));
   return row?.n ?? 0;
+}
+
+/**
+ * A workspace's plan and team size in one query, looked up by slug so the
+ * workspace layout can run it alongside its other queries (E3). Null when
+ * there's no such workspace; the layout checks membership separately.
+ */
+export async function planSummaryBySlug(slug: string): Promise<{ plan: PlanName; teamMembers: number } | null> {
+  const [row] = await db
+    .select({
+      status: subscription.status,
+      plan: subscription.plan,
+      teamMembers: sql<number>`(select count(*)::int from ${member} m where m.workspace_id = ${workspace.id} and m.role <> 'guest')`,
+    })
+    .from(workspace)
+    .leftJoin(subscription, eq(subscription.workspaceId, workspace.id))
+    .where(eq(workspace.slug, slug))
+    .limit(1);
+  if (!row) return null;
+  const paid = row.status !== null && PAID_STATUSES.has(row.status) && row.plan === 'pro';
+  return { plan: paid ? 'pro' : 'free', teamMembers: row.teamMembers };
 }
 
 /** Null when the workspace's plan includes `feature`, otherwise the message to show. */

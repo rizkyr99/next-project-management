@@ -72,6 +72,29 @@ export function memberLimitMessage(max: number) {
   return `Free workspaces have up to ${max} team members (clients don’t count). ${UPGRADE_HINT}`;
 }
 
+/** What an upgrade prompt is about: a gated feature, or the team member limit. */
+export type UpgradeReason = PlanFeature | 'members';
+
+/**
+ * Which gate a server error came from, so the browser can offer the upgrade
+ * instead of a bare message (E3). Null for any other error.
+ */
+export function upgradeReasonFor(message: string | undefined | null): UpgradeReason | null {
+  if (!message) return null;
+  const feature = (Object.keys(PLAN_GATE_MESSAGES) as PlanFeature[]).find((f) => PLAN_GATE_MESSAGES[f] === message);
+  if (feature) return feature;
+  return message.startsWith('Free workspaces have up to ') ? 'members' : null;
+}
+
+/** The upgrade prompt's title for each reason. */
+export const UPGRADE_TITLES: Record<UpgradeReason, string> = {
+  clientGuests: 'Invite clients with Pro',
+  approvals: 'Ask clients for approval with Pro',
+  shareLinks: 'Share read-only links with Pro',
+  savedTemplates: 'Save your own templates with Pro',
+  members: 'Grow your team with Pro',
+};
+
 /** "Up to 3 team members" / "Unlimited team members". */
 export function memberLimitLabel(max: number | null) {
   return max === null ? 'Unlimited team members' : `Up to ${max} team members`;

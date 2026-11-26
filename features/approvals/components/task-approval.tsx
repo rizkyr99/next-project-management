@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { getTaskApprovals, requestApproval, respondToApproval, withdrawApproval, type ApprovalRound } from '../actions';
 import { ApprovalBadge } from './approval-badge';
 import { MAX_APPROVAL_NOTE } from '../states';
+import { useUpgrade } from '@/features/billing/components/upgrade';
 
 const ago = (d: Date) => formatDistanceToNow(new Date(d), { addSuffix: true });
 
@@ -33,6 +34,8 @@ export function TaskApproval({
   everAsked: boolean;
 }) {
   const queryClient = useQueryClient();
+  // E3: a plan gate's error opens the upgrade prompt; anything else is a toast.
+  const { showError } = useUpgrade();
   const router = useRouter();
   const queryKey = ['approvals', taskId];
   // Server actions from a page run one at a time, so skip the request when
@@ -54,7 +57,7 @@ export function TaskApproval({
     mutationFn: async (action: () => Promise<{ error?: string } | { success: true }>) => action(),
     onSuccess: (res) => {
       if (res && 'error' in res && res.error) {
-        toast.error(res.error, { position: 'top-center' });
+        showError(res.error);
       } else {
         setComposing(null);
         setText('');
