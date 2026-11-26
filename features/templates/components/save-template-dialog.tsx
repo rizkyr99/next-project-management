@@ -18,6 +18,7 @@ import { useParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { saveProjectAsTemplate } from '../actions';
+import { useUpgrade } from '@/features/billing/components/upgrade';
 
 /** "Save as template…" from a project's menu (B5). */
 export function SaveTemplateDialog({
@@ -34,6 +35,8 @@ export function SaveTemplateDialog({
   const [name, setName] = useState(projectName);
   const [description, setDescription] = useState('');
   const [isPending, startTransition] = useTransition();
+  // E3: a plan gate's error opens the upgrade prompt; anything else is a toast.
+  const { showError } = useUpgrade();
   const queryClient = useQueryClient();
   const { workspaceSlug } = useParams<{ workspaceSlug: string }>();
 
@@ -51,7 +54,7 @@ export function SaveTemplateDialog({
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
       if (result.error !== undefined) {
-        toast.error(result.error, { position: 'top-center' });
+        showError(result.error);
         return;
       }
       void queryClient.invalidateQueries({ queryKey: ['templates', workspaceSlug] });

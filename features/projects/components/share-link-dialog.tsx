@@ -15,6 +15,7 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { setProjectShareLink } from '../actions';
 import { sharePath } from '../share-link';
+import { useUpgrade } from '@/features/billing/components/upgrade';
 
 /**
  * C4: a project's read-only share link. Anyone with the link sees the board
@@ -37,13 +38,15 @@ export function ShareLinkDialog({
 }) {
   const [token, setToken] = useState(initialToken);
   const [pending, start] = useTransition();
+  // E3: a plan gate's error opens the upgrade prompt; anything else is a toast.
+  const { showError } = useUpgrade();
   const url = token ? `${typeof window === 'undefined' ? '' : window.location.origin}${sharePath(token)}` : '';
 
   const change = (action: 'enable' | 'replace' | 'disable') =>
     start(async () => {
       const result = await setProjectShareLink({ projectId, action });
       if ('error' in result && result.error) {
-        toast.error(result.error, { position: 'top-center' });
+        showError(result.error);
         return;
       }
       if ('token' in result) setToken(result.token ?? null);

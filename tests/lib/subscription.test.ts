@@ -18,7 +18,17 @@ import {
   planGateProblem,
   syncSeats,
 } from '@/lib/subscription';
-import { PLAN_GATE_MESSAGES, planAllows } from '@/lib/plans';
+import { memberLimitMessage, PLAN_GATE_MESSAGES, planAllows, upgradeReasonFor } from '@/lib/plans';
+
+describe('upgradeReasonFor (E3)', () => {
+  it('recognises each gate’s message and the member limit, and nothing else', () => {
+    expect(upgradeReasonFor(PLAN_GATE_MESSAGES.shareLinks)).toBe('shareLinks');
+    expect(upgradeReasonFor(PLAN_GATE_MESSAGES.clientGuests)).toBe('clientGuests');
+    expect(upgradeReasonFor(memberLimitMessage(3))).toBe('members');
+    expect(upgradeReasonFor('Not found.')).toBeNull();
+    expect(upgradeReasonFor(undefined)).toBeNull();
+  });
+});
 
 /** Queue the rows each successive db.select() resolves to. */
 function rows(...results: unknown[][]) {

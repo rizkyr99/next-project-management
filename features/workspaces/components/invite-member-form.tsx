@@ -27,6 +27,7 @@ import { inviteMemberSchema } from '../schema';
 import { toast } from 'sonner';
 import { InviteLinkNotice, type SentInvite } from './invite-link-notice';
 import { useState } from 'react';
+import { ProBadge, useUpgrade } from '@/features/billing/components/upgrade';
 
 interface InviteMemberFormProps {
   workspaceSlug: string;
@@ -44,6 +45,8 @@ export function InviteMemberForm({
   projects = [],
 }: InviteMemberFormProps) {
   const [sent, setSent] = useState<SentInvite | null>(null);
+  // E3: a plan gate's error opens the upgrade prompt; anything else is a toast.
+  const { showError, canUse, openUpgrade } = useUpgrade();
   const form = useForm<z.input<typeof inviteMemberSchema>, unknown, z.output<typeof inviteMemberSchema>>({
     resolver: zodResolver(inviteMemberSchema),
     defaultValues: {
@@ -62,7 +65,7 @@ export function InviteMemberForm({
       ...(values.role === 'guest' && { projectIds: values.projectIds }),
     });
     if (result.error !== undefined) {
-      toast.error(result.error, { position: 'top-center' });
+      showError(result.error);
       return;
     }
 
@@ -113,7 +116,10 @@ export function InviteMemberForm({
                 <FormLabel>Role</FormLabel>
                 <Select
                   value={field.value}
-                  onValueChange={field.onChange}
+                  onValueChange={(next) =>
+                    // Clients are Pro: offer the upgrade instead of switching to a role that can't be sent.
+                    next === 'guest' && !canUse('clientGuests') ? openUpgrade('clientGuests') : field.onChange(next)
+                  }
                   disabled={!canInvite}>
                   <FormControl>
                     <SelectTrigger className='w-full' aria-label='Role'>
@@ -123,7 +129,10 @@ export function InviteMemberForm({
                   <SelectContent>
                     <SelectItem value='member'>Member</SelectItem>
                     <SelectItem value='admin'>Admin</SelectItem>
-                    <SelectItem value='guest'>Guest (client)</SelectItem>
+                    <SelectItem value='guest'>
+                      Guest (client)
+                      {!canUse('clientGuests') && <ProBadge />}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

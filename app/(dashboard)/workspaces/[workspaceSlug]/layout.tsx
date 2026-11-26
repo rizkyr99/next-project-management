@@ -1,3 +1,5 @@
+import { UpgradeProvider } from '@/features/billing/components/upgrade';
+import { getWorkspacePlan, teamMemberCount } from '@/lib/subscription';
 import { AppSidebar } from '@/components/app-sidebar';
 import { Header } from '@/components/header';
 import { VerifyEmailBanner } from '@/features/account/components/verify-email-banner';
@@ -95,8 +97,18 @@ export default async function WorkspaceLayout({
     notFound();
   }
 
+  // E3: the plan behind upgrade prompts. The server enforces every gate too.
+  const [plan, teamMembers] = await Promise.all([
+    getWorkspacePlan(activeWorkspace.id),
+    teamMemberCount(activeWorkspace.id),
+  ]);
+
   return (
-    <>
+    <UpgradeProvider
+      workspaceSlug={workspaceSlug}
+      plan={plan}
+      isOwner={activeWorkspace.role === 'owner'}
+      teamMembers={teamMembers}>
       <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} />
       <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
         <Header
@@ -106,6 +118,6 @@ export default async function WorkspaceLayout({
         {!session.user.emailVerified && <VerifyEmailBanner email={session.user.email} />}
         <main className='flex-1'>{children}</main>
       </div>
-    </>
+    </UpgradeProvider>
   );
 }
