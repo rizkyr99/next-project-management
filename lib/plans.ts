@@ -62,6 +62,7 @@ export const PLAN_FEATURES = {
   approvals: { label: 'Client approvals', plans: ['pro'] },
   shareLinks: { label: 'Read-only share links', plans: ['pro'] },
   savedTemplates: { label: 'Your own project templates', plans: ['pro'] },
+  calendar: { label: 'Calendar view, with drag to reschedule', plans: ['pro'] },
 } as const satisfies Record<string, { label: string; plans: readonly PlanName[] }>;
 
 export type PlanFeature = keyof typeof PLAN_FEATURES;
@@ -78,6 +79,7 @@ export const PLAN_GATE_MESSAGES: Record<PlanFeature, string> = {
   approvals: `Client approvals are part of Pro. ${UPGRADE_HINT}`,
   shareLinks: `Share links are part of Pro. ${UPGRADE_HINT}`,
   savedTemplates: `Saving your own templates is part of Pro; the built-in ones are free. ${UPGRADE_HINT}`,
+  calendar: `The calendar view is part of Pro. ${UPGRADE_HINT}`,
 };
 
 export function memberLimitMessage(max: number) {
@@ -104,6 +106,7 @@ export const UPGRADE_TITLES: Record<UpgradeReason, string> = {
   approvals: 'Ask clients for approval with Pro',
   shareLinks: 'Share read-only links with Pro',
   savedTemplates: 'Save your own templates with Pro',
+  calendar: 'Plan by date with the calendar in Pro',
   members: 'Grow your team with Pro',
 };
 

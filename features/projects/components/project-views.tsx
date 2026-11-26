@@ -5,6 +5,7 @@ import type { ComponentProps } from 'react';
 import BoardView from './board-view-client';
 import { ListView } from './list-view';
 import { TableView } from './table-view';
+import { CalendarView } from '@/features/calendar/components/calendar-view';
 import { parseView } from '../view';
 
 /** The page's project data, which each view reads its own subset of. */
@@ -30,6 +31,11 @@ export function ProjectViews({ project, commentCountMap, workspaceMembers, curre
 
   if (view === 'list') {
     return <ListView key={dataKey} project={project} workspaceMembers={workspaceMembers} currentUserId={currentUserId} />;
+  }
+  if (view === 'calendar') {
+    // Not remounted on new data (unlike the list and table): a remount would
+    // cancel a drag in progress. It reconciles its own pending moves.
+    return <CalendarView project={project} currentUserId={currentUserId} />;
   }
   if (view === 'table') {
     return <TableView key={dataKey} project={project} workspaceMembers={workspaceMembers} currentUserId={currentUserId} />;
