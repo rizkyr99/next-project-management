@@ -93,7 +93,7 @@ Security note: guest access goes through `lib/authz.ts` like everything else, wi
 | D1 | **Studio overview** | The workspace home becomes a dashboard: due this week and overdue across all projects, projects at risk, recent client feedback. | M | Free. Done (#116, released #117); the client parts only fill in with Pro's client features |
 | D2 | **Workload** | Tasks per person across projects, by week; see who's overloaded before assigning. | M | Pro. Done (#137, released #138) |
 | D3 | **Saved filters and "My work"** | Saved views ("My overdue", "Waiting on client"), and My tasks grouped by project and date. | S | Free |
-| D4 | **Import and export** | Import from Trello / CSV to switch tools in minutes; export a project to CSV. | M | Free |
+| D4 | **Import and export** | Import from Trello / CSV to switch tools in minutes; export a project to CSV. | M | Free. Done (#140, released #141): Trello JSON and CSV import into a new project (up to 1000 tasks), CSV export that imports back |
 | D5 | **Time tracking** (optional) | A timer on tasks and a simple report per project or client, for studios that bill hourly. Decide after talking to studios. | L | Business |
 
 ## Phase E: Ready to sell
