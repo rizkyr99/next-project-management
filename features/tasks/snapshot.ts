@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 /**
  * A fingerprint of everything a project's board, list and task panel show:
  * each task's fields, the columns, the assignees, the comments (and who
- * can see them) and approvals.
+ * can see them), approvals and listed files.
  *
  * It's built from the data itself, not from `updated_at`, so every kind of
  * change shows up: edits, moves, reorders, deletes, column renames, and
@@ -54,6 +54,10 @@ export async function projectSnapshot(projectId: string): Promise<string> {
         select string_agg(concat_ws('|', ta.id, ta.status), ',' order by ta.id)
         from task_approval ta join task t on t.id = ta.task_id
         where t.project_id = ${projectId}
+      ), '')
+      || '#' || coalesce((
+        select string_agg(concat_ws('|', f.id, f.client_visible), ',' order by f.id)
+        from attachment f where f.project_id = ${projectId} and f.listed
       ), '')
       || '#' || coalesce((select concat_ws('|', name, coalesce(description, ''), client_name, deadline, status, archived_at) from project where id = ${projectId}), '')
     ) as snap

@@ -36,8 +36,9 @@ const SOURCES = {
   images: ["'self'", 'blob:', 'data:', 'https://lh3.googleusercontent.com'],
   frames: ['https://js.stripe.com', 'https://hooks.stripe.com'],
   // Sentry goes through the same-origin /monitoring tunnel; Speed Insights
-  // through /_vercel. Calls' STUN/TURN traffic isn't covered by CSP.
-  connect: ["'self'", 'https://api.stripe.com'],
+  // through /_vercel. Calls' STUN/TURN traffic isn't covered by CSP. Large
+  // task files go from the browser to Vercel Blob's API with a one-off token.
+  connect: ["'self'", 'https://api.stripe.com', 'https://vercel.com/api/blob/'],
 };
 
 function serialize(directives: Record<string, string[]>) {

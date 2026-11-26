@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { PLAN_DETAILS, PLAN_ORDER, workspaceLimitLabel } from '@/lib/plans';
+import { PLAN_DETAILS, PLAN_ORDER, storageLimitLabel, workspaceLimitLabel } from '@/lib/plans';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 
@@ -37,7 +37,10 @@ export function PricingTable({ headingLevel = 'h3' }: { headingLevel?: 'h2' | 'h
               <span className='font-display text-5xl font-bold tracking-[-0.04em]'>${plan.priceMonthly}</span>
               <span className='text-sm text-muted-foreground'>per month</span>
             </p>
-            <p className='font-medium'>{workspaceLimitLabel(plan.maxWorkspaces)}</p>
+            <div>
+              <p className='font-medium'>{workspaceLimitLabel(plan.maxWorkspaces)}</p>
+              <p className='text-sm text-muted-foreground'>{storageLimitLabel(plan.storageBytes)}</p>
+            </div>
             <ul className='space-y-2.5 text-sm text-muted-foreground'>
               {INCLUDED.map((item) => (
                 <li key={item} className='flex gap-2'>

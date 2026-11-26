@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlignLeft, MessageSquare } from 'lucide-react';
+import { AlignLeft, MessageSquare, Paperclip } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { openTask } from '../task-link';
 import { PersonAvatar, priorityConfig, type TaskData } from './task-meta';
@@ -46,6 +46,14 @@ export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
         )}
         <div className='flex items-center gap-2 ml-auto text-muted-foreground'>
           <ChecklistBadge items={task.checklist} />
+          {!!task.files?.length && (
+            <span
+              className='flex items-center gap-0.5 text-xs'
+              aria-label={`${task.files.length} ${task.files.length === 1 ? 'file' : 'files'}`}>
+              <Paperclip className='size-3' aria-hidden />
+              {task.files.length}
+            </span>
+          )}
           {task.description && <AlignLeft className='size-3' aria-label='Has description' />}
           {commentCount > 0 && (
             <span

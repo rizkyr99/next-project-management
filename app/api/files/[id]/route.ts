@@ -4,6 +4,7 @@ import { db } from '@/db/drizzle';
 import { attachment, comment, task } from '@/db/schema';
 import { AuthzError, requireProjectAccess, toErrorResponse } from '@/lib/authz';
 import { readFileStream } from '@/lib/storage';
+import { IMAGE_TYPES } from '@/lib/uploads';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ async function sharedInTask(taskId: string, fileId: string) {
  * Serve an uploaded file to someone who can see its project. Anyone else,
  * signed in or not, gets the same 404 as for a file that doesn't exist.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const id = z.uuid().parse((await params).id);
     const [file] = await db
@@ -45,26 +46,34 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         storageKey: attachment.storageKey,
         name: attachment.name,
         contentType: attachment.contentType,
+        listed: attachment.listed,
+        clientVisible: attachment.clientVisible,
       })
       .from(attachment)
       .where(eq(attachment.id, id))
       .limit(1);
     if (!file) throw new AuthzError();
     const access = await requireProjectAccess(file.projectId, { allowGuests: true });
-    // A client sees only the images in what was shared with them: the task's
-    // description, its client-visible comments, or their own uploads. An
-    // image in an internal comment stays internal.
+    // A client sees only what was shared with them: files shared from the
+    // Files list, images in the task's description or client-visible
+    // comments, and their own uploads. Anything internal stays internal.
     if (access.role === 'guest' && file.uploadedById !== access.session.user.id) {
-      if (!(await sharedInTask(file.taskId, id))) throw new AuthzError();
+      const sharedFile = file.listed && file.clientVisible;
+      if (!sharedFile && !(await sharedInTask(file.taskId, id))) throw new AuthzError();
     }
 
     const stream = await readFileStream(file.storageKey);
     if (!stream) throw new AuthzError();
 
+    // Only images whose bytes were checked open in the browser. Everything
+    // else (PDFs, SVGs, documents…) downloads, typed as plain bytes, so a
+    // file can't run anything on this origin. ?download forces a download.
+    const inline =
+      (IMAGE_TYPES as readonly string[]).includes(file.contentType) && !new URL(request.url).searchParams.has('download');
     return new Response(stream, {
       headers: {
-        'Content-Type': file.contentType,
-        'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+        'Content-Type': inline ? file.contentType : 'application/octet-stream',
+        'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
         // Files never change once uploaded; keep them in this browser only.
         'Cache-Control': 'private, max-age=31536000, immutable',
         'X-Content-Type-Options': 'nosniff',

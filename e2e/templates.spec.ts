@@ -3,6 +3,7 @@ import { registerAndLogin } from './helpers/auth';
 
 /** "Add project" → name → optional template and start date → Create. */
 async function createProject(page: Page, name: string, template?: { name: string; start: string }) {
+  const from = new URL(page.url()).pathname;
   await page.getByRole('button', { name: 'Add project' }).click();
   const dialog = page.getByRole('dialog', { name: 'Create new project' });
   await dialog.getByLabel('Name').fill(name);
@@ -12,8 +13,9 @@ async function createProject(page: Page, name: string, template?: { name: string
     await dialog.getByLabel('Start date').fill(template.start);
   }
   await dialog.getByRole('button', { name: 'Create project' }).click();
-  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 15000 });
-  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+  // A new project page, not the one we may already be on.
+  await page.waitForURL((u) => u.pathname !== from && /\/projects\/[0-9a-f-]{36}$/.test(u.pathname), { timeout: 15000 });
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible({ timeout: 15000 });
 }
 
 test('start a project from a built-in template, save one as a template, reuse and delete it (B5)', async ({ page }) => {

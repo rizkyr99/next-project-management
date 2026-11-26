@@ -11,6 +11,8 @@ export type ActivityAction =
   | 'task.assigned'
   | 'task.unassigned'
   | 'task.comment_added'
+  | 'task.file_added'
+  | 'task.file_removed'
   | 'task.approval_requested'
   | 'task.approval_withdrawn'
   | 'task.approved'
