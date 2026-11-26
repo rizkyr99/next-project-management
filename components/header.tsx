@@ -16,6 +16,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { NotificationsPopover } from './notifications-popover';
 import { GlobalSearch } from '@/features/search/components/global-search';
 import { ThemeToggle } from './theme-toggle';
+import { HelpMenu } from '@/features/feedback/components/help-menu';
 import {
   Dialog,
   DialogContent,
@@ -88,6 +89,7 @@ export function Header({
         )}
 
         <ThemeToggle />
+        <HelpMenu />
         <NotificationsPopover />
         <DropdownMenu>
           <DropdownMenuTrigger>

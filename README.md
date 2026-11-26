@@ -172,6 +172,7 @@ Validated by [`lib/env.ts`](lib/env.ts); a unit test checks that every variable 
 | `EMAIL_FROM` | production | Sender on a domain verified in Resend, e.g. `Tide <notifications@your-domain>`. Locally it falls back to Resend's test sender, which only reaches the Resend account owner. |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | production | Contact address shown on the privacy and terms pages. |
 | `CRON_SECRET` | for the daily job | 16+ characters. Vercel Cron sends it to `/api/cron/daily`; without it the job refuses every call. |
+| `FEEDBACK_EMAIL` | optional | Where in-app feedback is emailed, with the sender as reply-to. Without it, feedback is still saved in the `feedback` table. |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | production | Upstash Redis for rate limits (`UPSTASH_REDIS_REST_*` also work). Without them, limits fall back to per-process memory, which doesn't hold on Vercel. Not checked by `lib/env.ts`. |
 | `BLOB_READ_WRITE_TOKEN` | for uploads | A **private** Vercel Blob store for images pasted into tasks and comments. Set automatically when the store is connected to the project. Locally, without it, uploads go to `.data/uploads`; on Vercel without it, uploads are off. |
 | `CLOUDFLARE_TURN_KEY_ID` / `CLOUDFLARE_TURN_API_TOKEN` | no | Cloudflare TURN key for calls. Without it, calls use public STUN only. |
