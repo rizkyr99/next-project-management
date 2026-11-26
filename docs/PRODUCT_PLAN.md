@@ -68,7 +68,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 |---|---|---|---|---|
 | B1 | **Labels** | Tag by type ("Design", "Copy", "Bug", "Client feedback"), colour-coded, filterable. A basic every comparable tool has. | M | Free. Done (#87) |
 | B2 | **Subtasks / checklists** | Break a deliverable into steps; progress on the card ("3/5"). | M | Free. Done (#91) |
-| B3 | **File attachments** | Upload or paste files and images onto tasks and comments (Vercel Blob). Handover lives with the work. Storage limit per plan. | L | Free: small quota; paid: more |
+| B3 | **File attachments** | Upload or paste files and images onto tasks and comments (Vercel Blob). Handover lives with the work. Storage limit per plan. | L | Free: 1 GB; Pro: 20 GB; Business: 100 GB per workspace. Done (#114, released #115) |
 | B4 | **Start dates + Calendar view** | A date range per task, and a month/week calendar across a project, with drag to reschedule. Studios plan by dates, not columns. | L | Pro |
 | B5 | **Project templates** | Save a project (columns, tasks, checklists, relative due dates) as a template; start new client jobs from it. Includes a few built-in studio templates (website build, brand identity, content calendar). | M | Pro. Done (#111, released #112); not yet plan-gated (Phase E) |
 | B6 | **Archive projects** | Finished client jobs leave the sidebar but stay searchable. | S | Free. Done (#94) |
