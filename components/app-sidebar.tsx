@@ -2,6 +2,7 @@
 
 import {
   Sidebar,
+  SidebarFooter,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
@@ -21,6 +22,7 @@ import { LinkPending } from './link-pending';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
 import { ProjectActionsMenu } from '@/features/projects/components/project-actions-menu';
 import { cn } from '@/lib/utils';
+import { TrialNotice } from '@/features/billing/components/upgrade';
 
 interface AppSidebarProps {
   workspaces: {
@@ -191,6 +193,11 @@ export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      {!isGuest && (
+        <SidebarFooter>
+          <TrialNotice />
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }

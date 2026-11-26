@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Archive, ArchiveRestore, CopyPlus, Link2, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
 import { SaveTemplateDialog } from '@/features/templates/components/save-template-dialog';
+import { ProBadge, useUpgrade } from '@/features/billing/components/upgrade';
 import { ShareLinkDialog } from './share-link-dialog';
 import {
   Select,
@@ -72,6 +73,7 @@ export function ProjectActionsMenu({
   variant: 'header' | 'sidebar';
 }) {
   const [dialog, setDialog] = useState<'edit' | 'delete' | 'share' | 'template' | null>(null);
+  const { canUse, openUpgrade } = useUpgrade();
   const [, startFavorite] = useTransition();
   const toggleFavorite = () =>
     startFavorite(async () => {
@@ -123,14 +125,21 @@ export function ProjectActionsMenu({
             <Pencil />
             Edit details
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setDialog('template')}>
+          <DropdownMenuItem
+            onSelect={() => (canUse('savedTemplates') ? setDialog('template') : openUpgrade('savedTemplates'))}>
             <CopyPlus />
             Save as template…
+            {!canUse('savedTemplates') && <ProBadge />}
           </DropdownMenuItem>
           {project.shareToken !== undefined && (
-            <DropdownMenuItem onSelect={() => setDialog('share')}>
+            // On Free a link made earlier can still be turned off; a new one is Pro.
+            <DropdownMenuItem
+              onSelect={() =>
+                canUse('shareLinks') || project.shareToken ? setDialog('share') : openUpgrade('shareLinks')
+              }>
               <Link2 />
               Share link…
+              {!canUse('shareLinks') && !project.shareToken && <ProBadge />}
             </DropdownMenuItem>
           )}
           {project.archived ? (

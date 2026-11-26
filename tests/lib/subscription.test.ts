@@ -16,9 +16,62 @@ import {
   getWorkspacePlan,
   memberLimitProblem,
   planGateProblem,
+  planState,
   syncSeats,
+  trialEndForNewWorkspace,
 } from '@/lib/subscription';
-import { PLAN_GATE_MESSAGES, planAllows } from '@/lib/plans';
+import {
+  memberLimitMessage,
+  PLAN_GATE_MESSAGES,
+  planAllows,
+  TRIAL_DAYS,
+  trialDaysLeftLabel,
+  upgradeReasonFor,
+} from '@/lib/plans';
+
+describe('trials (E2)', () => {
+  const NOW = new Date('2026-12-01T12:00:00Z');
+  const inDays = (n: number) => new Date(NOW.getTime() + n * 86_400_000);
+
+  it('gives Pro during an unexpired trial, and Free after it', () => {
+    expect(planState(null, inDays(3), NOW)).toEqual({ plan: 'pro', paid: false, onTrial: true, trialEndsAt: inDays(3) });
+    expect(planState(null, inDays(-1), NOW)).toMatchObject({ plan: 'free', onTrial: false });
+    expect(planState(null, null, NOW)).toMatchObject({ plan: 'free', onTrial: false });
+  });
+
+  it('counts paying as Pro, and not as a trial', () => {
+    expect(planState({ status: 'active', plan: 'pro' }, inDays(3), NOW)).toMatchObject({
+      plan: 'pro',
+      paid: true,
+      onTrial: false,
+    });
+    expect(planState({ status: 'canceled', plan: 'pro' }, inDays(-1), NOW)).toMatchObject({ plan: 'free', paid: false });
+  });
+
+  it('gives one trial per owner', async () => {
+    rows([]);
+    expect(await trialEndForNewWorkspace('u-1', NOW)).toEqual(inDays(TRIAL_DAYS));
+    rows([{ id: 'ws-old' }]);
+    expect(await trialEndForNewWorkspace('u-1', NOW)).toBeNull();
+  });
+
+  it('says how long is left, rounding up to whole days', () => {
+    expect(trialDaysLeftLabel(inDays(14), NOW)).toBe('14 days left');
+    expect(trialDaysLeftLabel(new Date(NOW.getTime() + 3_600_000), NOW)).toBe('1 day left');
+    expect(trialDaysLeftLabel(inDays(1.5), NOW)).toBe('2 days left');
+    expect(trialDaysLeftLabel(NOW, NOW)).toBe('Ends today');
+  });
+});
+
+describe('upgradeReasonFor (E3)', () => {
+  it('recognises each gate’s message and the member limit, and nothing else', () => {
+    expect(upgradeReasonFor(PLAN_GATE_MESSAGES.shareLinks)).toBe('shareLinks');
+    expect(upgradeReasonFor(PLAN_GATE_MESSAGES.clientGuests)).toBe('clientGuests');
+    expect(upgradeReasonFor(memberLimitMessage(3))).toBe('members');
+    expect(upgradeReasonFor('Not found.')).toBeNull();
+    expect(upgradeReasonFor(undefined)).toBeNull();
+  });
+});
 
 /** Queue the rows each successive db.select() resolves to. */
 function rows(...results: unknown[][]) {

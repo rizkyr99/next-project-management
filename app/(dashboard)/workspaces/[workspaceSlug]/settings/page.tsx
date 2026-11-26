@@ -11,7 +11,7 @@ import { TemplateList } from '@/features/templates/components/template-list';
 import { savedTemplatesForSettings } from '@/features/templates/queries';
 import { workspaceStorage } from '@/features/attachments/server';
 import { formatBytes } from '@/lib/plans';
-import { getWorkspacePlan, getWorkspaceSubscription } from '@/lib/subscription';
+import { getWorkspacePlanState, getWorkspaceSubscription } from '@/lib/subscription';
 import { WorkspaceBilling } from '@/features/billing/components/workspace-billing';
 import { auth } from '@/lib/auth';
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
@@ -149,7 +149,7 @@ export default async function WorkspaceSettingsPage({
     workspaceStorage(membership.workspaceId),
     getWorkspaceSubscription(membership.workspaceId),
   ]);
-  const plan = await getWorkspacePlan(membership.workspaceId);
+  const planState = await getWorkspacePlanState(membership.workspaceId);
   const teamMembers = members.filter((m) => m.role !== 'guest').length;
 
   const templates = (await savedTemplatesForSettings(membership.workspaceId)).map((t) => ({
@@ -322,7 +322,8 @@ export default async function WorkspaceSettingsPage({
             <TabsContent value='billing' className='mt-6'>
               <WorkspaceBilling
                 workspaceSlug={workspaceSlug}
-                plan={plan}
+                plan={planState.paid ? 'pro' : 'free'}
+                trialEndsOn={planState.onTrial ? (planState.trialEndsAt?.toISOString() ?? null) : null}
                 status={sub?.status ?? null}
                 renewsOn={sub?.stripeCurrentPeriodEnd?.toISOString() ?? null}
                 teamMembers={teamMembers}

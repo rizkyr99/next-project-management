@@ -119,3 +119,42 @@ test('due-soon reminders: once per due date, not for done or far-off tasks, plus
   await item.click();
   await expect(page.getByRole('dialog', { name: WELCOME })).toBeVisible({ timeout: 15000 });
 });
+
+test('trial notices (E2): a trial ending soon is found, and released when the email can’t go out', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(60_000);
+  const s = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const email = `trial+${s}@example.com`;
+  await registerAndLogin(page, email, 'Tess Trial');
+  const slug = `trial-${s}`;
+  await page.goto('/create-workspace');
+  await page.getByPlaceholder('e.g. Tide Corp Design').fill(`Trial WS ${s}`);
+  await page.getByPlaceholder('e.g. tide-corp-design').fill(slug);
+  await page.getByRole('button', { name: /create workspace/i }).click();
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${slug}`), { timeout: 15000 });
+
+  const sql = await testDb();
+  // A new workspace starts a 14-day trial; move its end to two days away, and verify the owner.
+  const [ws] = await sql`select id, trial_ends_at from workspace where slug = ${slug}`;
+  expect(ws.trial_ends_at).not.toBeNull();
+  await sql`update workspace set trial_ends_at = now() + interval '2 days' where id = ${ws.id}`;
+  await sql`update "user" set email_verified = true where email = ${email}`;
+
+  const res = await request.get('/api/cron/daily', { headers: auth });
+  expect(res.status()).toBe(200);
+  expect((await res.json()).trialNotices).toEqual(expect.objectContaining({ ending: expect.any(Number) }));
+  // A test address can't receive mail: the notice was claimed, then released for the next run.
+  const [after] = await sql`select trial_reminder_sent_at from workspace where id = ${ws.id}`;
+  expect(after.trial_reminder_sent_at).toBeNull();
+
+  // The sidebar counts down, and Billing explains the trial.
+  await page.goto(`/workspaces/${slug}`);
+  await expect(page.getByRole('link', { name: /Pro trial, 2 days left/ })).toBeVisible();
+  await page.goto(`/workspaces/${slug}/settings?tab=billing`);
+  const billing = page.getByRole('tabpanel', { name: 'Billing' });
+  await expect(billing.getByText('Pro trial', { exact: true })).toBeVisible();
+  await expect(billing).toContainText('no card needed');
+  await expect(billing.getByRole('button', { name: 'Upgrade to Pro' })).toBeVisible();
+});

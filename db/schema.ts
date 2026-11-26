@@ -157,6 +157,14 @@ export const workspace = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    /**
+     * E2: a 14-day Pro trial, no card. Pro features are on until then
+     * unless the workspace pays. Null: never had a trial (one per owner).
+     */
+    trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+    /** When the "trial ends soon" and "trial ended" emails went out (the daily job). */
+    trialReminderSentAt: timestamp('trial_reminder_sent_at', { withTimezone: true }),
+    trialEndedSentAt: timestamp('trial_ended_sent_at', { withTimezone: true }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at')
       .$onUpdate(() => new Date())
