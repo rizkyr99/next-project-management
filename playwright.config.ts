@@ -8,6 +8,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
+  // Many assertions wait on a server round trip (a save, then the refresh
+  // that shows it). CI machines are slower than a laptop, and the 5 s default
+  // made those tests need retries. Locally the default stays, so real
+  // slowness still shows.
+  expect: { timeout: process.env.CI ? 10_000 : 5_000 },
   workers: 2,
   // CI: failures inline on the PR, plus the HTML report as an artifact.
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }], ['list']] : 'html',
