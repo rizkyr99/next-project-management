@@ -19,7 +19,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Archive, ArchiveRestore, CopyPlus, Link2, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, CopyPlus, Download, Link2, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
 import { SaveTemplateDialog } from '@/features/templates/components/save-template-dialog';
 import { ProBadge, useUpgrade } from '@/features/billing/components/upgrade';
 import { ShareLinkDialog } from './share-link-dialog';
@@ -142,6 +142,15 @@ export function ProjectActionsMenu({
               {!canUse('shareLinks') && !project.shareToken && <ProBadge />}
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem
+            onSelect={() => {
+              // A download (Content-Disposition: attachment), so the page stays put.
+              const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone);
+              window.location.assign(`/api/projects/${project.id}/export?tz=${tz}`);
+            }}>
+            <Download />
+            Export to CSV
+          </DropdownMenuItem>
           {project.archived ? (
             <DropdownMenuItem onSelect={() => archive(false)}>
               <ArchiveRestore />
