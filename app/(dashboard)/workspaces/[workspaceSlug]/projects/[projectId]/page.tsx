@@ -119,66 +119,61 @@ export default async function ProjectIdPage({
   // owners and admins through the share dialog below.
   const board = { ...data, shareToken: undefined };
 
-  // Fetch comment counts for all tasks in this project in one query
+  // Per-task extras for the cards and the sheet, fetched together: comment
+  // counts, the latest approval state (C3) and the Files list (B3).
   const allTaskIds = data.statuses.flatMap((s) => s.tasks.map((t) => t.id)) ?? [];
-  const commentCounts =
-    allTaskIds.length > 0
-      ? await db
-          .select({ taskId: comment.taskId, count: count() })
-          .from(comment)
-          .where(
-            and(
-              inArray(comment.taskId, allTaskIds),
-              // A client counts only the comments shared with them.
-              isGuest ? eq(comment.clientVisible, true) : undefined,
-            ),
-          )
-          .groupBy(comment.taskId)
-      : [];
+  const [commentCounts, approvals, fileRows] =
+    allTaskIds.length === 0
+      ? [[], [], []]
+      : await Promise.all([
+          db
+            .select({ taskId: comment.taskId, count: count() })
+            .from(comment)
+            .where(
+              and(
+                inArray(comment.taskId, allTaskIds),
+                // A client counts only the comments shared with them.
+                isGuest ? eq(comment.clientVisible, true) : undefined,
+              ),
+            )
+            .groupBy(comment.taskId),
+          // Each task's latest approval round that wasn't withdrawn.
+          db
+            .selectDistinctOn([taskApproval.taskId], { taskId: taskApproval.taskId, status: taskApproval.status })
+            .from(taskApproval)
+            .where(and(inArray(taskApproval.taskId, allTaskIds), ne(taskApproval.status, 'cancelled')))
+            .orderBy(taskApproval.taskId, desc(taskApproval.createdAt)),
+          // A client sees the files shared with them and their own;
+          // uploaders who are clients are marked as such.
+          db
+            .select({
+              id: attachment.id,
+              taskId: attachment.taskId,
+              name: attachment.name,
+              size: attachment.size,
+              contentType: attachment.contentType,
+              createdAt: attachment.createdAt,
+              uploadedById: attachment.uploadedById,
+              uploadedByName: user.name,
+              uploaderRole: member.role,
+              clientVisible: attachment.clientVisible,
+            })
+            .from(attachment)
+            .leftJoin(user, eq(user.id, attachment.uploadedById))
+            .leftJoin(member, and(eq(member.userId, attachment.uploadedById), eq(member.workspaceId, currentWorkspace.id)))
+            .where(
+              and(
+                eq(attachment.projectId, projectId),
+                eq(attachment.listed, true),
+                isGuest
+                  ? or(eq(attachment.clientVisible, true), eq(attachment.uploadedById, session.user.id))
+                  : undefined,
+              ),
+            )
+            .orderBy(asc(attachment.createdAt)),
+        ]);
   const commentCountMap = Object.fromEntries(commentCounts.map((r) => [r.taskId, r.count]));
-
-  // Each task's latest approval round that wasn't withdrawn (C3), for the cards.
-  const approvals =
-    allTaskIds.length > 0
-      ? await db
-          .selectDistinctOn([taskApproval.taskId], { taskId: taskApproval.taskId, status: taskApproval.status })
-          .from(taskApproval)
-          .where(and(inArray(taskApproval.taskId, allTaskIds), ne(taskApproval.status, 'cancelled')))
-          .orderBy(taskApproval.taskId, desc(taskApproval.createdAt))
-      : [];
   const approvalMap = new Map(approvals.map((a) => [a.taskId, a.status as ApprovalState]));
-
-  // Each task's Files list (B3). A client sees the files shared with them
-  // and their own; uploaders who are clients are marked as such.
-  const fileRows =
-    allTaskIds.length > 0
-      ? await db
-          .select({
-            id: attachment.id,
-            taskId: attachment.taskId,
-            name: attachment.name,
-            size: attachment.size,
-            contentType: attachment.contentType,
-            createdAt: attachment.createdAt,
-            uploadedById: attachment.uploadedById,
-            uploadedByName: user.name,
-            uploaderRole: member.role,
-            clientVisible: attachment.clientVisible,
-          })
-          .from(attachment)
-          .leftJoin(user, eq(user.id, attachment.uploadedById))
-          .leftJoin(member, and(eq(member.userId, attachment.uploadedById), eq(member.workspaceId, currentWorkspace.id)))
-          .where(
-            and(
-              eq(attachment.projectId, projectId),
-              eq(attachment.listed, true),
-              isGuest
-                ? or(eq(attachment.clientVisible, true), eq(attachment.uploadedById, session.user.id))
-                : undefined,
-            ),
-          )
-          .orderBy(asc(attachment.createdAt))
-      : [];
   const filesByTask = new Map<string, TaskFile[]>();
   for (const { taskId, uploaderRole, ...f } of fileRows) {
     filesByTask.set(taskId, [...(filesByTask.get(taskId) ?? []), { ...f, fromClient: uploaderRole === 'guest' }]);
