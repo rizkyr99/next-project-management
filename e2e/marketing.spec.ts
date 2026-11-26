@@ -7,11 +7,13 @@ import { registerAndLogin } from './helpers/auth';
 test('the landing page is public and prices come from the shared plans', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveURL(/\/$/);
-  await expect(page).toHaveTitle('Tide: project management for small teams');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Everything your team is working on, in one board.',
-  );
+  await expect(page).toHaveTitle('Tide: project management for studios and agencies');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Client work, without the email chains.');
   await expect(page.getByRole('img', { name: /A Tide board for a spring launch/ })).toBeVisible();
+  // E4: the client moments, from the real product.
+  await expect(page.getByRole('img', { name: /What a client sees/ })).toBeAttached();
+  await expect(page.getByRole('img', { name: /asked for approval on the Visual design task/ })).toBeAttached();
+  await expect(page.getByRole('img', { name: /The studio overview/ })).toBeAttached();
 
   // Same numbers as in-app billing (lib/plans.ts).
   const pricing = page.getByRole('region', { name: 'Pricing' });
@@ -20,10 +22,10 @@ test('the landing page is public and prices come from the shared plans', async (
   }
 
   // FAQ answers open without JavaScript (native <details>).
-  await page.getByText('What is a workspace?').click();
-  await expect(page.getByText(/A workspace is one team’s space/)).toBeVisible();
+  await page.getByText('What does my client see?').click();
+  await expect(page.getByText(/Only the projects you share with them\. On those/)).toBeVisible();
 
-  await page.getByRole('banner').getByRole('link', { name: 'Sign up free' }).click();
+  await page.getByRole('banner').getByRole('link', { name: 'Start free trial' }).click();
   await expect(page).toHaveURL(/\/register$/);
 });
 
