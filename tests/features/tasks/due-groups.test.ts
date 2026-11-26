@@ -34,4 +34,18 @@ describe('groupByDue', () => {
     expect(groups.map((g) => g.key)).toEqual(['overdue', 'today', 'later', 'none']);
     expect(groups[1].tasks.map((t) => t.id)).toEqual(['today-high', 'today-low']);
   });
+
+  it('puts finished tasks in Done at the end, never in Overdue', () => {
+    const groups = groupByDue(
+      [
+        { id: 'shipped', dueDate: at(10), priority: 'high' as const, done: true },
+        { id: 'late', dueDate: at(12), priority: 'medium' as const },
+      ],
+      now,
+    );
+    expect(groups.map((g) => [g.key, g.tasks.map((t) => t.id)])).toEqual([
+      ['overdue', ['late']],
+      ['done', ['shipped']],
+    ]);
+  });
 });

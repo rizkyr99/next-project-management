@@ -8,7 +8,7 @@ import {
   workspace,
 } from '@/db/schema';
 import { auth } from '@/lib/auth';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { MyTasksView } from '@/features/tasks/components/my-tasks-view';
@@ -51,6 +51,8 @@ export default async function MyTasksPage({
       createdAt: task.createdAt,
       statusId: task.statusId,
       statusName: taskStatus.name,
+      // The last column means done, the rule the board and reminders use.
+      done: sql<boolean>`${task.statusId} = (select s.id from ${taskStatus} s where s.project_id = ${task.projectId} order by s."order" desc limit 1)`,
       projectId: project.id,
       projectName: project.name,
     })

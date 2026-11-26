@@ -58,6 +58,8 @@ export function BoardColumn({
   const { setNodeRef: setDropRef } = useDroppable({ id, data: { type: 'column-drop' } });
 
   const column: ColumnInfo = { id, name: title, color, isDefault, taskCount: tasks.length };
+  // The last column means done (the due-soon job uses the same rule).
+  const isLastColumn = columns.length > 0 && columns[columns.length - 1].id === id;
   const { projectId } = useParams<{ projectId: string }>();
   const { isCollapsed, setCollapsed } = useCollapsedColumns(projectId);
 
@@ -109,7 +111,13 @@ export function BoardColumn({
         strategy={verticalListSortingStrategy}>
         <div ref={setDropRef} className='space-y-1 min-h-2'>
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} commentCount={task.commentCount} dragDisabled={filtering || readOnly} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              commentCount={task.commentCount}
+              dragDisabled={filtering || readOnly}
+              done={isLastColumn}
+            />
           ))}
           {/* Empty columns read as drop targets; only the default (where new
               tasks land) says what to do, so an empty board isn't repetitive. */}

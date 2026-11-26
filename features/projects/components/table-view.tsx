@@ -98,9 +98,10 @@ function getInitials(name: string) {
     .join('');
 }
 
-function formatDate(date: Date | null, hasTime = false) {
+/** `done`: in the project's last column, so a past due date isn't overdue. */
+function formatDate(date: Date | null, hasTime = false, done = false) {
   if (!date) return null;
-  return { label: formatDue(date, hasTime), isOverdue: isOverdue(date, hasTime) };
+  return { label: formatDue(date, hasTime), isOverdue: !done && isOverdue(date, hasTime) };
 }
 
 export function TableView({ project, currentUserId = '' }: Readonly<TableViewProps>) {
@@ -311,7 +312,11 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
           <TableBody>
             {visible.map((task) => {
               const priority = priorityConfig[task.priority];
-              const due = formatDate(task.dueDate, task.dueHasTime);
+              const due = formatDate(
+                task.dueDate,
+                task.dueHasTime,
+                (taskStatusMap[task.id] ?? task.statusId) === statuses[statuses.length - 1]?.id,
+              );
 
               return (
                 <TableRow key={task.id} data-state={selectedIds.has(task.id) ? 'selected' : undefined}>
