@@ -82,7 +82,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 | C2 | **Internal vs client-visible** | Comments, and optionally tasks, are internal by default in projects with guests; posting to the client is deliberate. | M | Pro. Comments done (#99, released #100); internal tasks not built |
 | C3 | **Approvals** | "Request approval" on a task: the client approves or requests changes, which is recorded in activity and notifies the team. | M | Pro. Done (#102, released #103) |
 | C4 | **Read-only share link** | A link to a project's board or timeline for clients who won't sign in. | S | Pro. Board done (#105, released #106); timeline view not built |
-| C5 | **Client-friendly emails** | Invites and notifications that read well to someone outside the studio, with the studio's name. | S | Pro |
+| C5 | **Client-friendly emails** | Invites and notifications that read well to someone outside the studio, with the studio's name. | S | Pro. Done (#108, released #109) |
 
 Security note: guest access goes through `lib/authz.ts` like everything else, with E2E proof that a guest can't reach other projects (as in `tenant-isolation.spec.ts`).
 
