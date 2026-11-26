@@ -19,7 +19,8 @@ vi.mock('@/lib/activity', () => ({
 }));
 
 vi.mock('@/lib/subscription', () => ({
-  checkWorkspaceLimit: vi.fn(),
+  cancelWorkspaceSubscription: vi.fn(),
+  syncSeats: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
@@ -37,7 +38,6 @@ vi.mock('next/navigation', () => ({
 
 import { createWorkspace } from '@/features/workspaces/actions';
 import { auth } from '@/lib/auth';
-import { checkWorkspaceLimit } from '@/lib/subscription';
 
 const mockSession = { user: { id: 'user-1', name: 'Test', email: 'test@example.com' } };
 
@@ -50,19 +50,9 @@ describe('createWorkspace', () => {
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
-  it('returns error when workspace limit is reached', async () => {
-    vi.mocked(auth.api.getSession).mockResolvedValue(mockSession as never);
-    vi.mocked(checkWorkspaceLimit).mockResolvedValue({ allowed: false, current: 1, limit: 1 });
-
-    const result = await createWorkspace({ name: 'My WS', url: 'my-ws' });
-
-    expect(result).toMatchObject({ error: expect.stringContaining('limit reached') });
-    expect(mockInsert).not.toHaveBeenCalled();
-  });
-
+  // E1: every workspace has its own plan, so there's no limit on how many.
   function allowCreate() {
     vi.mocked(auth.api.getSession).mockResolvedValue(mockSession as never);
-    vi.mocked(checkWorkspaceLimit).mockResolvedValue({ allowed: true, current: 0, limit: 1 });
   }
 
   it('writes the workspace, owner membership and Getting started project in one batch', async () => {

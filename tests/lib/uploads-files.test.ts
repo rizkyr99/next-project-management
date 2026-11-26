@@ -49,6 +49,5 @@ describe('formatBytes', () => {
   it('labels each plan’s storage', () => {
     expect(storageLimitLabel(PLAN_DETAILS.free.storageBytes)).toBe('1 GB of files per workspace');
     expect(PLAN_DETAILS.pro.storageBytes).toBeGreaterThan(PLAN_DETAILS.free.storageBytes);
-    expect(PLAN_DETAILS.business.storageBytes).toBeGreaterThan(PLAN_DETAILS.pro.storageBytes);
   });
 });

@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { registerAndLogin } from './helpers/auth';
+import { makePro } from './helpers/plan';
 
 /**
  * D1 studio overview on the workspace home: due soon in the viewer's time
@@ -36,6 +37,7 @@ test('the workspace home shows what is late, due, at risk and waiting on clients
   await page.getByPlaceholder('e.g. tide-corp-design').fill(slug);
   await page.getByRole('button', { name: /create workspace/i }).click();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
+  await makePro(slug);
 
   // A website build that started ten days ago: Kickoff (day 0) and Sitemap
   // (day 5) are overdue, Wireframes (day 10) is due today.

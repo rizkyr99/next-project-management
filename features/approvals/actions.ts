@@ -8,6 +8,7 @@ import { notification, projectGuest, taskApproval, taskAssignee, member, user } 
 import { insertActivity } from '@/lib/activity';
 import { emailTaskNotification } from '@/lib/notification-emails';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { planGateProblem } from '@/lib/subscription';
 import { type ActionResult, requireTaskAccess, toActionError } from '@/lib/authz';
 import { taskHref } from '@/features/tasks/task-link';
 import { MAX_APPROVAL_NOTE, type ApprovalStatus } from './states';
@@ -73,6 +74,8 @@ export async function requestApproval(input: { taskId: string; message?: string 
     const { taskId, message } = requestSchema.parse(input);
     const ctx = await requireTaskAccess(taskId);
     await enforceRateLimit('comments', ctx.session.user.id);
+    const gated = await planGateProblem(ctx.workspace.id, 'approvals');
+    if (gated) return { error: gated };
 
     const guests = await db
       .select({ id: projectGuest.userId })

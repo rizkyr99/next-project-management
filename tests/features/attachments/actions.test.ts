@@ -16,7 +16,7 @@ const storage = vi.hoisted(() => ({
   readFirstBytes: vi.fn(),
 }));
 vi.mock('@/lib/storage', () => storage);
-vi.mock('@/lib/subscription', () => ({ getUserPlan: vi.fn(async () => 'free') }));
+vi.mock('@/lib/subscription', () => ({ getWorkspacePlan: vi.fn(async () => 'free') }));
 
 import { auth } from '@/lib/auth';
 import { insertActivity } from '@/lib/activity';
@@ -37,8 +37,8 @@ const ctx = (role = 'member') => ({
   workspace: { id: 'ws-1', slug: 'acme' },
 });
 
-/** Storage used by the workspace (sum of sizes) and its owner, as workspaceStorage reads them. */
-const usage = (used: number) => db.batch.mockResolvedValueOnce([[{ used: String(used) }], [{ userId: 'owner-1' }]]);
+/** Storage the workspace uses (sum of sizes), as workspaceStorage reads it; its plan is mocked as Free. */
+const usage = (used: number) => db.select.mockReturnValueOnce(chain([{ used: String(used) }]));
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -49,7 +49,7 @@ beforeEach(() => {
 });
 
 describe('workspaceStorage', () => {
-  it('sums the workspace’s files against the owner’s plan', async () => {
+  it('sums the workspace’s files against its plan', async () => {
     usage(300 * MB);
     expect(await workspaceStorage('ws-1')).toEqual({ used: 300 * MB, limit: PLAN_DETAILS.free.storageBytes });
   });

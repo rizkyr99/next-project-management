@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { registerAndLogin } from './helpers/auth';
+import { makePro } from './helpers/plan';
 
 /** "Add project" → name → optional template and start date → Create. */
 async function createProject(page: Page, name: string, template?: { name: string; start: string }) {
@@ -27,6 +28,7 @@ test('start a project from a built-in template, save one as a template, reuse an
   await page.getByPlaceholder('e.g. tide-corp-design').fill(`tpl-${s}`);
   await page.getByRole('button', { name: /create workspace/i }).click();
   await expect(page).toHaveURL(new RegExp(`/workspaces/tpl-${s}$`), { timeout: 15000 });
+  await makePro(`tpl-${s}`);
 
   // Built-in: columns, tasks, checklists, labels and dates counted from the start day.
   await createProject(page, 'Acme website', { name: 'Website build', start: '2027-01-04' });

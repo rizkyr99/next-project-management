@@ -10,37 +10,21 @@ vi.mock('stripe', () => ({
 
 import { getPlanFromPriceId, PLANS } from '@/lib/stripe';
 
-describe('PLANS', () => {
-  it('free plan has 1 workspace limit', () => {
-    expect(PLANS.free.maxWorkspaces).toBe(1);
-  });
-
-  it('pro plan has 5 workspace limit', () => {
-    expect(PLANS.pro.maxWorkspaces).toBe(5);
-  });
-
-  it('business plan has no workspace limit', () => {
-    expect(PLANS.business.maxWorkspaces).toBeNull();
+describe('PLANS (E1)', () => {
+  it('has Free (no price) and Pro only', () => {
+    expect(Object.keys(PLANS)).toEqual(['free', 'pro']);
+    expect(PLANS.free.priceId).toBeNull();
   });
 });
 
 describe('getPlanFromPriceId', () => {
-  it('returns free for an unknown price id', () => {
+  it('returns free for unknown, retired and empty price ids', () => {
     expect(getPlanFromPriceId('price_unknown_123')).toBe('free');
+    expect(getPlanFromPriceId('')).toBe('free');
   });
 
-  it('returns free for a completely unrecognized price id', () => {
-    expect(getPlanFromPriceId('price_does_not_exist_xyz')).toBe('free');
-  });
-
-  it('resolves to pro when the pro price id matches', () => {
-    // PLANS.pro.priceId comes from env — in CI it's an empty string, which maps to free.
-    // Test the logic with a known injected value instead.
-    const originalEntries = Object.entries(PLANS);
-    for (const [name, plan] of originalEntries) {
-      if (plan.priceId) {
-        expect(getPlanFromPriceId(plan.priceId)).toBe(name);
-      }
-    }
+  it('returns pro for the Pro price', () => {
+    // From the environment; empty in CI, which can never match.
+    if (PLANS.pro.priceId) expect(getPlanFromPriceId(PLANS.pro.priceId)).toBe('pro');
   });
 });

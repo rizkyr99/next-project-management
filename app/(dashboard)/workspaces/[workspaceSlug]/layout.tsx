@@ -4,7 +4,6 @@ import { VerifyEmailBanner } from '@/features/account/components/verify-email-ba
 import { db } from '@/db/drizzle';
 import { member, project, projectGuest, workspace, projectFavorite } from '@/db/schema';
 import { getSession } from '@/lib/auth-session';
-import { checkWorkspaceLimit } from '@/lib/subscription';
 import { getActiveWorkspace } from '@/lib/workspace-context';
 import { and, eq, isNotNull, isNull, ne, or } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
@@ -41,7 +40,7 @@ export default async function WorkspaceLayout({
     redirect('/login');
   }
 
-  const [userWorkspaces, limitCheck, activeWorkspace, workspaceProjects] = await Promise.all([
+  const [userWorkspaces, activeWorkspace, workspaceProjects] = await Promise.all([
     db
       .select({
         id: workspace.id,
@@ -52,7 +51,6 @@ export default async function WorkspaceLayout({
       .from(member)
       .innerJoin(workspace, eq(member.workspaceId, workspace.id))
       .where(eq(member.userId, session.user.id)),
-    checkWorkspaceLimit(session.user.id),
     getActiveWorkspace(workspaceSlug, session.user.id),
     // Joined through the caller's membership so a foreign slug yields nothing.
     db
@@ -99,7 +97,7 @@ export default async function WorkspaceLayout({
 
   return (
     <>
-      <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} atWorkspaceLimit={!limitCheck.allowed} />
+      <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} />
       <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
         <Header
           role={activeWorkspace.role}

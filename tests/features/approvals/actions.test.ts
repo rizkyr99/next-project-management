@@ -3,6 +3,7 @@ import { chain } from '../../helpers/db-mock';
 
 const db = vi.hoisted(() => ({ select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() }));
 
+vi.mock('@/lib/subscription', () => ({ planGateProblem: vi.fn(async () => null) }));
 vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));

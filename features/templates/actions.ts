@@ -4,6 +4,7 @@ import { db } from '@/db/drizzle';
 import { checklistItem, label, member, projectTemplate, task, taskLabel, taskStatus, workspace } from '@/db/schema';
 import { requireProjectAccess, requireSession, AuthzError, toActionError, type ActionResult } from '@/lib/authz';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { planGateProblem } from '@/lib/subscription';
 import { and, asc, count, eq, inArray, ne } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -80,6 +81,8 @@ export async function saveProjectAsTemplate(
     const { projectId, name, description, timeZone } = saveSchema.parse(input);
     const ctx = await requireProjectAccess(projectId);
     await enforceRateLimit('templates', ctx.session.user.id);
+    const gated = await planGateProblem(ctx.workspace.id, 'savedTemplates');
+    if (gated) return { error: gated };
 
     const [[{ templates }], statuses, tasks] = await db.batch([
       db.select({ templates: count() }).from(projectTemplate).where(eq(projectTemplate.workspaceId, ctx.workspace.id)),

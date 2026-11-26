@@ -1,30 +1,22 @@
 import Stripe from 'stripe';
-import { PLAN_DETAILS, type PlanName } from './plans';
+import type { PlanName } from './plans';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
   apiVersion: '2026-03-25.dahlia',
 });
 
+/**
+ * Each plan's Stripe price. Pro's is a licensed, per-unit monthly price, and
+ * a workspace's subscription quantity is its team member count (E1).
+ */
 export const PLANS = {
-  free: {
-    maxWorkspaces: PLAN_DETAILS.free.maxWorkspaces,
-    priceId: null,
-  },
-  pro: {
-    maxWorkspaces: PLAN_DETAILS.pro.maxWorkspaces,
-    priceId: process.env.STRIPE_PRO_PRICE_ID ?? '',
-  },
-  business: {
-    maxWorkspaces: PLAN_DETAILS.business.maxWorkspaces,
-    priceId: process.env.STRIPE_BUSINESS_PRICE_ID ?? '',
-  },
+  free: { priceId: null },
+  pro: { priceId: process.env.STRIPE_PRO_PRICE_ID ?? '' },
 } as const;
 
 export type { PlanName };
 
+/** Pro for the Pro price; anything else (including retired prices) is Free. */
 export function getPlanFromPriceId(priceId: string): PlanName {
-  for (const [name, plan] of Object.entries(PLANS)) {
-    if (plan.priceId === priceId) return name as PlanName;
-  }
-  return 'free';
+  return priceId && priceId === PLANS.pro.priceId ? 'pro' : 'free';
 }

@@ -1,5 +1,6 @@
 import { test, expect, type Browser } from '@playwright/test';
 import { registerAndLogin } from './helpers/auth';
+import { makePro } from './helpers/plan';
 import { addTask } from './helpers/tasks';
 import { testDb } from './helpers/db';
 
@@ -31,6 +32,7 @@ test('a read-only share link shows the board to anyone, and can be replaced or t
   await owner.page.getByPlaceholder('e.g. tide-corp-design').fill(slug);
   await owner.page.getByRole('button', { name: /create workspace/i }).click();
   await expect(owner.page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
+  await makePro(slug);
   const sql = await testDb();
   await sql`
     insert into member (id, workspace_id, user_id, role)
