@@ -30,6 +30,19 @@ function invitation({ inviterName, workspaceName, role, projectNames = [] }: Wor
   return { lead: `${inviterName} invited you to join ${workspaceName} on Tide as ${roleLabel}.`, detail: null };
 }
 
+/** Plain text, so no escaping. A client sees the studio and the work, not "workspace". */
+export function workspaceInviteSubject({ inviterName, workspaceName, role, projectNames = [] }: Omit<WorkspaceInviteEmailProps, 'inviteUrl' | 'appUrl'>) {
+  return role === 'guest'
+    ? `${workspaceName} shared ${listProjects(projectNames)} with you`
+    : `${inviterName} invited you to ${workspaceName} on Tide`;
+}
+
+function footerNote({ inviterName, workspaceName, role }: WorkspaceInviteEmailProps) {
+  return role === 'guest'
+    ? `You received this because ${inviterName} at ${workspaceName} shared their work with this address. If you didn't expect it, you can ignore this email; nothing happens unless you accept.`
+    : "You received this because someone invited this address to a Tide workspace. If you didn't expect it, you can ignore this email; nothing happens unless you accept.";
+}
+
 /**
  * Sent when someone is invited to a workspace. All props are user-controlled
  * text: React escapes them, so names can't inject markup.
@@ -41,7 +54,8 @@ export function WorkspaceInviteEmail(props: WorkspaceInviteEmailProps) {
     <EmailLayout
       preview={lead}
       appUrl={appUrl}
-      footerNote="You received this because someone invited this address to a Tide workspace. If you didn't expect it, you can ignore this email; nothing happens unless you accept.">
+      brand={workspaceName}
+      footerNote={footerNote(props)}>
       <Heading as='h1' style={heading}>
         {role === 'guest' ? `${workspaceName} shared work with you` : `Join ${workspaceName}`}
       </Heading>

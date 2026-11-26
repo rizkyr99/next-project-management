@@ -106,6 +106,7 @@ export async function requestApproval(input: { taskId: string; message?: string 
     );
     after(() =>
       emailTaskNotification({
+        projectId: ctx.project.id,
         kind: 'approval_requested',
         userIds: guests.map((g) => g.id),
         actorName: ctx.session.user.name,
@@ -210,6 +211,7 @@ export async function respondToApproval(input: {
       );
       after(() =>
         emailTaskNotification({
+          projectId: ctx.project.id,
           kind: decision,
           userIds: recipients,
           actorName: ctx.session.user.name,

@@ -357,6 +357,7 @@ describe('task notifications link to the task', () => {
 
     expect(await updateTaskAssignees(TASK, ['user-2'])).toEqual({ success: true });
     expect(emailTaskNotification).toHaveBeenCalledWith({
+      projectId: expect.any(String),
       kind: 'assigned',
       userIds: ['user-2'],
       actorName: 'Alice',
