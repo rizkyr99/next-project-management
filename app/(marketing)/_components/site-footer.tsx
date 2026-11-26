@@ -4,6 +4,7 @@ import { SITE_TAGLINE } from '@/lib/site';
 
 const LINKS = [
   { href: '/pricing', label: 'Pricing' },
+  { href: '/help', label: 'Help' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
   { href: '/login', label: 'Log in' },

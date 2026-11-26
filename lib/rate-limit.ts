@@ -48,6 +48,8 @@ export const LIMITS = {
   templates: { limit: 30, windowMs: 60 * 60_000 },
   /** Account deletion attempts (password checks), per user. */
   accountDelete: { limit: 5, windowMs: 15 * 60_000 },
+  /** In-app feedback sent (each is an email to us), per user. */
+  feedback: { limit: 10, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitOptions>;
 
 export type LimitName = keyof typeof LIMITS;

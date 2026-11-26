@@ -3,7 +3,7 @@ import { auth } from './lib/auth';
 import { headers } from 'next/headers';
 import { LIMITS, clientIp, rateLimit } from '@/lib/rate-limit';
 import { safeCallbackPath } from '@/lib/safe-redirect';
-import { REPORTING_ENDPOINTS, STATIC_PAGES, createNonce, enforcedCsp, strictCsp } from '@/lib/csp';
+import { REPORTING_ENDPOINTS, createNonce, enforcedCsp, isStaticPage, strictCsp } from '@/lib/csp';
 
 // Better Auth endpoints that take credentials or send email: strict, per IP,
 // against credential stuffing and sign-up spam. Everything else under
@@ -13,7 +13,7 @@ const SENSITIVE_AUTH =
   /^\/api\/auth\/(sign-in|sign-up|forget-password|request-password-reset|reset-password|change-password|send-verification-email)(\/|$)/;
 
 /** Public marketing pages (app/(marketing)). */
-const MARKETING_PAGES = new Set(['/', '/pricing', '/privacy', '/terms']);
+const MARKETING_PAGES = new Set(['/', '/pricing', '/privacy', '/terms', '/help']);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -65,6 +65,8 @@ export async function proxy(request: NextRequest) {
     // C4: a project's read-only share link, for clients without an account.
     pathname.startsWith('/share/') ||
     pathname.startsWith('/opengraph-image') ||
+    // E5: the help centre is public, for people deciding whether to sign up too.
+    pathname.startsWith('/help/') ||
     pathname === '/forgot-password' ||
     pathname === '/reset-password' ||
     pathname === '/email-verified' ||
@@ -115,7 +117,7 @@ function withCsp(request: NextRequest) {
     return res;
   }
 
-  const nonce = STATIC_PAGES.has(request.nextUrl.pathname) ? undefined : createNonce();
+  const nonce = isStaticPage(request.nextUrl.pathname) ? undefined : createNonce();
   const enforced = enforcedCsp(nonce);
   const policy = strictCsp(nonce);
   // Next reads the nonce from the request's CSP header to mark its scripts.

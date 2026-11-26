@@ -777,6 +777,27 @@ export const subscriptionRelations = relations(subscription, ({ one }) => ({
   user: one(user, { fields: [subscription.userId], references: [user.id] }),
 }));
 
+/**
+ * E5: what people tell us from the in-app feedback button. Kept even when
+ * the email to FEEDBACK_EMAIL can't be sent, so nothing is lost.
+ */
+export const feedback = pgTable(
+  'feedback',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'set null' }),
+    /** The app path they were on, e.g. /workspaces/acme/projects/… */
+    page: varchar('page', { length: 500 }),
+    message: text('message').notNull(),
+    emailedAt: timestamp('emailed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('feedback_createdAt_idx').on(table.createdAt)],
+);
+
 export const signalTypeEnum = pgEnum('signal_type', ['offer', 'answer', 'ice-candidate']);
 
 export const callParticipant = pgTable(

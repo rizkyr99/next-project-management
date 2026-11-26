@@ -13,6 +13,7 @@ import {
   type TaskNotificationEmailProps,
 } from '@/emails/task-notification';
 import { DailyDigestEmail, dailyDigestText, type DailyDigestEmailProps } from '@/emails/daily-digest';
+import { FeedbackEmail, feedbackSubject, feedbackText, type FeedbackEmailProps } from '@/emails/feedback';
 import {
   TrialNoticeEmail,
   trialNoticeSubject,
@@ -196,6 +197,7 @@ async function deliver({
   text,
   template,
   senderName,
+  replyTo,
 }: {
   to: string;
   subject: string;
@@ -204,6 +206,8 @@ async function deliver({
   template: string;
   /** The workspace the email is about, shown as "<name> via Tide". */
   senderName?: string;
+  /** Where a reply goes, when not back to us (feedback: the person who sent it). */
+  replyTo?: string;
 }): Promise<{ sent: boolean }> {
   if (isReservedTestAddress(to)) {
     console.info(`[email] skipped ${template} to reserved test address`);
@@ -211,7 +215,14 @@ async function deliver({
   }
   try {
     const html = await render(element);
-    const { error } = await resend.emails.send({ from: emailFrom(senderName), to, subject, html, text });
+    const { error } = await resend.emails.send({
+      from: emailFrom(senderName),
+      to,
+      subject,
+      html,
+      text,
+      ...(replyTo && { replyTo }),
+    });
     if (error) throw new Error(`Resend: ${error.name ?? ''} ${error.message}`);
     return { sent: true };
   } catch (err) {
@@ -234,6 +245,24 @@ export function sendTaskNotificationEmail(
     text: taskNotificationText(full),
     template: `task-${props.kind}`,
     senderName: props.workspaceName,
+  });
+}
+
+/**
+ * E5: in-app feedback to FEEDBACK_EMAIL, replying to the sender. Never
+ * throws; `{ sent: false }` when no address is configured.
+ */
+export function sendFeedbackEmail(props: Omit<FeedbackEmailProps, 'appUrl'>) {
+  const to = process.env.FEEDBACK_EMAIL?.trim();
+  if (!to) return Promise.resolve({ sent: false });
+  const full = { ...props, appUrl: APP_URL };
+  return deliver({
+    to,
+    subject: feedbackSubject(full),
+    element: FeedbackEmail(full),
+    text: feedbackText(full),
+    template: 'feedback',
+    replyTo: props.fromEmail,
   });
 }
 
