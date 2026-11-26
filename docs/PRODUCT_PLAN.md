@@ -68,9 +68,9 @@ Gaps inside existing features, checked against the code (none of these exist tod
 |---|---|---|---|---|
 | B1 | **Labels** | Tag by type ("Design", "Copy", "Bug", "Client feedback"), colour-coded, filterable. A basic every comparable tool has. | M | Free. Done (#87) |
 | B2 | **Subtasks / checklists** | Break a deliverable into steps; progress on the card ("3/5"). | M | Free. Done (#91) |
-| B3 | **File attachments** | Upload or paste files and images onto tasks and comments (Vercel Blob). Handover lives with the work. Storage limit per plan. | L | Free: 1 GB; Pro: 20 GB; Business: 100 GB per workspace. Done (#114, released #115) |
+| B3 | **File attachments** | Upload or paste files and images onto tasks and comments (Vercel Blob). Handover lives with the work. Storage limit per plan. | L | Free: 1 GB; Pro: 100 GB per workspace (since E1). Done (#114, released #115) |
 | B4 | **Start dates + Calendar view** | A date range per task, and a month/week calendar across a project, with drag to reschedule. Studios plan by dates, not columns. | L | Pro. Done (#133, #134; released #135): start dates for everyone; month calendar with drag to reschedule is Pro. Week view not built |
-| B5 | **Project templates** | Save a project (columns, tasks, checklists, relative due dates) as a template; start new client jobs from it. Includes a few built-in studio templates (website build, brand identity, content calendar). | M | Pro. Done (#111, released #112); not yet plan-gated (Phase E) |
+| B5 | **Project templates** | Save a project (columns, tasks, checklists, relative due dates) as a template; start new client jobs from it. Includes a few built-in studio templates (website build, brand identity, content calendar). | M | Pro (saving your own; built-ins are free). Done (#111, released #112); gated since E1 |
 | B6 | **Archive projects** | Finished client jobs leave the sidebar but stay searchable. | S | Free. Done (#94) |
 | B7 | **Project details** | Client name, project deadline and status ("On track", "At risk", "Off track", "Done") on each project. | S | Free. Done (#94) |
 
@@ -90,8 +90,8 @@ Security note: guest access goes through `lib/authz.ts` like everything else, wi
 
 | # | Item | Why | Size | Plan |
 |---|---|---|---|---|
-| D1 | **Studio overview** | The workspace home becomes a dashboard: due this week and overdue across all projects, projects at risk, recent client feedback. | M | Free (basic), Pro (full). Done (#116, released #117); not yet plan-gated (Phase E) |
-| D2 | **Workload** | Tasks per person across projects, by week; see who's overloaded before assigning. | M | Pro |
+| D1 | **Studio overview** | The workspace home becomes a dashboard: due this week and overdue across all projects, projects at risk, recent client feedback. | M | Free. Done (#116, released #117); the client parts only fill in with Pro's client features |
+| D2 | **Workload** | Tasks per person across projects, by week; see who's overloaded before assigning. | M | Pro. Done (#137, released #138) |
 | D3 | **Saved filters and "My work"** | Saved views ("My overdue", "Waiting on client"), and My tasks grouped by project and date. | S | Free |
 | D4 | **Import and export** | Import from Trello / CSV to switch tools in minutes; export a project to CSV. | M | Free |
 | D5 | **Time tracking** (optional) | A timer on tasks and a simple report per project or client, for studios that bill hourly. Decide after talking to studios. | L | Business |
