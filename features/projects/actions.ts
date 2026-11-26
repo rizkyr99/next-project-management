@@ -13,6 +13,7 @@ import { redirect } from 'next/navigation';
 import { generateShareToken } from './share-token';
 import { requireProjectAccess, requireSession, runAction, toActionError, type ActionResult } from '@/lib/authz';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { planGateProblem } from '@/lib/subscription';
 import { loadTemplate } from '@/features/templates/load';
 import { templateToRows } from '@/features/templates/convert';
 import { dayInZone, safeTimeZone } from '@/features/templates/dates';
@@ -225,6 +226,11 @@ export async function setProjectShareLink(
       .where(eq(project.id, ctx.project.id));
     if (input.action === 'enable' && current?.token) return { token: current.token };
     if (input.action === 'disable' && !current?.token) return { token: null };
+    // Turning a link off is always allowed; making one is Pro.
+    if (input.action !== 'disable') {
+      const gated = await planGateProblem(ctx.workspace.id, 'shareLinks');
+      if (gated) return { error: gated };
+    }
 
     const token = input.action === 'disable' ? null : generateShareToken();
     await db.update(project).set({ shareToken: token }).where(eq(project.id, ctx.project.id));

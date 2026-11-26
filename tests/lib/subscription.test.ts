@@ -1,113 +1,130 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { chain } from '../helpers/db-mock';
 
-const { mockSelect, mockWhere, mockFrom } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockWhere: vi.fn(),
-  mockFrom: vi.fn(),
+const db = vi.hoisted(() => ({ select: vi.fn() }));
+vi.mock('@/db/drizzle', () => ({ db }));
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
+const stripe = vi.hoisted(() => ({
+  subscriptions: { retrieve: vi.fn(), cancel: vi.fn() },
+  subscriptionItems: { update: vi.fn() },
 }));
+vi.mock('@/lib/stripe', () => ({ stripe }));
 
-vi.mock('@/db/drizzle', () => ({
-  db: { select: mockSelect },
-}));
+import * as Sentry from '@sentry/nextjs';
+import {
+  cancelWorkspaceSubscription,
+  getWorkspacePlan,
+  memberLimitProblem,
+  planGateProblem,
+  syncSeats,
+} from '@/lib/subscription';
+import { PLAN_GATE_MESSAGES, planAllows } from '@/lib/plans';
 
-vi.mock('@/lib/stripe', () => ({
-  PLANS: {
-    free: { maxWorkspaces: 1, priceId: null },
-    pro: { maxWorkspaces: 5, priceId: 'price_pro' },
-    business: { maxWorkspaces: null, priceId: 'price_business' },
-  },
-  getPlanFromPriceId: vi.fn(),
-}));
-
-import { getUserPlan, checkWorkspaceLimit } from '@/lib/subscription';
-
-function chainMock(resolvedValue: unknown[]) {
-  mockWhere.mockResolvedValue(resolvedValue);
-  mockFrom.mockReturnValue({ where: mockWhere });
-  mockSelect.mockReturnValue({ from: mockFrom });
+/** Queue the rows each successive db.select() resolves to. */
+function rows(...results: unknown[][]) {
+  for (const r of results) db.select.mockReturnValueOnce(chain(r));
 }
 
-beforeEach(() => vi.clearAllMocks());
+const pro = { plan: 'pro', status: 'active', stripeSubscriptionId: 'sub_1' };
 
-describe('getUserPlan', () => {
-  it('returns free when no subscription exists', async () => {
-    chainMock([]);
-    expect(await getUserPlan('user-1')).toBe('free');
+beforeEach(() => vi.resetAllMocks());
+
+describe('getWorkspacePlan', () => {
+  it('is Free without a subscription, or when it ended', async () => {
+    rows([]);
+    expect(await getWorkspacePlan('ws')).toBe('free');
+    rows([{ ...pro, status: 'canceled' }]);
+    expect(await getWorkspacePlan('ws')).toBe('free');
+    rows([{ ...pro, status: 'unpaid' }]);
+    expect(await getWorkspacePlan('ws')).toBe('free');
   });
 
-  it('returns free when subscription is canceled', async () => {
-    chainMock([{ status: 'canceled', plan: 'pro' }]);
-    expect(await getUserPlan('user-1')).toBe('free');
-  });
-
-  it('returns free when subscription is unpaid', async () => {
-    chainMock([{ status: 'unpaid', plan: 'pro' }]);
-    expect(await getUserPlan('user-1')).toBe('free');
-  });
-
-  it('returns pro when subscription is active', async () => {
-    chainMock([{ status: 'active', plan: 'pro' }]);
-    expect(await getUserPlan('user-1')).toBe('pro');
-  });
-
-  it('returns business when subscription is trialing', async () => {
-    chainMock([{ status: 'trialing', plan: 'business' }]);
-    expect(await getUserPlan('user-1')).toBe('business');
+  it('stays Pro while active, trialing, or retrying a failed payment', async () => {
+    for (const status of ['active', 'trialing', 'past_due']) {
+      rows([{ ...pro, status }]);
+      expect(await getWorkspacePlan('ws')).toBe('pro');
+    }
   });
 });
 
-describe('checkWorkspaceLimit', () => {
-  it('allows creation when under free plan limit', async () => {
-    mockWhere.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: 0 }]);
-    mockFrom.mockReturnValue({ where: mockWhere });
-    mockSelect.mockReturnValue({ from: mockFrom });
-
-    const result = await checkWorkspaceLimit('user-1');
-    expect(result).toEqual({ allowed: true, current: 0, limit: 1 });
+describe('plan gates', () => {
+  it('puts client features and saved templates on Pro only', () => {
+    for (const f of ['clientGuests', 'approvals', 'shareLinks', 'savedTemplates'] as const) {
+      expect(planAllows('free', f)).toBe(false);
+      expect(planAllows('pro', f)).toBe(true);
+    }
   });
 
-  it('blocks when free plan limit is reached', async () => {
-    mockWhere.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: 1 }]);
-    mockFrom.mockReturnValue({ where: mockWhere });
-    mockSelect.mockReturnValue({ from: mockFrom });
+  it('explains a stopped gate, and lets Pro through', async () => {
+    rows([]);
+    expect(await planGateProblem('ws', 'approvals')).toBe(PLAN_GATE_MESSAGES.approvals);
+    rows([pro]);
+    expect(await planGateProblem('ws', 'approvals')).toBeNull();
+  });
+});
 
-    const result = await checkWorkspaceLimit('user-1');
-    expect(result.allowed).toBe(false);
+describe('memberLimitProblem', () => {
+  it('counts members and pending team invites against Free’s 3 seats', async () => {
+    // plan, members, pending invites
+    rows([], [{ n: 2 }], [{ n: 0 }]);
+    expect(await memberLimitProblem('ws')).toBeNull();
+    rows([], [{ n: 2 }], [{ n: 1 }]);
+    expect(await memberLimitProblem('ws')).toMatch(/up to 3 team members/);
   });
 
-  it('allows unlimited workspaces on business plan', async () => {
-    mockWhere
-      .mockResolvedValueOnce([{ status: 'active', plan: 'business' }])
-      .mockResolvedValueOnce([{ count: 99 }]);
-    mockFrom.mockReturnValue({ where: mockWhere });
-    mockSelect.mockReturnValue({ from: mockFrom });
-
-    const result = await checkWorkspaceLimit('user-1');
-    expect(result.allowed).toBe(true);
-    expect(result.limit).toBeNull();
+  it('can leave pending invites out (when one is being accepted)', async () => {
+    rows([], [{ n: 2 }]);
+    expect(await memberLimitProblem('ws', { includePendingInvites: false })).toBeNull();
+    rows([], [{ n: 3 }]);
+    expect(await memberLimitProblem('ws', { includePendingInvites: false })).toMatch(/clients don’t count/);
   });
 
-  it('blocks when pro plan limit of 5 is reached', async () => {
-    mockWhere
-      .mockResolvedValueOnce([{ status: 'active', plan: 'pro' }])
-      .mockResolvedValueOnce([{ count: 5 }]);
-    mockFrom.mockReturnValue({ where: mockWhere });
-    mockSelect.mockReturnValue({ from: mockFrom });
+  it('has no limit on Pro', async () => {
+    rows([pro]);
+    expect(await memberLimitProblem('ws', { adding: 50 })).toBeNull();
+  });
+});
 
-    const result = await checkWorkspaceLimit('user-1');
-    expect(result.allowed).toBe(false);
-    expect(result.limit).toBe(5);
+describe('syncSeats', () => {
+  it('sets the Stripe quantity to the team member count, prorated', async () => {
+    rows([pro], [{ n: 4 }]);
+    stripe.subscriptions.retrieve.mockResolvedValue({ items: { data: [{ id: 'si_1', quantity: 3 }] } });
+    await syncSeats('ws');
+    expect(stripe.subscriptionItems.update).toHaveBeenCalledWith('si_1', {
+      quantity: 4,
+      proration_behavior: 'create_prorations',
+    });
   });
 
-  it('allows on pro plan when under limit', async () => {
-    mockWhere
-      .mockResolvedValueOnce([{ status: 'active', plan: 'pro' }])
-      .mockResolvedValueOnce([{ count: 4 }]);
-    mockFrom.mockReturnValue({ where: mockWhere });
-    mockSelect.mockReturnValue({ from: mockFrom });
+  it('leaves Stripe alone when nothing changed, or there’s no paid plan', async () => {
+    rows([pro], [{ n: 3 }]);
+    stripe.subscriptions.retrieve.mockResolvedValue({ items: { data: [{ id: 'si_1', quantity: 3 }] } });
+    await syncSeats('ws');
+    rows([]);
+    await syncSeats('ws');
+    rows([{ ...pro, status: 'canceled' }]);
+    await syncSeats('ws');
+    expect(stripe.subscriptionItems.update).not.toHaveBeenCalled();
+  });
 
-    const result = await checkWorkspaceLimit('user-1');
-    expect(result.allowed).toBe(true);
-    expect(result.limit).toBe(5);
+  it('never throws; failures go to Sentry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    rows([pro], [{ n: 2 }]);
+    stripe.subscriptions.retrieve.mockRejectedValue(new Error('stripe down'));
+    await expect(syncSeats('ws')).resolves.toBeUndefined();
+    expect(Sentry.captureException).toHaveBeenCalled();
+  });
+});
+
+describe('cancelWorkspaceSubscription', () => {
+  it('cancels a live subscription and skips ended or missing ones', async () => {
+    rows([pro]);
+    await cancelWorkspaceSubscription('ws');
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledWith('sub_1', { prorate: true });
+    rows([{ ...pro, status: 'canceled' }]);
+    await cancelWorkspaceSubscription('ws');
+    rows([]);
+    await cancelWorkspaceSubscription('ws');
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
 });

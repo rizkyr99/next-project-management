@@ -1,17 +1,22 @@
 /**
- * Plan details shown to people: the pricing page, the landing page and the
- * billing settings all read from here, so prices and limits can't drift.
- * Stripe price IDs stay server-side in lib/stripe.ts.
+ * Plans (E1): what each costs, what it includes and its limits. The pricing
+ * page, the landing page, billing settings and every server-side gate read
+ * from here, so prices, limits and gates can't drift. Stripe price IDs stay
+ * server-side in lib/stripe.ts.
+ *
+ * Pricing is per team member: owners, admins and members count; client
+ * guests never do. A plan belongs to a workspace.
  */
-export type PlanName = 'free' | 'pro' | 'business';
+export type PlanName = 'free' | 'pro';
 
 export interface PlanDetails {
   name: string;
-  /** US dollars per month. */
+  /** US dollars per month, per team member when `perMember`. */
   priceMonthly: number;
-  /** null means unlimited. */
-  maxWorkspaces: number | null;
-  /** File storage per workspace (B3), counted against the workspace owner's plan. */
+  perMember: boolean;
+  /** Team members (not guests) allowed; null means unlimited. */
+  maxMembers: number | null;
+  /** File storage per workspace (B3). */
   storageBytes: number;
   tagline: string;
 }
@@ -19,16 +24,57 @@ export interface PlanDetails {
 const GB = 1024 ** 3;
 
 export const PLAN_DETAILS: Record<PlanName, PlanDetails> = {
-  free: { name: 'Free', priceMonthly: 0, maxWorkspaces: 1, storageBytes: 1 * GB, tagline: 'For one team getting organised' },
-  pro: { name: 'Pro', priceMonthly: 9, maxWorkspaces: 5, storageBytes: 20 * GB, tagline: 'For people who run a few teams or clients' },
-  business: { name: 'Business', priceMonthly: 29, maxWorkspaces: null, storageBytes: 100 * GB, tagline: 'For agencies and larger organisations' },
+  free: {
+    name: 'Free',
+    priceMonthly: 0,
+    perMember: false,
+    maxMembers: 3,
+    storageBytes: 1 * GB,
+    tagline: 'For a small team getting organised',
+  },
+  pro: {
+    name: 'Pro',
+    priceMonthly: 9,
+    perMember: true,
+    maxMembers: null,
+    storageBytes: 100 * GB,
+    tagline: 'For studios that work with clients',
+  },
 };
 
-export const PLAN_ORDER: PlanName[] = ['free', 'pro', 'business'];
+export const PLAN_ORDER: PlanName[] = ['free', 'pro'];
 
-export function workspaceLimitLabel(limit: number | null) {
-  if (limit === null) return 'Unlimited workspaces';
-  return limit === 1 ? '1 workspace' : `Up to ${limit} workspaces`;
+/** Features only some plans include. Everything not listed here is on every plan. */
+export const PLAN_FEATURES = {
+  clientGuests: { label: 'Client guests on chosen projects, free of charge', plans: ['pro'] },
+  approvals: { label: 'Client approvals', plans: ['pro'] },
+  shareLinks: { label: 'Read-only share links', plans: ['pro'] },
+  savedTemplates: { label: 'Your own project templates', plans: ['pro'] },
+} as const satisfies Record<string, { label: string; plans: readonly PlanName[] }>;
+
+export type PlanFeature = keyof typeof PLAN_FEATURES;
+
+export function planAllows(plan: PlanName, feature: PlanFeature): boolean {
+  return (PLAN_FEATURES[feature].plans as readonly PlanName[]).includes(plan);
+}
+
+const UPGRADE_HINT = 'The workspace owner can upgrade in Settings, under Billing.';
+
+/** What to tell someone a gate stopped. */
+export const PLAN_GATE_MESSAGES: Record<PlanFeature, string> = {
+  clientGuests: `Inviting clients is part of Pro. ${UPGRADE_HINT}`,
+  approvals: `Client approvals are part of Pro. ${UPGRADE_HINT}`,
+  shareLinks: `Share links are part of Pro. ${UPGRADE_HINT}`,
+  savedTemplates: `Saving your own templates is part of Pro; the built-in ones are free. ${UPGRADE_HINT}`,
+};
+
+export function memberLimitMessage(max: number) {
+  return `Free workspaces have up to ${max} team members (clients don’t count). ${UPGRADE_HINT}`;
+}
+
+/** "Up to 3 team members" / "Unlimited team members". */
+export function memberLimitLabel(max: number | null) {
+  return max === null ? 'Unlimited team members' : `Up to ${max} team members`;
 }
 
 /** "1 GB of files per workspace". */

@@ -1,31 +1,23 @@
 import 'server-only';
 import { db } from '@/db/drizzle';
-import { attachment, member, project } from '@/db/schema';
+import { attachment, project } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { PLAN_DETAILS } from '@/lib/plans';
-import { getUserPlan } from '@/lib/subscription';
+import { getWorkspacePlan } from '@/lib/subscription';
 import { sniffImageType } from '@/lib/uploads';
-import { and, eq, sum } from 'drizzle-orm';
+import { eq, sum } from 'drizzle-orm';
 import { readFirstBytes } from '@/lib/storage';
 
-/**
- * Bytes stored for a workspace's projects, and what its plan allows. The
- * limit follows the workspace owner's plan: they're the one who pays.
- */
+/** Bytes stored for a workspace's projects, and what the workspace's plan allows. */
 export async function workspaceStorage(workspaceId: string): Promise<{ used: number; limit: number }> {
-  const [[usage], [owner]] = await db.batch([
+  const [[usage], plan] = await Promise.all([
     db
       .select({ used: sum(attachment.size) })
       .from(attachment)
       .innerJoin(project, eq(project.id, attachment.projectId))
       .where(eq(project.workspaceId, workspaceId)),
-    db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(and(eq(member.workspaceId, workspaceId), eq(member.role, 'owner')))
-      .limit(1),
+    getWorkspacePlan(workspaceId),
   ]);
-  const plan = owner ? await getUserPlan(owner.userId) : 'free';
   return { used: Number(usage?.used ?? 0), limit: PLAN_DETAILS[plan].storageBytes };
 }
 
@@ -33,7 +25,7 @@ export async function workspaceStorage(workspaceId: string): Promise<{ used: num
 export async function storageProblem(workspaceId: string, incoming: number): Promise<string | null> {
   const { used, limit } = await workspaceStorage(workspaceId);
   if (used + incoming <= limit) return null;
-  return 'This workspace is out of file storage. Delete files you no longer need, or ask the owner to upgrade the plan.';
+  return 'This workspace is out of file storage. Delete files you no longer need, or ask the owner to upgrade to Pro.';
 }
 
 export interface TaskFileCtx {

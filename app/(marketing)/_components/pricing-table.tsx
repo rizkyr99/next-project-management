@@ -1,24 +1,33 @@
 import { Button } from '@/components/ui/button';
-import { PLAN_DETAILS, PLAN_ORDER, storageLimitLabel, workspaceLimitLabel } from '@/lib/plans';
+import { PLAN_DETAILS, PLAN_FEATURES, PLAN_ORDER, memberLimitLabel, storageLimitLabel, type PlanName } from '@/lib/plans';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 
+/** On every plan. */
 const INCLUDED = [
-  'Unlimited projects, tasks and members',
-  'Board, list and table views',
+  'Unlimited projects and tasks',
+  'Board, list and table views, labels and checklists',
   'Comments, @mentions and email notifications',
-  'Due-date reminders and a daily summary',
+  'Built-in project templates and the studio overview',
 ];
 
+/** Each plan's list: what everyone gets, plus what only that plan adds. */
+function includes(key: PlanName) {
+  const extra = Object.values(PLAN_FEATURES)
+    .filter((f) => (f.plans as readonly PlanName[]).includes(key))
+    .map((f) => f.label);
+  return key === 'free' ? INCLUDED : ['Everything in Free', ...extra];
+}
+
 /**
- * Prices come from lib/plans.ts, the same source as the in-app billing page.
- * Plans differ only in how many workspaces you can own, so that's the line
- * that leads each column.
+ * Prices, limits and features come from lib/plans.ts, the same source as
+ * in-app billing and the server's plan gates. Pro is priced per team
+ * member; client guests are free on it.
  */
-export function PricingTable({ headingLevel = 'h3' }: { headingLevel?: 'h2' | 'h3' }) {
+export function PricingTable({ headingLevel = 'h3' }: Readonly<{ headingLevel?: 'h2' | 'h3' }>) {
   const Heading = headingLevel;
   return (
-    <div className='grid gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-3'>
+    <div className='grid gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-2'>
       {PLAN_ORDER.map((key) => {
         const plan = PLAN_DETAILS[key];
         const featured = key === 'pro';
@@ -35,14 +44,19 @@ export function PricingTable({ headingLevel = 'h3' }: { headingLevel?: 'h2' | 'h
             </div>
             <p className='flex items-baseline gap-1.5'>
               <span className='font-display text-5xl font-bold tracking-[-0.04em]'>${plan.priceMonthly}</span>
-              <span className='text-sm text-muted-foreground'>per month</span>
+              <span className='text-sm text-muted-foreground'>
+                {plan.perMember ? 'per team member, per month' : 'forever'}
+              </span>
             </p>
             <div>
-              <p className='font-medium'>{workspaceLimitLabel(plan.maxWorkspaces)}</p>
-              <p className='text-sm text-muted-foreground'>{storageLimitLabel(plan.storageBytes)}</p>
+              <p className='font-medium'>{memberLimitLabel(plan.maxMembers)}</p>
+              <p className='text-sm text-muted-foreground'>
+                {featured ? 'Clients join free. ' : ''}
+                {storageLimitLabel(plan.storageBytes)}
+              </p>
             </div>
             <ul className='space-y-2.5 text-sm text-muted-foreground'>
-              {INCLUDED.map((item) => (
+              {includes(key).map((item) => (
                 <li key={item} className='flex gap-2'>
                   <Check className='mt-0.5 size-4 shrink-0 text-primary' aria-hidden />
                   {item}

@@ -27,7 +27,8 @@ export const serverEnvSchema = z.object({
   STRIPE_SECRET_KEY: z.string().trim().regex(/^(sk|rk)_(test|live)_/, 'must be a Stripe secret key (sk_test_… / sk_live_…)'),
   STRIPE_WEBHOOK_SECRET: z.string().trim().startsWith('whsec_', 'must be a Stripe webhook secret (whsec_…)'),
   STRIPE_PRO_PRICE_ID: z.string().trim().startsWith('price_', 'must be a Stripe price ID (price_…)'),
-  STRIPE_BUSINESS_PRICE_ID: z.string().trim().startsWith('price_', 'must be a Stripe price ID (price_…)'),
+  // No longer used: Pro is the only paid plan (E1). Optional so existing deployments still validate.
+  STRIPE_BUSINESS_PRICE_ID: z.string().trim().startsWith('price_', 'must be a Stripe price ID (price_…)').optional(),
 
   RESEND_API_KEY: z.string().trim().startsWith('re_', 'must be a Resend API key (re_…)'),
   // Sender on a domain verified in Resend, e.g. "Tide <notifications@tide.example.com>".

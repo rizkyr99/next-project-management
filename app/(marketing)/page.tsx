@@ -60,11 +60,15 @@ const FEATURES = [
 const FAQ = [
   {
     q: 'Is Tide really free?',
-    a: 'Yes. The Free plan gives you one workspace with unlimited projects, tasks and members, and every feature. Pay only if you need more workspaces.',
+    a: 'Yes. Free covers a team of up to three with unlimited projects and tasks, boards, labels, checklists and the built-in templates. Pro adds what working with clients needs, and you pay per team member.',
   },
   {
     q: 'What is a workspace?',
-    a: 'A workspace is one team’s space: its members, projects and boards. Most teams need one. Freelancers and agencies often keep one per client, which is what Pro and Business are for.',
+    a: 'A workspace is one team’s space: its members, projects and boards. Each workspace has its own plan, and you can have as many as you like.',
+  },
+  {
+    q: 'Do I pay for my clients?',
+    a: 'No. Clients join as guests on the projects you share with them, and guests are always free. You pay only for your own team.',
   },
   {
     q: 'Who can see my projects?',
@@ -179,7 +183,7 @@ export default function LandingPage() {
             Pricing
           </h2>
           <p className='mt-3 max-w-[60ch] text-muted-foreground'>
-            Every plan has every feature. You pay for the number of workspaces you own.
+            Free for a small team. Pro is priced per team member, and your clients are always free.
           </p>
           <div className='mt-10'>
             <PricingTable />

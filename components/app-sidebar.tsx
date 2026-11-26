@@ -3,7 +3,6 @@
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -14,7 +13,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
-import { Activity, Archive, CheckSquare, CreditCard, Home, List, Settings, Sparkles, Star } from 'lucide-react';
+import { Activity, Archive, CheckSquare, CreditCard, Home, List, Settings, Star } from 'lucide-react';
 import type { ProjectStatus } from '@/features/projects/details';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
@@ -42,10 +41,9 @@ interface AppSidebarProps {
     /** When I starred it; null if not a favourite. */
     favoritedAt: Date | null;
   }[];
-  atWorkspaceLimit?: boolean;
 }
 
-export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSidebarProps) {
+export function AppSidebar({ workspaces, projects }: AppSidebarProps) {
   const params = useParams<{ workspaceSlug: string; projectId: string }>();
   const pathname = usePathname();
   const { workspaceSlug, projectId } = params;
@@ -122,7 +120,7 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
   return (
     <Sidebar>
       <SidebarHeader>
-        <WorkspaceSwitcher workspaces={workspaces} atWorkspaceLimit={atWorkspaceLimit} />
+        <WorkspaceSwitcher workspaces={workspaces} />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -193,19 +191,6 @@ export function AppSidebar({ workspaces, projects, atWorkspaceLimit }: AppSideba
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      {atWorkspaceLimit && (
-        <SidebarFooter>
-          <Link
-            href='/settings/billing'
-            className='flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm hover:bg-primary/10 transition-colors'>
-            <Sparkles className='size-4 text-primary mt-0.5 shrink-0' />
-            <div>
-              <p className='font-medium text-primary leading-tight dark:text-indigo-300'>Workspace limit reached</p>
-              <p className='text-xs text-muted-foreground mt-0.5'>Upgrade your plan to create more workspaces.</p>
-            </div>
-          </Link>
-        </SidebarFooter>
-      )}
     </Sidebar>
   );
 }

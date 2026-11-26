@@ -26,10 +26,9 @@ interface Workspace {
 
 interface WorkspaceSwitcherProps {
   workspaces?: Workspace[];
-  atWorkspaceLimit?: boolean;
 }
 
-export function WorkspaceSwitcher({ workspaces = [], atWorkspaceLimit }: WorkspaceSwitcherProps) {
+export function WorkspaceSwitcher({ workspaces = [] }: WorkspaceSwitcherProps) {
   const [open, setOpen] = useState(false);
   const [optimisticSlug, setOptimisticSlug] = useState<string | null>(null);
   const { isMobile, setOpenMobile } = useSidebar();
@@ -92,7 +91,7 @@ export function WorkspaceSwitcher({ workspaces = [], atWorkspaceLimit }: Workspa
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <CreateWorkspaceDialog onSuccess={() => setOpen(false)} disabled={atWorkspaceLimit} />
+            <CreateWorkspaceDialog onSuccess={() => setOpen(false)} />
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

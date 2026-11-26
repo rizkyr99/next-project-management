@@ -11,6 +11,8 @@ import { TemplateList } from '@/features/templates/components/template-list';
 import { savedTemplatesForSettings } from '@/features/templates/queries';
 import { workspaceStorage } from '@/features/attachments/server';
 import { formatBytes } from '@/lib/plans';
+import { getWorkspacePlan, getWorkspaceSubscription } from '@/lib/subscription';
+import { WorkspaceBilling } from '@/features/billing/components/workspace-billing';
 import { auth } from '@/lib/auth';
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
@@ -28,7 +30,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Settings' };
 
-const TABS = ['general', 'members', 'labels', 'templates', 'danger'] as const;
+const TABS = ['general', 'members', 'labels', 'templates', 'billing', 'danger'] as const;
 
 export default async function WorkspaceSettingsPage({
   params,
@@ -143,7 +145,12 @@ export default async function WorkspaceSettingsPage({
     .groupBy(label.id)
     .orderBy(asc(label.name));
 
-  const storage = await workspaceStorage(membership.workspaceId);
+  const [storage, sub] = await Promise.all([
+    workspaceStorage(membership.workspaceId),
+    getWorkspaceSubscription(membership.workspaceId),
+  ]);
+  const plan = await getWorkspacePlan(membership.workspaceId);
+  const teamMembers = members.filter((m) => m.role !== 'guest').length;
 
   const templates = (await savedTemplatesForSettings(membership.workspaceId)).map((t) => ({
     id: t.id,
@@ -198,6 +205,7 @@ export default async function WorkspaceSettingsPage({
             </TabsTrigger>
             <TabsTrigger value='labels'>Labels</TabsTrigger>
             <TabsTrigger value='templates'>Templates</TabsTrigger>
+            {canManage && <TabsTrigger value='billing'>Billing</TabsTrigger>}
             <TabsTrigger value='danger' className='text-red-700 data-[state=active]:text-red-700 dark:text-red-400 dark:data-[state=active]:text-red-400'>
               Danger zone
             </TabsTrigger>
@@ -308,6 +316,22 @@ export default async function WorkspaceSettingsPage({
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ── Billing (owners and admins see it; owners act) ── */}
+          {canManage && (
+            <TabsContent value='billing' className='mt-6'>
+              <WorkspaceBilling
+                workspaceSlug={workspaceSlug}
+                plan={plan}
+                status={sub?.status ?? null}
+                renewsOn={sub?.stripeCurrentPeriodEnd?.toISOString() ?? null}
+                teamMembers={teamMembers}
+                guests={members.length - teamMembers}
+                hasBillingAccount={Boolean(sub?.stripeCustomerId)}
+                isOwner={membership.role === 'owner'}
+              />
+            </TabsContent>
+          )}
 
           {/* ── Templates ───────────────────────────────── */}
           <TabsContent value='templates' className='mt-6 space-y-6'>

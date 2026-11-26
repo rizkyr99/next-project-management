@@ -742,10 +742,15 @@ export const subscription = pgTable(
     id: text('id')
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    userId: text('user_id')
-      .notNull()
+    /**
+     * E1: a subscription belongs to a workspace (its plan), billed per team
+     * member. Null only on rows from before E1, when plans were per user.
+     */
+    workspaceId: text('workspace_id')
       .unique()
-      .references(() => user.id, { onDelete: 'cascade' }),
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** Who set up billing (the owner at the time); kept if they later leave. */
+    userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
     stripeCustomerId: text('stripe_customer_id').notNull().unique(),
     stripeSubscriptionId: text('stripe_subscription_id').unique(),
     stripePriceId: text('stripe_price_id'),

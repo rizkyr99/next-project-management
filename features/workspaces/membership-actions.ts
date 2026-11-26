@@ -5,15 +5,17 @@ import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { type ActionResult, requireWorkspaceMember, toActionError } from '@/lib/authz';
 import { lockWorkspace, revokeGuestProjects, unassignFromWorkspaceTasks } from '@/lib/membership';
-import { checkWorkspaceLimit } from '@/lib/subscription';
+import { syncSeats } from '@/lib/subscription';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { z } from 'zod';
 
 // A workspace has exactly one owner (member.role = 'owner', mirrored in
-// workspace.userId, which billing limits count). These actions keep that
-// invariant: the owner can't leave, and ownership only moves by transfer.
+// workspace.userId). These actions keep that invariant: the owner can't
+// leave, and ownership only moves by transfer. The plan belongs to the
+// workspace (E1), so it stays put when ownership moves.
 
 const leaveSchema = z.object({ workspaceId: z.string().min(1) });
 
@@ -59,6 +61,8 @@ export async function leaveWorkspace(values: z.input<typeof leaveSchema>): Promi
       action: 'member.left',
       metadata: { memberName: ctx.session.user.name },
     });
+    // One seat fewer on a paid plan (guests aren't billed).
+    if (ctx.role !== 'guest') after(() => syncSeats(ctx.workspace.id));
   } catch (error) {
     return toActionError(error, 'Failed to leave the workspace.');
   }
@@ -76,7 +80,7 @@ const transferSchema = z.object({
 /**
  * Hand the workspace to another member. Owner only. In one batch: the new
  * owner becomes `owner`, the old owner becomes `admin`, and workspace.userId
- * moves so billing limits follow the new owner.
+ * moves with them. The workspace's plan and billing stay with the workspace.
  */
 export async function transferOwnership(values: z.input<typeof transferSchema>): Promise<ActionResult> {
   try {
@@ -95,17 +99,9 @@ export async function transferOwnership(values: z.input<typeof transferSchema>):
     if (target.userId === fromUserId) return { error: 'You already own this workspace.' };
     if (target.role === 'guest') return { error: 'Guests can’t own a workspace. Invite them as a member first.' };
 
-    // The new owner's plan has to have room for one more owned workspace.
-    const limit = await checkWorkspaceLimit(target.userId);
-    if (!limit.allowed) {
-      return {
-        error: `${target.name} has reached their plan's workspace limit (${limit.current}/${limit.limit}), so they can't take ownership.`,
-      };
-    }
-
     // Under the workspace lock, every write requires the current state: the
     // caller still owns it, and the recipient is still a member. The demotion
-    // and the billing move only happen if the promotion did.
+    // and the workspace.userId move only happen if the promotion did.
     const targetIsOwner = sql`exists (select 1 from ${member} where ${member.id} = ${target.id} and ${member.role} = 'owner')`;
     const [, promoted] = await db.batch([
       lockWorkspace(ctx.workspace.id),
