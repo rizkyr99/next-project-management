@@ -50,7 +50,7 @@ describe('sendWorkspaceInviteEmail', () => {
     vi.stubEnv('EMAIL_FROM', 'Tide <notifications@tide.example.org>');
     expect(await sendWorkspaceInviteEmail({ ...invite, to: 'someone@gmail.com' })).toEqual({ sent: true });
     const arg = send.mock.calls[0][0];
-    expect(arg.from).toBe('Tide <notifications@tide.example.org>');
+    expect(arg.from).toBe('"Engines via Tide" <notifications@tide.example.org>');
     expect(arg.to).toBe('someone@gmail.com');
     expect(arg.html).toContain('https://tide.example.com/invite/abc');
     expect(arg.text).toContain('https://tide.example.com/invite/abc');
@@ -62,9 +62,38 @@ describe('sendWorkspaceInviteEmail', () => {
     expect(await sendWorkspaceInviteEmail({ ...invite, to: 'someone@gmail.com' })).toEqual({ sent: false });
   });
 
+  it('sends as "<workspace> via Tide" from the verified address', async () => {
+    send.mockClear();
+    send.mockResolvedValue({ data: { id: 'msg_2' }, error: null });
+    vi.stubEnv('EMAIL_FROM', 'Tide <notifications@tide.example.org>');
+    await sendWorkspaceInviteEmail({ ...invite, role: 'guest', projectNames: ['Website'], to: 'client@gmail.com' });
+    const arg = send.mock.calls[0][0];
+    expect(arg.from).toBe('"Engines via Tide" <notifications@tide.example.org>');
+    expect(arg.subject).toBe('Engines shared Website with you');
+    vi.unstubAllEnvs();
+  });
+
   it("falls back to Resend's test sender when EMAIL_FROM is unset", () => {
     vi.stubEnv('EMAIL_FROM', '');
     expect(emailFrom()).toBe('Tide <onboarding@resend.dev>');
+    vi.unstubAllEnvs();
+  });
+});
+
+describe('emailFrom with a sender name', () => {
+  it('keeps the address and wraps the name in quotes', () => {
+    vi.stubEnv('EMAIL_FROM', 'Tide <notifications@tide.example.org>');
+    expect(emailFrom('Northwind Studio')).toBe('"Northwind Studio via Tide" <notifications@tide.example.org>');
+    vi.stubEnv('EMAIL_FROM', 'notifications@tide.example.org');
+    expect(emailFrom('Northwind')).toBe('"Northwind via Tide" <notifications@tide.example.org>');
+    vi.unstubAllEnvs();
+  });
+
+  it('strips characters that could break out of the header', () => {
+    vi.stubEnv('EMAIL_FROM', 'Tide <n@tide.example.org>');
+    expect(emailFrom('Evil"\r\nBcc: x@y.com\\')).toBe('"EvilBcc: x@y.com via Tide" <n@tide.example.org>');
+    expect(emailFrom('  \n  ')).toBe('Tide <n@tide.example.org>');
+    expect(emailFrom('a'.repeat(200))).toBe(`"${'a'.repeat(60)} via Tide" <n@tide.example.org>`);
     vi.unstubAllEnvs();
   });
 });
@@ -135,6 +164,45 @@ describe('notification emails', () => {
     expect(arg.html).not.toContain('<script>');
     expect(arg.html).toContain('/settings/notifications');
     expect(arg.text).toContain('Manage email preferences:');
+  });
+
+  it('tells a client which studio shared the work', async () => {
+    send.mockClear();
+    send.mockResolvedValue({ data: { id: 'msg_4' }, error: null });
+    vi.stubEnv('EMAIL_FROM', 'Tide <n@tide.example.org>');
+    await sendTaskNotificationEmail('client@gmail.com', {
+      kind: 'approval_requested',
+      actorName: 'Ada',
+      taskTitle: 'Homepage',
+      taskUrl: 'https://tide.example.com/workspaces/a/projects/p?task=t',
+      workspaceName: 'Northwind',
+      projectName: 'Website',
+      audience: 'client',
+    });
+    const arg = send.mock.calls[0][0];
+    expect(arg.from).toBe('"Northwind via Tide" <n@tide.example.org>');
+    expect(arg.html).toContain('In Website, shared by Northwind.');
+    expect(arg.html).toContain('Review and respond');
+    expect(arg.text).toContain('You received this because Northwind shared Website with you on Tide.');
+    vi.unstubAllEnvs();
+  });
+
+  it('gives the team the project but not the client wording', async () => {
+    send.mockClear();
+    send.mockResolvedValue({ data: { id: 'msg_5' }, error: null });
+    await sendTaskNotificationEmail('dev@gmail.com', {
+      kind: 'mentioned',
+      actorName: 'Ada',
+      taskTitle: 'Homepage',
+      taskUrl: 'https://tide.example.com/workspaces/a/projects/p?task=t',
+      workspaceName: 'Northwind',
+      projectName: 'Website',
+      audience: 'team',
+    });
+    const arg = send.mock.calls[0][0];
+    expect(arg.text).toContain('In Website.');
+    expect(arg.text).not.toContain('shared by');
+    expect(arg.text).toContain('mentioned you in a comment');
   });
 
   it('digest lists items and summarises the rest', async () => {

@@ -1,6 +1,6 @@
 import 'server-only';
 import { db } from '@/db/drizzle';
-import { user, userPreferences } from '@/db/schema';
+import { member, project, user, userPreferences, workspace } from '@/db/schema';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { APP_URL, sendTaskNotificationEmail } from '@/lib/email';
 
@@ -38,8 +38,11 @@ export async function emailTaskNotification({
   taskTitle,
   href,
   excerpt,
+  projectId,
 }: {
   kind: TaskEmailKind;
+  /** The task's project: names the studio and project, and tells clients apart. */
+  projectId: string;
   userIds: string[];
   actorName: string;
   taskTitle: string;
@@ -49,6 +52,28 @@ export async function emailTaskNotification({
 }) {
   try {
     const recipients = await emailRecipients(userIds, kind);
+    if (recipients.length === 0) return;
+    const [where] = await db
+      .select({ projectName: project.name, workspaceId: workspace.id, workspaceName: workspace.name })
+      .from(project)
+      .innerJoin(workspace, eq(workspace.id, project.workspaceId))
+      .where(eq(project.id, projectId))
+      .limit(1);
+    if (!where) return;
+    const guests = new Set(
+      (
+        await db
+          .select({ id: member.userId })
+          .from(member)
+          .where(
+            and(
+              eq(member.workspaceId, where.workspaceId),
+              eq(member.role, 'guest'),
+              inArray(member.userId, recipients.map((r) => r.id)),
+            ),
+          )
+      ).map((m) => m.id),
+    );
     const trimmed =
       excerpt && excerpt.length > MAX_EXCERPT ? `${excerpt.slice(0, MAX_EXCERPT - 1)}…` : excerpt;
     // One at a time, spaced out: Resend allows ~10 requests/second per team,
@@ -61,6 +86,9 @@ export async function emailTaskNotification({
         taskTitle,
         excerpt: trimmed,
         taskUrl: `${APP_URL}${href}`,
+        workspaceName: where.workspaceName,
+        projectName: where.projectName,
+        audience: guests.has(r.id) ? 'client' : 'team',
       });
       if (!sent) console.warn(`[email] ${kind} email not sent to one recipient`);
     }

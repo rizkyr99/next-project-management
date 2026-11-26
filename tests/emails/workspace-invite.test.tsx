@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render } from '@react-email/components';
-import { WorkspaceInviteEmail, workspaceInviteText } from '@/emails/workspace-invite';
+import { WorkspaceInviteEmail, workspaceInviteSubject, workspaceInviteText } from '@/emails/workspace-invite';
 
 const props = {
   inviterName: 'Ada Lovelace',
@@ -37,5 +37,22 @@ describe('WorkspaceInviteEmail', () => {
     const text = workspaceInviteText(props);
     expect(text).toContain('Ada Lovelace invited you to join Analytical Engines on Tide as an admin.');
     expect(text).toContain('https://tide.example.com/invite/abc123');
+  });
+
+  it('puts the studio, not Tide, at the top', async () => {
+    const html = await render(WorkspaceInviteEmail(props));
+    expect(html).toContain('via Tide');
+  });
+
+  it('speaks to a client about the studio and the shared work', async () => {
+    const guest = { ...props, role: 'guest' as const, projectNames: ['Website', 'Logo'] };
+    expect(workspaceInviteSubject(guest)).toBe('Analytical Engines shared Website and Logo with you');
+    const html = await render(WorkspaceInviteEmail(guest));
+    expect(html).toContain('Ada Lovelace at Analytical Engines shared their work with this address');
+    expect(html).not.toContain('Tide workspace');
+  });
+
+  it('keeps the member subject', () => {
+    expect(workspaceInviteSubject(props)).toBe('Ada Lovelace invited you to Analytical Engines on Tide');
   });
 });
