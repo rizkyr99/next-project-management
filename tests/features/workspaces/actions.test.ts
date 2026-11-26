@@ -21,6 +21,7 @@ vi.mock('@/lib/activity', () => ({
 vi.mock('@/lib/subscription', () => ({
   cancelWorkspaceSubscription: vi.fn(),
   syncSeats: vi.fn(),
+  trialEndForNewWorkspace: vi.fn(async () => null),
 }));
 
 vi.mock('next/headers', () => ({

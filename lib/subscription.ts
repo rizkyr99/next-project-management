@@ -2,9 +2,10 @@ import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import { db } from '@/db/drizzle';
 import { member, subscription, workspace, workspaceInvite } from '@/db/schema';
-import { and, count, eq, gt, ne, sql } from 'drizzle-orm';
+import { and, count, eq, gt, isNotNull, ne, sql } from 'drizzle-orm';
 import {
   memberLimitMessage,
+  TRIAL_DAYS,
   PLAN_DETAILS,
   PLAN_GATE_MESSAGES,
   planAllows,
@@ -16,20 +17,50 @@ import { stripe } from './stripe';
 /**
  * E1: a workspace's plan and its limits. Plans belong to workspaces and are
  * billed per team member (owners, admins, members); client guests are free.
+ * E2: a new workspace gets a 14-day Pro trial, kept in the app (no Stripe
+ * until the owner upgrades).
  */
 
 /** Statuses in which a paid plan's features stay on (a failed payment gets Stripe's retry window). */
 const PAID_STATUSES = new Set(['active', 'trialing', 'past_due']);
+
+export interface PlanState {
+  plan: PlanName;
+  /** Paying for Pro through Stripe. */
+  paid: boolean;
+  /** On the in-app Pro trial (and not paying). */
+  onTrial: boolean;
+  trialEndsAt: Date | null;
+}
+
+/** Pro when paid, or while an unexpired trial lasts; otherwise Free. */
+export function planState(
+  sub: { status: string | null; plan: string | null } | null,
+  trialEndsAt: Date | null,
+  now = new Date(),
+): PlanState {
+  const paid = Boolean(sub?.status && PAID_STATUSES.has(sub.status) && sub.plan === 'pro');
+  const onTrial = !paid && trialEndsAt !== null && trialEndsAt > now;
+  return { plan: paid || onTrial ? 'pro' : 'free', paid, onTrial, trialEndsAt };
+}
 
 export async function getWorkspaceSubscription(workspaceId: string) {
   const [sub] = await db.select().from(subscription).where(eq(subscription.workspaceId, workspaceId)).limit(1);
   return sub ?? null;
 }
 
+export async function getWorkspacePlanState(workspaceId: string): Promise<PlanState> {
+  const [row] = await db
+    .select({ status: subscription.status, plan: subscription.plan, trialEndsAt: workspace.trialEndsAt })
+    .from(workspace)
+    .leftJoin(subscription, eq(subscription.workspaceId, workspace.id))
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+  return planState(row ?? null, row?.trialEndsAt ?? null);
+}
+
 export async function getWorkspacePlan(workspaceId: string): Promise<PlanName> {
-  const sub = await getWorkspaceSubscription(workspaceId);
-  if (!sub?.status || !PAID_STATUSES.has(sub.status)) return 'free';
-  return sub.plan === 'pro' ? 'pro' : 'free';
+  return (await getWorkspacePlanState(workspaceId)).plan;
 }
 
 /** Owners, admins and members: the people a workspace pays for. */
@@ -46,11 +77,12 @@ export async function teamMemberCount(workspaceId: string): Promise<number> {
  * workspace layout can run it alongside its other queries (E3). Null when
  * there's no such workspace; the layout checks membership separately.
  */
-export async function planSummaryBySlug(slug: string): Promise<{ plan: PlanName; teamMembers: number } | null> {
+export async function planSummaryBySlug(slug: string): Promise<(PlanState & { teamMembers: number }) | null> {
   const [row] = await db
     .select({
       status: subscription.status,
       plan: subscription.plan,
+      trialEndsAt: workspace.trialEndsAt,
       teamMembers: sql<number>`(select count(*)::int from ${member} m where m.workspace_id = ${workspace.id} and m.role <> 'guest')`,
     })
     .from(workspace)
@@ -58,8 +90,21 @@ export async function planSummaryBySlug(slug: string): Promise<{ plan: PlanName;
     .where(eq(workspace.slug, slug))
     .limit(1);
   if (!row) return null;
-  const paid = row.status !== null && PAID_STATUSES.has(row.status) && row.plan === 'pro';
-  return { plan: paid ? 'pro' : 'free', teamMembers: row.teamMembers };
+  return { ...planState(row, row.trialEndsAt), teamMembers: row.teamMembers };
+}
+
+/**
+ * When a new workspace's trial should end: 14 days from now, unless its
+ * owner has had a trial before (one per person, so new workspaces can't
+ * extend it). Null: no trial.
+ */
+export async function trialEndForNewWorkspace(ownerUserId: string, now = new Date()): Promise<Date | null> {
+  const [had] = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.userId, ownerUserId), isNotNull(workspace.trialEndsAt)))
+    .limit(1);
+  return had ? null : new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
 }
 
 /** Null when the workspace's plan includes `feature`, otherwise the message to show. */

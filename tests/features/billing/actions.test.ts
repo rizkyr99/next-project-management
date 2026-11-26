@@ -11,10 +11,10 @@ const stripe = vi.hoisted(() => ({
 vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/stripe', () => ({ stripe, PLANS: { free: { priceId: null }, pro: { priceId: 'price_pro' } } }));
-vi.mock('@/lib/subscription', () => ({ getWorkspacePlan: vi.fn(), teamMemberCount: vi.fn() }));
+vi.mock('@/lib/subscription', () => ({ getWorkspacePlanState: vi.fn(), teamMemberCount: vi.fn() }));
 
 import { auth } from '@/lib/auth';
-import { getWorkspacePlan, teamMemberCount } from '@/lib/subscription';
+import { getWorkspacePlanState, teamMemberCount } from '@/lib/subscription';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createCheckoutSession, createPortalSession } from '@/features/billing/actions';
@@ -35,7 +35,7 @@ beforeEach(() => {
   delete process.env.NEXT_PUBLIC_APP_URL;
   vi.mocked(headers).mockResolvedValue(new Headers({ host: 'tide.test', 'x-forwarded-proto': 'https' }) as never);
   vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
-  vi.mocked(getWorkspacePlan).mockResolvedValue('free');
+  vi.mocked(getWorkspacePlanState).mockResolvedValue({ plan: 'free', paid: false, onTrial: false, trialEndsAt: null });
   vi.mocked(teamMemberCount).mockResolvedValue(4);
 });
 
@@ -103,9 +103,22 @@ describe('createCheckoutSession (E1: per workspace, per team member)', () => {
 
   it('says so when the workspace is already on Pro', async () => {
     db.select.mockReturnValueOnce(chain([ws]));
-    vi.mocked(getWorkspacePlan).mockResolvedValue('pro');
+    vi.mocked(getWorkspacePlanState).mockResolvedValue({ plan: 'pro', paid: true, onTrial: false, trialEndsAt: null });
     expect(await createCheckoutSession('northwind')).toEqual({ error: 'This workspace is already on Pro.' });
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('lets a workspace on its trial upgrade (a trial isn’t a subscription)', async () => {
+    vi.mocked(getWorkspacePlanState).mockResolvedValue({
+      plan: 'pro',
+      paid: false,
+      onTrial: true,
+      trialEndsAt: new Date(Date.now() + 86_400_000),
+    });
+    db.select.mockReturnValueOnce(chain([ws])).mockReturnValueOnce(chain([{ stripeCustomerId: 'cus_1' }]));
+    stripe.checkout.sessions.create.mockResolvedValue({ url: 'https://checkout.stripe.test/t' });
+    await createCheckoutSession('northwind');
+    expect(redirect).toHaveBeenCalledWith('https://checkout.stripe.test/t');
   });
 
   it('reports a checkout session without a URL, and Stripe failures, kindly', async () => {

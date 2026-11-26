@@ -44,6 +44,18 @@ export const PLAN_DETAILS: Record<PlanName, PlanDetails> = {
 
 export const PLAN_ORDER: PlanName[] = ['free', 'pro'];
 
+/** E2: a new workspace's Pro trial, no card. One per owner. */
+export const TRIAL_DAYS = 14;
+/** The "your trial ends soon" email goes out this many days before. */
+export const TRIAL_REMINDER_DAYS = 3;
+
+/** "14 days left", "1 day left", "Ends today". Whole days, rounding up. */
+export function trialDaysLeftLabel(trialEndsAt: Date | string, now = new Date()): string {
+  const days = Math.ceil((new Date(trialEndsAt).getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return 'Ends today';
+  return days === 1 ? '1 day left' : `${days} days left`;
+}
+
 /** Features only some plans include. Everything not listed here is on every plan. */
 export const PLAN_FEATURES = {
   clientGuests: { label: 'Client guests on chosen projects, free of charge', plans: ['pro'] },

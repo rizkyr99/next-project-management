@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }));
-vi.mock('@/lib/jobs', () => ({ sendDueSoonReminders: vi.fn(), sendDailyDigests: vi.fn(), runCleanup: vi.fn() }));
+vi.mock('@/lib/jobs', () => ({
+  sendDueSoonReminders: vi.fn(),
+  sendDailyDigests: vi.fn(),
+  runCleanup: vi.fn(),
+  sendTrialNotices: vi.fn(),
+}));
 
 import * as Sentry from '@sentry/nextjs';
-import { runCleanup, sendDailyDigests, sendDueSoonReminders } from '@/lib/jobs';
+import { runCleanup, sendDailyDigests, sendDueSoonReminders, sendTrialNotices } from '@/lib/jobs';
 import { GET } from '@/app/api/cron/daily/route';
 
 const SECRET = 'a-very-long-cron-secret-value';
@@ -42,13 +47,19 @@ describe('GET /api/cron/daily', () => {
     expect(sendDueSoonReminders).not.toHaveBeenCalled();
   });
 
-  it('runs both jobs and reports their counts', async () => {
+  it('runs every job and reports their counts', async () => {
     vi.mocked(sendDueSoonReminders).mockResolvedValue(4);
+    vi.mocked(sendTrialNotices).mockResolvedValue({ ending: 1, ended: 0 });
     vi.mocked(sendDailyDigests).mockResolvedValue({ checked: 2, sent: 1 });
     vi.mocked(runCleanup).mockResolvedValue(cleanup);
     const res = await call(`Bearer ${SECRET}`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ dueSoonReminders: 4, digests: { checked: 2, sent: 1 }, cleanup });
+    expect(await res.json()).toEqual({
+      dueSoonReminders: 4,
+      digests: { checked: 2, sent: 1 },
+      cleanup,
+      trialNotices: { ending: 1, ended: 0 },
+    });
     // Reminders finish before the digest is built, so they can be included.
     expect(vi.mocked(sendDueSoonReminders).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(sendDailyDigests).mock.invocationCallOrder[0],
@@ -57,11 +68,17 @@ describe('GET /api/cron/daily', () => {
 
   it('still runs cleanup when reminders fail, and reports the failure', async () => {
     vi.mocked(sendDueSoonReminders).mockRejectedValue(new Error('db down'));
+    vi.mocked(sendTrialNotices).mockResolvedValue({ ending: 0, ended: 0 });
     vi.mocked(sendDailyDigests).mockResolvedValue({ checked: 0, sent: 0 });
     vi.mocked(runCleanup).mockResolvedValue(cleanup);
     const res = await call(`Bearer ${SECRET}`);
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ dueSoonReminders: null, digests: { checked: 0, sent: 0 }, cleanup });
+    expect(await res.json()).toEqual({
+      dueSoonReminders: null,
+      digests: { checked: 0, sent: 0 },
+      cleanup,
+      trialNotices: { ending: 0, ended: 0 },
+    });
     expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
       tags: { area: 'cron', job: 'due-soon' },
     });

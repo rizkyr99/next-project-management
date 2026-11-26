@@ -12,7 +12,10 @@ import { toast } from 'sonner';
 
 export interface WorkspaceBillingProps {
   workspaceSlug: string;
+  /** What the workspace pays for: 'pro' only with a subscription (a trial is shown separately). */
   plan: PlanName;
+  /** E2: ISO date the Pro trial ends, while on one. */
+  trialEndsOn: string | null;
   status: string | null;
   /** ISO date the paid period renews. */
   renewsOn: string | null;
@@ -24,6 +27,16 @@ export interface WorkspaceBillingProps {
 }
 
 const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
+const longDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+function planDescription(plan: PlanName, renewsOn: string | null, trialEndsOn: string | null) {
+  if (plan === 'pro') return renewsOn ? `Renews on ${longDate(renewsOn)}.` : 'Billed monthly.';
+  if (trialEndsOn) {
+    return `Every Pro feature is on until ${longDate(trialEndsOn)}, no card needed. Then the workspace moves to Free; nothing is deleted.`;
+  }
+  return 'Free, with no billing.';
+}
 
 /**
  * E1: a workspace's plan in Settings → Billing. Pro is billed per team
@@ -31,7 +44,8 @@ const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
  * Checkout and manages payment in Stripe's portal.
  */
 export function WorkspaceBilling(props: Readonly<WorkspaceBillingProps>) {
-  const { workspaceSlug, plan, status, renewsOn, teamMembers, guests, hasBillingAccount, isOwner } = props;
+  const { workspaceSlug, plan, trialEndsOn, status, renewsOn, teamMembers, guests, hasBillingAccount, isOwner } =
+    props;
   const [isPending, startTransition] = useTransition();
   const pro = PLAN_DETAILS.pro;
   const free = PLAN_DETAILS.free;
@@ -73,14 +87,12 @@ export function WorkspaceBilling(props: Readonly<WorkspaceBillingProps>) {
             <div>
               <CardTitle>Current plan</CardTitle>
               <CardDescription className='mt-1'>
-                {plan === 'pro'
-                  ? renewsOn
-                    ? `Renews on ${new Date(renewsOn).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`
-                    : 'Billed monthly.'
-                  : 'Free, with no billing.'}
+                {planDescription(plan, renewsOn, trialEndsOn)}
               </CardDescription>
             </div>
-            <Badge variant={plan === 'pro' ? 'default' : 'secondary'}>{PLAN_DETAILS[plan].name}</Badge>
+            <Badge variant={plan === 'pro' || trialEndsOn ? 'default' : 'secondary'}>
+              {trialEndsOn ? 'Pro trial' : PLAN_DETAILS[plan].name}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className='space-y-3 text-sm'>
@@ -88,7 +100,7 @@ export function WorkspaceBilling(props: Readonly<WorkspaceBillingProps>) {
             <span className='text-muted-foreground'>Team members</span>
             <span>
               {teamMembers}
-              {plan === 'free' && free.maxMembers !== null ? ` of ${free.maxMembers}` : ''}
+              {plan === 'free' && !trialEndsOn && free.maxMembers !== null ? ` of ${free.maxMembers}` : ''}
             </span>
           </div>
           <div className='flex justify-between gap-4'>

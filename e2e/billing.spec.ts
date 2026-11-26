@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { registerAndLogin } from './helpers/auth';
-import { makePro } from './helpers/plan';
+import { endTrial, makePro } from './helpers/plan';
 import { PLAN_DETAILS } from '../lib/plans';
 
 /**
@@ -34,6 +34,8 @@ test('Free limits client features and seats; Pro lifts them; billing lives with 
   await page.getByPlaceholder('e.g. tide-corp-design').fill(slug);
   await page.getByRole('button', { name: /create workspace/i }).click();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
+  // A new workspace starts on the Pro trial (E2); this spec is about Free.
+  await endTrial(slug);
   await page.getByRole('button', { name: 'Add project' }).click();
   await page.getByLabel('Name').fill('Acme website');
   await page.getByRole('button', { name: 'Create project' }).click();

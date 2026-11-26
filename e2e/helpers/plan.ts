@@ -6,6 +6,15 @@ import { testDb } from './db';
  * Specs that use client guests, approvals, share links or saved templates
  * call this right after creating their workspace.
  */
+/**
+ * Ends a test workspace's Pro trial (E2), so it's on Free: a new workspace
+ * starts on a 14-day trial. Specs that check Free's limits call this first.
+ */
+export async function endTrial(slug: string) {
+  const sql = await testDb();
+  await sql`update workspace set trial_ends_at = now() - interval '1 day' where slug = ${slug}`;
+}
+
 export async function makePro(slug: string) {
   const sql = await testDb();
   await sql`
