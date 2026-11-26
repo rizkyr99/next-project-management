@@ -6,6 +6,12 @@ export const createProjectSchema = z.object({
   workspaceSlug: z.string(),
   name: z.string().min(1, 'Project name is required').max(100, 'Name must be 100 characters or fewer'),
   description: z.string().max(500, 'Description must be 500 characters or fewer').optional(),
+  // B5: start from a template ("builtin:…" or a saved template's id).
+  templateId: z.string().max(64).optional(),
+  /** "YYYY-MM-DD": template due dates count from this day. */
+  startDate: z.union([z.iso.date('Pick a valid start date.'), z.literal('')]).optional(),
+  /** The browser's IANA time zone, so day-only due dates land on the right day. */
+  timeZone: z.string().max(64).optional(),
 });
 
 export const updateProjectSchema = z.object({

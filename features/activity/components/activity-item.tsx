@@ -85,7 +85,9 @@ function describeAction(action: string, metadata: Record<string, string> | null)
     case 'task.deleted':
       return `deleted task ${task}`;
     case 'project.created':
-      return `created project "${m.projectName ?? 'Untitled'}"`;
+      return m.templateName
+        ? `created project "${m.projectName ?? 'Untitled'}" from the "${m.templateName}" template`
+        : `created project "${m.projectName ?? 'Untitled'}"`;
     case 'project.updated':
       return `renamed project "${m.from ?? '?'}" to "${m.to ?? '?'}"`;
     case 'project.archived':

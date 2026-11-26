@@ -19,7 +19,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Archive, ArchiveRestore, Link2, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, CopyPlus, Link2, MoreHorizontal, Pencil, Star, StarOff, Trash2 } from 'lucide-react';
+import { SaveTemplateDialog } from '@/features/templates/components/save-template-dialog';
 import { ShareLinkDialog } from './share-link-dialog';
 import {
   Select,
@@ -70,7 +71,7 @@ export function ProjectActionsMenu({
   canDelete: boolean;
   variant: 'header' | 'sidebar';
 }) {
-  const [dialog, setDialog] = useState<'edit' | 'delete' | 'share' | null>(null);
+  const [dialog, setDialog] = useState<'edit' | 'delete' | 'share' | 'template' | null>(null);
   const [, startFavorite] = useTransition();
   const toggleFavorite = () =>
     startFavorite(async () => {
@@ -122,6 +123,10 @@ export function ProjectActionsMenu({
             <Pencil />
             Edit details
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setDialog('template')}>
+            <CopyPlus />
+            Save as template…
+          </DropdownMenuItem>
           {project.shareToken !== undefined && (
             <DropdownMenuItem onSelect={() => setDialog('share')}>
               <Link2 />
@@ -155,6 +160,12 @@ export function ProjectActionsMenu({
         project={project}
         open={dialog === 'edit'}
         onOpenChange={(open) => setDialog(open ? 'edit' : null)}
+      />
+      <SaveTemplateDialog
+        projectId={project.id}
+        projectName={project.name}
+        open={dialog === 'template'}
+        onOpenChange={(open) => setDialog(open ? 'template' : null)}
       />
       {project.shareToken !== undefined && (
         <ShareLinkDialog
