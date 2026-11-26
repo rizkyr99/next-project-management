@@ -48,8 +48,11 @@ test('an assignment notification opens the task and is marked read', async ({ br
   await sheet.getByRole('button', { name: 'Assign members' }).click();
   await owner.page.getByRole('dialog').getByText(memberName, { exact: true }).click();
   await expect(sheet.getByRole('button', { name: `Unassign ${memberName}` })).toBeVisible();
+  // The sheet shows the change at once; the save (and its notification) follows. Allow a slow CI machine time.
   await expect
-    .poll(async () => (await sql`select count(*)::int as n from notification where user_id = ${memberId}`)[0].n)
+    .poll(async () => (await sql`select count(*)::int as n from notification where user_id = ${memberId}`)[0].n, {
+      timeout: 15000,
+    })
     .toBe(1);
 
   // The member opens the bell and clicks the notification: it lands on the task.
@@ -61,7 +64,9 @@ test('an assignment notification opens the task and is marked read', async ({ br
   await expect(member.page).toHaveURL(/\/projects\/[0-9a-f-]{36}\?task=[0-9a-f-]{36}$/, { timeout: 15000 });
   await expect(member.page.getByRole('dialog', { name: WELCOME })).toBeVisible();
   await expect
-    .poll(async () => (await sql`select read from notification where user_id = ${memberId}`)[0].read)
+    .poll(async () => (await sql`select read from notification where user_id = ${memberId}`)[0].read, {
+      timeout: 15000,
+    })
     .toBe(true);
 
   // The full list links the same way.

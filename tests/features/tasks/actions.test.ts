@@ -61,6 +61,7 @@ import {
   setCommentVisibility,
   updateTaskAssignees,
   updateTaskDescription,
+  updateTaskStartDate,
   updateTaskStatus,
   updateTaskTitle,
 } from '@/features/tasks/actions';
@@ -256,6 +257,30 @@ describe('updateTaskTitle', () => {
     const result = await updateTaskTitle(TASK, '   ');
     expect(result.error).toMatch(/between 1 and 255/);
     expectNoWrites();
+  });
+});
+
+describe('updateTaskStartDate (B4)', () => {
+  it('saves a calendar day and logs it', async () => {
+    const set = vi.fn(() => chain(undefined));
+    db.update.mockReturnValue({ set } as never);
+    expect(await updateTaskStartDate(TASK, '2026-12-01')).toEqual({ success: true });
+    expect(set).toHaveBeenCalledWith({ startDate: '2026-12-01' });
+    expect(insertActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'task.start_date_changed', metadata: expect.objectContaining({ startDate: '2026-12-01' }) }),
+    );
+  });
+
+  it('clears it, and refuses anything that isn’t a day or a task you can open', async () => {
+    const set = vi.fn(() => chain(undefined));
+    db.update.mockReturnValue({ set } as never);
+    expect(await updateTaskStartDate(TASK, null)).toEqual({ success: true });
+    expect(set).toHaveBeenCalledWith({ startDate: null });
+    set.mockClear();
+    expect((await updateTaskStartDate(TASK, '2026-13-40')).error).toBe('Pick a valid start date.');
+    vi.mocked(requireTaskAccess).mockImplementation(denied);
+    expect(await updateTaskStartDate(TASK, '2026-12-01')).toEqual({ error: 'Not found.' });
+    expect(set).not.toHaveBeenCalled();
   });
 });
 

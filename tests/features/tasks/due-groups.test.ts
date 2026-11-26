@@ -49,3 +49,13 @@ describe('groupByDue', () => {
     ]);
   });
 });
+
+describe('calendar days (B4)', () => {
+  it('reads and writes local days, so the date never shifts with the time zone', async () => {
+    const { parseDay, dayKey, formatDay } = await import('@/features/tasks/due');
+    expect(dayKey(parseDay('2026-12-01'))).toBe('2026-12-01');
+    expect(parseDay('2026-12-01').getHours()).toBe(0);
+    expect(formatDay('2026-12-01', new Date(2026, 5, 1))).toBe('Dec 1');
+    expect(formatDay('2027-01-04', new Date(2026, 5, 1))).toBe('Jan 4, 2027');
+  });
+});

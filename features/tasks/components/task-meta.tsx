@@ -26,6 +26,8 @@ export interface TaskData {
   dueDate?: Date | null;
   /** The due date includes a time of day. */
   dueHasTime?: boolean;
+  /** B4: when work starts, as a calendar day ("YYYY-MM-DD"). */
+  startDate?: string | null;
   labels?: { label: LabelInfo }[];
   checklist?: ChecklistItemInfo[];
   assignees: { user: Person }[];

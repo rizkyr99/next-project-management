@@ -8,6 +8,7 @@ export type ActivityAction =
   | 'task.status_changed'
   | 'task.priority_changed'
   | 'task.due_date_changed'
+  | 'task.start_date_changed'
   | 'task.assigned'
   | 'task.unassigned'
   | 'task.comment_added'

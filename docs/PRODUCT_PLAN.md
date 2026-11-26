@@ -104,7 +104,7 @@ Security note: guest access goes through `lib/authz.ts` like everything else, wi
 | E2 | **Trial** | 14-day Pro trial on sign-up, no card; clear downgrade behaviour. | M. Done (#123, released #124): one per owner; on downgrade nothing is deleted, only new Pro things stop |
 | E3 | **Upgrade moments** | When a Free studio hits a gated feature, explain what Pro adds right there, with one click to upgrade. | S. Done (#122, released #124) |
 | E4 | **Agency positioning** | Landing and pricing pages written for studios: client guests free, templates, overview. Screenshots of the new features. | M. Done (#126, released #128); screenshots regenerate with `MARKETING_SHOTS=1` (e2e/marketing-shots.spec.ts) |
-| E5 | **Help and feedback** | A short help centre (getting started, inviting clients, templates) and an in-app feedback button. | M |
+| E5 | **Help and feedback** | A short help centre (getting started, inviting clients, templates) and an in-app feedback button. | M. Done (#130, released #131): /help with 4 guides; feedback saved, then emailed to FEEDBACK_EMAIL |
 
 ### Pricing options (decide before E1)
 

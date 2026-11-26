@@ -13,6 +13,7 @@ import {
   updateTaskAssignees,
   updateTaskDescription,
   updateTaskDueDate,
+  updateTaskStartDate,
   updateTaskPriority,
   updateTaskStatus,
   updateTaskTitle,
@@ -165,6 +166,7 @@ type Overrides = Partial<{
   priority: Priority;
   /** Date and whether it includes a time, saved together. */
   due: { date: Date | null; hasTime: boolean };
+  startDate: string | null;
   labelIds: string[];
   assigneeIds: string[];
   description: string | null;
@@ -213,6 +215,7 @@ function TaskDetailBody({
   const statusId = overrides.statusId ?? task.statusId;
   const priority = overrides.priority ?? task.priority;
   const due = overrides.due ?? { date: task.dueDate ?? null, hasTime: Boolean(task.dueHasTime) };
+  const startDate = overrides.startDate !== undefined ? overrides.startDate : (task.startDate ?? null);
   const labelIds = overrides.labelIds ?? (task.labels ?? []).map((l) => l.label.id);
   const description = overrides.description !== undefined ? overrides.description : (task.description ?? null);
   const assigneeIds = overrides.assigneeIds ?? task.assignees.map((a) => a.user.id);
@@ -322,6 +325,8 @@ function TaskDetailBody({
           }
           onPriorityChange={(next) => save('priority', next, () => updateTaskPriority(task.id, next))}
           onDueChange={(next) => save('due', next, () => updateTaskDueDate(task.id, next.date, next.hasTime))}
+          startDate={startDate}
+          onStartDateChange={(next) => save('startDate', next, () => updateTaskStartDate(task.id, next))}
           onToggleAssignee={toggleAssignee}
           labelsField={
             readOnly ? (

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Clock, X } from 'lucide-react';
 import { useState } from 'react';
-import { formatDue, timeInputValue, withTime } from '../../due';
+import { dayKey, formatDay, formatDue, parseDay, timeInputValue, withTime } from '../../due';
 
 type Due = { date: Date | null; hasTime: boolean };
 
@@ -14,7 +14,16 @@ type Due = { date: Date | null; hasTime: boolean };
  * A due date, optionally at a time. Without a time the task is due that day;
  * with one, at that time (and overdue once it passes).
  */
-export function DatePicker({ value, onChange }: Readonly<{ value: Due; onChange: (due: Due) => void }>) {
+export function DatePicker({
+  value,
+  onChange,
+  notBefore,
+}: Readonly<{
+  value: Due;
+  onChange: (due: Due) => void;
+  /** B4: the task's start day; the due day can't come before it. */
+  notBefore?: string | null;
+}>) {
   const [open, setOpen] = useState(false);
   const { date, hasTime } = value;
 
@@ -34,7 +43,13 @@ export function DatePicker({ value, onChange }: Readonly<{ value: Due; onChange:
         </Button>
       </PopoverTrigger>
       <PopoverContent className='w-auto p-0' align='start'>
-        <Calendar mode='single' selected={date ?? undefined} onSelect={pickDay} />
+        <Calendar
+          mode='single'
+          selected={date ?? undefined}
+          onSelect={pickDay}
+          defaultMonth={date ?? (notBefore ? parseDay(notBefore) : undefined)}
+          disabled={notBefore ? { before: parseDay(notBefore) } : undefined}
+        />
         {date && (
           <div className='space-y-2 border-t p-2'>
             <div className='flex items-center gap-2'>
@@ -72,6 +87,62 @@ export function DatePicker({ value, onChange }: Readonly<{ value: Due; onChange:
               }}>
               <X className='size-3.5 mr-1' />
               Clear date
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * B4: when work starts, as a calendar day. It can't come after the due day,
+ * so a task's range always runs forwards.
+ */
+export function StartDatePicker({
+  value,
+  onChange,
+  notAfter,
+}: Readonly<{
+  value: string | null;
+  onChange: (day: string | null) => void;
+  /** The task's due date, if any. */
+  notAfter?: Date | null;
+}>) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? parseDay(value) : undefined;
+  const latest = notAfter ? new Date(notAfter.getFullYear(), notAfter.getMonth(), notAfter.getDate()) : null;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant='outline' size='sm' className='justify-start gap-2 font-normal' aria-label='Start date'>
+          <CalendarIcon className='size-3.5' />
+          {value ? formatDay(value) : 'No start date'}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className='w-auto p-0' align='start'>
+        <Calendar
+          mode='single'
+          selected={selected}
+          defaultMonth={selected ?? latest ?? undefined}
+          disabled={latest ? { after: latest } : undefined}
+          onSelect={(day) => {
+            onChange(day ? dayKey(day) : null);
+            setOpen(false);
+          }}
+        />
+        {value && (
+          <div className='border-t p-2'>
+            <Button
+              variant='ghost'
+              size='sm'
+              className='w-full text-muted-foreground'
+              onClick={() => {
+                onChange(null);
+                setOpen(false);
+              }}>
+              <X className='size-3.5 mr-1' />
+              Clear start date
             </Button>
           </div>
         )}

@@ -311,6 +311,12 @@ export const task = pgTable(
     dueDate: timestamp('due_date', { withTimezone: true }),
     // False: due on that day (shown without a time). True: due at that time.
     dueHasTime: boolean('due_has_time').default(false).notNull(),
+    /**
+     * B4: when work starts, as a calendar day ("2026-12-01"), so a task can
+     * span a date range. Optional; never after the due day (the pickers
+     * keep them in order).
+     */
+    startDate: date('start_date', { mode: 'string' }),
     order: integer('order').notNull(),
     projectId: text('project_id')
       .notNull()

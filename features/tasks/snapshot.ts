@@ -21,7 +21,7 @@ export async function projectSnapshot(projectId: string): Promise<string> {
     select md5(
       coalesce((
         select string_agg(
-          concat_ws('|', t.id, t.status_id, t."order", t.title, t.priority, t.due_date, t.due_has_time,
+          concat_ws('|', t.id, t.status_id, t."order", t.title, t.priority, t.due_date, t.due_has_time, t.start_date,
                     md5(coalesce(t.description, '')), t.updated_at),
           ',' order by t.id)
         from task t where t.project_id = ${projectId}
