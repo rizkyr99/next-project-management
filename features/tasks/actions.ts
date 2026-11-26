@@ -396,6 +396,7 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
     }
     after(() =>
       emailTaskNotification({
+        projectId: ctx.project.id,
         kind: 'assigned',
         userIds: notifyIds,
         actorName: ctx.session.user.name,
@@ -553,6 +554,7 @@ export async function addComment(
           );
           after(() =>
             emailTaskNotification({
+              projectId: ctx.project.id,
               kind: 'mentioned',
               userIds: mentioned.map((u) => u.id),
               actorName: ctx.session.user.name,

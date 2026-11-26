@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { render } from '@react-email/components';
 import { Resend } from 'resend';
 import { siteUrl } from '@/lib/site';
-import { WorkspaceInviteEmail, workspaceInviteText } from '@/emails/workspace-invite';
+import { WorkspaceInviteEmail, workspaceInviteSubject, workspaceInviteText } from '@/emails/workspace-invite';
 import { PasswordResetEmail, passwordResetText } from '@/emails/password-reset';
 import { VerifyEmail, verifyEmailText } from '@/emails/verify-email';
 import {
@@ -22,8 +22,26 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // address on a verified domain (enforced by lib/env.ts).
 const SANDBOX_FROM = 'Tide <onboarding@resend.dev>';
 
-export function emailFrom(): string {
-  return process.env.EMAIL_FROM?.trim() || SANDBOX_FROM;
+const MAX_SENDER_NAME = 60;
+
+/**
+ * The From header. With `senderName` (a workspace's name) the display name
+ * becomes "Acme Studio via Tide", so a client sees who the email is really
+ * from, while the address stays our verified one. The name is user-chosen
+ * text going into a header, so quotes, backslashes and control characters
+ * (CR/LF would start a new header) are removed and it's quoted.
+ */
+export function emailFrom(senderName?: string): string {
+  const from = process.env.EMAIL_FROM?.trim() || SANDBOX_FROM;
+  const name = senderName
+    ?.replace(/[\u0000-\u001f\u007f"\\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_SENDER_NAME)
+    .trim();
+  if (!name) return from;
+  const address = from.match(/<([^>]+)>\s*$/)?.[1] ?? from;
+  return `"${name} via Tide" <${address}>`;
 }
 
 export const APP_URL = siteUrl();
@@ -72,10 +90,10 @@ export async function sendWorkspaceInviteEmail({
   try {
     const html = await render(WorkspaceInviteEmail(props));
     const { error } = await resend.emails.send({
-      from: emailFrom(),
+      from: emailFrom(workspaceName),
       to,
       // Subjects are plain text, so no escaping is needed.
-      subject: `${inviterName} invited you to ${workspaceName} on Tide`,
+      subject: workspaceInviteSubject(props),
       html,
       text: workspaceInviteText(props),
     });
@@ -171,12 +189,15 @@ async function deliver({
   element,
   text,
   template,
+  senderName,
 }: {
   to: string;
   subject: string;
   element: ReactElement;
   text: string;
   template: string;
+  /** The workspace the email is about, shown as "<name> via Tide". */
+  senderName?: string;
 }): Promise<{ sent: boolean }> {
   if (isReservedTestAddress(to)) {
     console.info(`[email] skipped ${template} to reserved test address`);
@@ -184,7 +205,7 @@ async function deliver({
   }
   try {
     const html = await render(element);
-    const { error } = await resend.emails.send({ from: emailFrom(), to, subject, html, text });
+    const { error } = await resend.emails.send({ from: emailFrom(senderName), to, subject, html, text });
     if (error) throw new Error(`Resend: ${error.name ?? ''} ${error.message}`);
     return { sent: true };
   } catch (err) {
@@ -206,6 +227,7 @@ export function sendTaskNotificationEmail(
     element: TaskNotificationEmail(full),
     text: taskNotificationText(full),
     template: `task-${props.kind}`,
+    senderName: props.workspaceName,
   });
 }
 

@@ -21,6 +21,7 @@ export function EmailLayout({
   children,
   footerNote,
   preferencesUrl,
+  brand,
 }: {
   /** Inbox preview text (the grey line after the subject). */
   preview: string;
@@ -30,6 +31,11 @@ export function EmailLayout({
   footerNote: string;
   /** Notification emails link to the page where they can be turned off. */
   preferencesUrl?: string;
+  /**
+   * The studio the email is from. Shown in place of the Tide wordmark so a
+   * client recognises the sender; Tide stays in the footer.
+   */
+  brand?: string;
 }) {
   return (
     <Html lang='en'>
@@ -37,7 +43,14 @@ export function EmailLayout({
       <Preview>{preview}</Preview>
       <Body style={body}>
         <Container style={container}>
-          <Text style={wordmark}>tide</Text>
+          {brand ? (
+            <>
+              <Text style={brandName}>{brand}</Text>
+              <Text style={brandVia}>via Tide</Text>
+            </>
+          ) : (
+            <Text style={wordmark}>tide</Text>
+          )}
           <Section style={card}>{children}</Section>
           <Hr style={hr} />
           <Text style={footer}>{footerNote}</Text>
@@ -73,6 +86,15 @@ const wordmark = {
   color: '#18181b',
   margin: '0 0 16px',
 };
+const brandName = {
+  fontSize: '20px',
+  fontWeight: 700,
+  lineHeight: '26px',
+  color: '#18181b',
+  margin: '0',
+  wordBreak: 'break-word' as const,
+};
+const brandVia = { fontSize: '12px', lineHeight: '18px', color: '#71717a', margin: '0 0 16px' };
 const card = {
   backgroundColor: '#ffffff',
   border: '1px solid #e4e4e7',
