@@ -7,6 +7,8 @@ import { LeaveWorkspaceButton } from '@/features/workspaces/components/leave-wor
 import { db } from '@/db/drizzle';
 import { label, member, project, projectGuest, taskLabel, user, workspace, workspaceInvite } from '@/db/schema';
 import { LabelManager } from '@/features/labels/components/label-manager';
+import { TemplateList } from '@/features/templates/components/template-list';
+import { savedTemplatesForSettings } from '@/features/templates/queries';
 import { auth } from '@/lib/auth';
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
@@ -24,7 +26,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Settings' };
 
-const TABS = ['general', 'members', 'danger'] as const;
+const TABS = ['general', 'members', 'labels', 'templates', 'danger'] as const;
 
 export default async function WorkspaceSettingsPage({
   params,
@@ -139,6 +141,16 @@ export default async function WorkspaceSettingsPage({
     .groupBy(label.id)
     .orderBy(asc(label.name));
 
+  const templates = (await savedTemplatesForSettings(membership.workspaceId)).map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    taskCount: t.taskCount,
+    createdByName: t.createdByName,
+    createdAt: t.createdAt,
+    canDelete: canManage || t.createdById === session.user.id,
+  }));
+
   const pendingInvites = await db
     .select({
       id: workspaceInvite.id,
@@ -181,6 +193,7 @@ export default async function WorkspaceSettingsPage({
               </span>
             </TabsTrigger>
             <TabsTrigger value='labels'>Labels</TabsTrigger>
+            <TabsTrigger value='templates'>Templates</TabsTrigger>
             <TabsTrigger value='danger' className='text-red-700 data-[state=active]:text-red-700 dark:text-red-400 dark:data-[state=active]:text-red-400'>
               Danger zone
             </TabsTrigger>
@@ -266,6 +279,22 @@ export default async function WorkspaceSettingsPage({
               </CardHeader>
               <CardContent>
                 <LabelManager labels={labels} canDelete={canManage} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Templates ───────────────────────────────── */}
+          <TabsContent value='templates' className='mt-6 space-y-6'>
+            <Card>
+              <CardHeader>
+                <CardTitle>Project templates</CardTitle>
+                <CardDescription>
+                  Start new client jobs from a saved project. Anyone on the team can save one; the person who saved
+                  it{canManage ? ', or an owner or admin,' : ' or an admin'} can delete it.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TemplateList templates={templates} />
               </CardContent>
             </Card>
           </TabsContent>

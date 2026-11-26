@@ -608,6 +608,30 @@ export const projectFavorite = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.projectId] })],
 );
 
+/**
+ * B5: a project saved as a template, for starting new client jobs. `data`
+ * is a snapshot (features/templates/shape.ts), validated on write and on
+ * read, so later edits to the source project don't change the template.
+ */
+export const projectTemplate = pgTable(
+  'project_template',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 100 }).notNull(),
+    description: varchar('description', { length: 500 }),
+    taskCount: integer('task_count').notNull(),
+    data: jsonb('data').notNull(),
+    createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('project_template_workspaceId_idx').on(table.workspaceId)],
+);
+
 export const activityLog = pgTable(
   'activity_log',
   {
