@@ -98,6 +98,7 @@ function describeAction(action: string, metadata: Record<string, string> | null)
     case 'task.deleted':
       return `deleted task ${task}`;
     case 'project.created':
+      if (m.importedFrom) return `imported project "${m.projectName ?? 'Untitled'}" from ${m.importedFrom}`;
       return m.templateName
         ? `created project "${m.projectName ?? 'Untitled'}" from the "${m.templateName}" template`
         : `created project "${m.projectName ?? 'Untitled'}"`;
