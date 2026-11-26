@@ -90,7 +90,7 @@ Security note: guest access goes through `lib/authz.ts` like everything else, wi
 
 | # | Item | Why | Size | Plan |
 |---|---|---|---|---|
-| D1 | **Studio overview** | The workspace home becomes a dashboard: due this week and overdue across all projects, projects at risk, recent client feedback. | M | Free (basic), Pro (full) |
+| D1 | **Studio overview** | The workspace home becomes a dashboard: due this week and overdue across all projects, projects at risk, recent client feedback. | M | Free (basic), Pro (full). Done (#116, released #117); not yet plan-gated (Phase E) |
 | D2 | **Workload** | Tasks per person across projects, by week; see who's overloaded before assigning. | M | Pro |
 | D3 | **Saved filters and "My work"** | Saved views ("My overdue", "Waiting on client"), and My tasks grouped by project and date. | S | Free |
 | D4 | **Import and export** | Import from Trello / CSV to switch tools in minutes; export a project to CSV. | M | Free |
