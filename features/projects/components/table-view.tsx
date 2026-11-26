@@ -3,7 +3,7 @@
 import { useReadOnly } from '@/features/projects/read-only';
 
 import { priorityConfig, type Priority } from '@/features/tasks/priority';
-import { formatDue, isOverdue } from '@/features/tasks/due';
+import { formatDay, formatDue, isOverdue } from '@/features/tasks/due';
 import { LabelChips } from '@/features/labels/components/label-chip';
 import { ChecklistBadge } from '@/features/checklists/components/checklist-badge';
 
@@ -74,6 +74,7 @@ interface TableViewProps {
         priority: Priority;
         dueDate: Date | null;
         dueHasTime?: boolean;
+        startDate?: string | null;
         labels?: { label: { id: string; name: string; color: string | null } }[];
         checklist?: { done: boolean }[];
         assignees: {
@@ -302,6 +303,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
               <TableHead className='w-32' aria-sort={ariaSort(sort, 'priority')}>
                 <SortButton label='Priority' sortKey='priority' sort={sort} setSort={setSort} />
               </TableHead>
+              <TableHead className='w-28'>Start</TableHead>
               <TableHead className='w-36' aria-sort={ariaSort(sort, 'due')}>
                 <SortButton label='Due date' sortKey='due' sort={sort} setSort={setSort} />
               </TableHead>
@@ -361,6 +363,12 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                       {priority.icon}
                       {priority.label}
                     </Badge>
+                  </TableCell>
+
+                  <TableCell>
+                    <span className='text-sm text-muted-foreground'>
+                      {task.startDate ? formatDay(task.startDate) : '—'}
+                    </span>
                   </TableCell>
 
                   <TableCell>

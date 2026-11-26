@@ -99,6 +99,7 @@ export async function saveProjectAsTemplate(
           priority: task.priority,
           dueDate: task.dueDate,
           dueHasTime: task.dueHasTime,
+          startDate: task.startDate,
           statusId: task.statusId,
         })
         .from(task)

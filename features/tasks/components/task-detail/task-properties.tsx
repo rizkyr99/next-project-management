@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { PersonAvatar, type Person } from '../task-meta';
 import { PRIORITIES, priorityConfig, type Priority } from '../../priority';
 import { AssigneePicker } from './assignee-picker';
-import { DatePicker } from './date-picker';
+import { DatePicker, StartDatePicker } from './date-picker';
 import { useReadOnly } from '@/features/projects/read-only';
 import { formatDue } from '../../due';
 
@@ -33,6 +33,8 @@ export function TaskProperties({
   onStatusChange,
   onPriorityChange,
   onDueChange,
+  startDate,
+  onStartDateChange,
   onToggleAssignee,
   labelsField,
 }: {
@@ -45,6 +47,9 @@ export function TaskProperties({
   onStatusChange: (statusId: string) => void;
   onPriorityChange: (priority: Priority) => void;
   onDueChange: (due: { date: Date | null; hasTime: boolean }) => void;
+  /** B4: the start day ("YYYY-MM-DD"), if any. */
+  startDate: string | null;
+  onStartDateChange: (day: string | null) => void;
   onToggleAssignee: (userId: string) => void;
   /** The label picker, built by the sheet. */
   labelsField?: ReactNode;
@@ -128,8 +133,12 @@ export function TaskProperties({
         </Row>
       )}
 
+      <Row icon={<CalendarIcon className='size-4' />} label='Start date'>
+        <StartDatePicker value={startDate} onChange={onStartDateChange} notAfter={due.date} />
+      </Row>
+
       <Row icon={<CalendarIcon className='size-4' />} label='Due date'>
-        <DatePicker value={due} onChange={onDueChange} />
+        <DatePicker value={due} onChange={onDueChange} notBefore={startDate} />
       </Row>
 
       <Row icon={<Users className='size-4' />} label='Assignees' top>

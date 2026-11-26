@@ -8,7 +8,7 @@ import { AlignLeft, MessageSquare, Paperclip } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { openTask } from '../task-link';
 import { PersonAvatar, priorityConfig, type TaskData } from './task-meta';
-import { formatDue, isOverdue } from '../due';
+import { formatDay, formatDue, isOverdue } from '../due';
 import { LabelChips } from '@/features/labels/components/label-chip';
 import { ChecklistBadge } from '@/features/checklists/components/checklist-badge';
 import { ApprovalBadge } from '@/features/approvals/components/approval-badge';
@@ -41,10 +41,13 @@ export function TaskCardPreview({ task, commentCount = 0, done = false }: TaskCa
             {p.label}
           </Badge>
         )}
-        {dueDate && (
+        {dueDate ? (
           <span className={cn('text-xs', overdue ? 'text-destructive' : 'text-muted-foreground')}>
+            {task.startDate && `${formatDay(task.startDate)} – `}
             {formatDue(dueDate, task.dueHasTime)}
           </span>
+        ) : (
+          task.startDate && <span className='text-xs text-muted-foreground'>Starts {formatDay(task.startDate)}</span>
         )}
         <div className='flex items-center gap-2 ml-auto text-muted-foreground'>
           <ChecklistBadge items={task.checklist} />

@@ -38,6 +38,7 @@ import {
   updateTaskAssigneesSchema,
   updateTaskDescriptionSchema,
   updateTaskDueDateSchema,
+  updateTaskStartDateSchema,
   updateTaskPrioritySchema,
   updateTaskStatusSchema,
   updateTaskTitleSchema,
@@ -347,6 +348,30 @@ export async function updateTaskDueDate(taskId: string, dueDate: Date | null, ha
     return { success: true };
   } catch (error) {
     return toActionError(error, 'Failed to update due date.');
+  }
+}
+
+/** B4: when work on the task starts (a calendar day), or null to clear it. */
+export async function updateTaskStartDate(taskId: string, startDate: string | null): Promise<ActionResult> {
+  try {
+    const input = updateTaskStartDateSchema.parse({ taskId, startDate });
+    const ctx = await requireTaskAccess(input.taskId);
+
+    await db.update(task).set({ startDate: input.startDate }).where(eq(task.id, ctx.task.id));
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.start_date_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title, startDate: input.startDate ?? '' },
+    });
+
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Failed to update the start date.');
   }
 }
 
