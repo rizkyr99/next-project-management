@@ -1,113 +1,111 @@
 import { Button } from '@/components/ui/button';
-import {
-  CalendarClock,
-  Columns3,
-  Keyboard,
-  Phone,
-  Search,
-  ShieldCheck,
-  Users,
-} from 'lucide-react';
+import { PLAN_DETAILS, TRIAL_DAYS } from '@/lib/plans';
+import { CopyPlus, Link2, Mail, MessageSquareLock, Paperclip, Search } from 'lucide-react';
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import boardDark from '@/public/marketing/board-dark.webp';
-import notifications from '@/public/marketing/notifications.webp';
-import taskSheet from '@/public/marketing/task-sheet.webp';
+import clientApproval from '@/public/marketing/client-approval.webp';
+import clientBoard from '@/public/marketing/client-board.webp';
+import overview from '@/public/marketing/overview.webp';
 import { HeroShot } from './_components/hero-shot';
 import { PricingTable } from './_components/pricing-table';
 
 export const metadata: Metadata = {
-  title: { absolute: 'Tide: project management for small teams' },
+  title: { absolute: 'Tide: project management for studios and agencies' },
   description:
-    'A shared kanban board for small teams, with task details, comments and @mentions, due-date reminders and live updates. Free for one workspace.',
+    'Run client projects without the email chains. One board for your team, and a place for each client to follow progress, comment and approve work. Clients join free.',
   alternates: { canonical: '/' },
 };
 
+const PRO = PLAN_DETAILS.pro;
+
+/** What a studio gets beyond the three moments above, in the order they ask about it. */
 const FEATURES = [
   {
-    icon: Columns3,
-    title: 'Board, list or table',
-    body: 'Switch views on the same project. Add, rename, colour and reorder columns to match how your team works.',
+    icon: MessageSquareLock,
+    title: 'Internal until you share it',
+    body: 'Comments and files start internal. Share the ones meant for the client, one at a time, and keep the rest of the conversation in the team.',
   },
   {
-    icon: Keyboard,
-    title: 'Works from the keyboard',
-    body: 'Drag cards and columns with the mouse or the arrow keys. Press ⌘K to jump to any task, project or comment.',
+    icon: CopyPlus,
+    title: 'Every job from a template',
+    body: 'Start a website build, a brand identity or a content calendar with its columns, tasks, checklists and dates in place, or save one of your own.',
   },
   {
-    icon: Users,
-    title: 'Workspaces and roles',
-    body: 'Invite people by email as members or admins. Hand a workspace to someone else when you move on.',
+    icon: Link2,
+    title: 'A link for everyone else',
+    body: 'Send a read-only link to the board for stakeholders who won’t sign in. Turn it off or replace it whenever you like.',
   },
   {
-    icon: CalendarClock,
-    title: 'Due-date reminders',
-    body: 'Everyone assigned to a task is reminded before it’s due, in the app and, if they want, by email.',
+    icon: Paperclip,
+    title: 'Files live with the work',
+    body: 'Attach briefs, assets and deliverables to the task they belong to, up to 100 MB each, and share them with the client when they’re ready.',
   },
   {
-    icon: Phone,
-    title: 'Calls inside a project',
-    body: 'Start a voice call from any project when a thread of comments isn’t enough.',
+    icon: Mail,
+    title: 'Emails in your studio’s name',
+    body: 'Invites, approval requests and updates reach clients from “your studio via Tide”, written for someone outside your team.',
   },
   {
-    icon: ShieldCheck,
-    title: 'Your data stays yours',
-    body: 'Each workspace is private to its members. Delete your account and everything only you own goes with it.',
+    icon: Search,
+    title: 'Everything a team expects',
+    body: 'Board, list and table views, labels and checklists, @mentions, due-date reminders, search with ⌘K, an activity log, calls and dark mode.',
   },
 ];
 
 const FAQ = [
   {
-    q: 'Is Tide really free?',
-    a: 'Yes. Free covers a team of up to three with unlimited projects and tasks, boards, labels, checklists and the built-in templates. Pro adds what working with clients needs, and you pay per team member.',
-  },
-  {
-    q: 'What is a workspace?',
-    a: 'A workspace is one team’s space: its members, projects and boards. Each workspace has its own plan, and you can have as many as you like.',
+    q: 'What does my client see?',
+    a: 'Only the projects you share with them. On those they see the board and the tasks, plus the comments and files you’ve shared and anything they’ve added themselves. They never see your other clients, your internal comments or the rest of your workspace.',
   },
   {
     q: 'Do I pay for my clients?',
     a: 'No. Clients join as guests on the projects you share with them, and guests are always free. You pay only for your own team.',
   },
   {
-    q: 'Who can see my projects?',
-    a: 'Only people you invite to your workspace. Invites go to a specific email address and expire after seven days.',
+    q: 'How does the free trial work?',
+    a: `A new workspace gets ${TRIAL_DAYS} days of Pro with no card. We email you before it ends. If you don’t upgrade, the workspace moves to Free: nothing is deleted, and clients you invited keep their access.`,
   },
   {
-    q: 'Will Tide flood my inbox?',
-    a: 'No. You choose which emails you get: when you’re assigned a task, when someone mentions you, and an optional daily summary. The in-app bell always has everything.',
+    q: 'Is there a free plan?',
+    a: 'Yes. Free covers a team of up to three with unlimited projects and tasks, boards, labels, checklists and the built-in templates. Pro adds client guests, approvals, share links and your own templates.',
+  },
+  {
+    q: 'What is a workspace?',
+    a: 'A workspace is one team’s space: its members, projects and boards. Each workspace has its own plan, and you can have as many as you like.',
   },
   {
     q: 'Can I leave whenever I want?',
-    a: 'Yes. Cancel a paid plan from Billing at any time, and delete your account from Account settings. Workspaces you share with others must be handed over first, so your team keeps its work.',
+    a: 'Yes. Cancel Pro from your workspace’s Billing settings at any time, and delete your account from Account settings. Workspaces you share with others must be handed over first, so your team keeps its work.',
   },
 ];
 
 export default function LandingPage() {
   return (
     <>
-      {/* Hero: the headline, then the real board rising across the fold. */}
+      {/* Hero: the promise, then the real board rising across the fold. */}
       <section aria-labelledby='hero-title' className='relative overflow-hidden'>
         <div className='mx-auto max-w-6xl px-4 pt-12 sm:px-6 sm:pt-20'>
           <h1
             id='hero-title'
-            className='font-display max-w-[15ch] text-[clamp(2.6rem,6.4vw,5rem)] font-bold leading-[1.02] tracking-[-0.035em] text-balance'>
-            Everything your team is working on, in one board.
+            className='font-display max-w-[14ch] text-[clamp(2.6rem,6.4vw,5rem)] font-bold leading-[1.02] tracking-[-0.035em] text-balance'>
+            Client work, without the email chains.
           </h1>
           <p className='mt-6 max-w-[58ch] text-lg leading-relaxed text-muted-foreground'>
-            Tide gives small teams a shared kanban board, tasks with comments and @mentions, and
-            reminders before things are due. Changes show up for everyone as they happen.
+            Tide is where small studios and agencies run their projects: one board for your team, and a place
+            for each client to follow progress, comment and approve work. Your clients join free.
           </p>
           <div className='mt-8 flex flex-wrap items-center gap-3'>
             <Button asChild size='lg'>
-              <Link href='/register'>Sign up free</Link>
+              <Link href='/register'>Start your free trial</Link>
             </Button>
             <Button asChild size='lg' variant='outline'>
               <Link href='/login'>Log in</Link>
             </Button>
           </div>
-          <p className='mt-4 text-sm text-muted-foreground'>Free for one workspace. No card needed.</p>
+          <p className='mt-4 text-sm text-muted-foreground'>
+            {TRIAL_DAYS} days of Pro, no card. Then ${PRO.priceMonthly} per team member a month, or stay on Free.
+          </p>
         </div>
 
         {/* The tide line: the mist starts halfway down the screenshot. */}
@@ -121,37 +119,36 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Three moments from the real product. */}
+      {/* Three moments in a client project, from the real product. */}
       <div className='bg-mist pb-20 pt-16 sm:pb-28 sm:pt-24'>
         <div className='mx-auto max-w-6xl space-y-20 px-4 sm:space-y-28 sm:px-6'>
           <Moment
-            title='Open a task without losing your place'
+            title='Bring the client in, only where they belong'
             body={[
-              'Every card opens beside the board with its description, assignees, due date and the whole conversation.',
-              'Write descriptions in Markdown, @mention a teammate to pull them in, and copy the link to share exactly this task.',
+              'Invite a client as a guest on the projects that are theirs. They see where the work stands, what’s waiting on them and what you’ve shared.',
+              'They never see your other clients, your internal comments or the rest of your workspace.',
             ]}
-            image={taskSheet}
-            alt='A task opened in a side panel with a checklist in its description and three comments, one mentioning Maya Chen.'
-            imageClass='max-w-[440px]'
+            image={clientBoard}
+            alt='What a client sees: only the Acme website project, with tasks in To Do, In Progress, Client review and Done, one awaiting their approval.'
           />
           <Moment
             reverse
-            title='See what needs you, and nothing else'
+            title='Sign-off in one click, not a reply-all'
             body={[
-              'Tide tells you when you’re assigned a task, mentioned in a comment, or have something due in the next two days.',
-              'Click a notification to land on that task. Choose which ones also come by email, or get one summary a day.',
+              'Ask for approval on a task with a short note. The client gets an email in your studio’s name and approves, or asks for changes and says what.',
+              'The answer shows on the card, reaches whoever asked, and stays in the task’s history.',
             ]}
-            image={notifications}
-            alt='The notifications menu showing a mention from Priya Raman and a task assigned by Jonas Weber.'
-            imageClass='max-w-[440px]'
+            image={clientApproval}
+            alt='Maya Chen asked for approval on the Visual design task: “Homepage, About and Services are ready.” with Approve and Request changes buttons.'
+            imageClass='max-w-[560px]'
           />
           <Moment
-            title='Easy on the eyes after dark'
+            title='Every project’s state before your first coffee'
             body={[
-              'Dark mode follows your system setting, or switch it from the header. Every screen is designed for both.',
+              'Your workspace home shows what’s late and due this week across every project, which jobs need a look and why, what’s waiting on clients and what they said.',
             ]}
-            image={boardDark}
-            alt='The Tide board in dark mode.'
+            image={overview}
+            alt='The studio overview: tasks due in the next 7 days, Globex rebrand marked at risk, one approval waiting on a client, and Sam Rivera’s latest feedback.'
           />
         </div>
       </div>
@@ -159,7 +156,7 @@ export default function LandingPage() {
       {/* Everything else, as a plain list. */}
       <section aria-labelledby='features-title' className='mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28'>
         <h2 id='features-title' className='font-display max-w-[20ch] text-3xl font-bold tracking-[-0.03em] sm:text-4xl'>
-          The rest of what a small team needs
+          Built for the way studios work
         </h2>
         <ul className='mt-12 grid gap-x-12 gap-y-10 sm:grid-cols-2 lg:grid-cols-3'>
           {FEATURES.map(({ icon: Icon, title, body }) => (
@@ -170,11 +167,6 @@ export default function LandingPage() {
             </li>
           ))}
         </ul>
-        <p className='mt-12 flex items-center gap-2 text-sm text-muted-foreground'>
-          <Search className='size-4' aria-hidden />
-          Plus search across tasks and comments, an activity log for every workspace, and a My tasks list
-          across all your projects.
-        </p>
       </section>
 
       <section aria-labelledby='pricing-title' className='border-t'>
@@ -183,7 +175,8 @@ export default function LandingPage() {
             Pricing
           </h2>
           <p className='mt-3 max-w-[60ch] text-muted-foreground'>
-            Free for a small team. Pro is priced per team member, and your clients are always free.
+            Start with {TRIAL_DAYS} days of Pro, no card. Then stay on Free for a team of three, or pay $
+            {PRO.priceMonthly} per team member for Pro. Your clients are always free.
           </p>
           <div className='mt-10'>
             <PricingTable />
@@ -217,10 +210,10 @@ export default function LandingPage() {
       <section className='border-t bg-mist'>
         <div className='mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-16 sm:px-6 md:flex-row md:items-center md:justify-between'>
           <h2 className='font-display max-w-[22ch] text-3xl font-bold tracking-[-0.03em]'>
-            Set up your team’s board in a couple of minutes.
+            Run your next client project in Tide.
           </h2>
           <Button asChild size='lg'>
-            <Link href='/register'>Sign up free</Link>
+            <Link href='/register'>Start your free trial</Link>
           </Button>
         </div>
       </section>
@@ -235,14 +228,14 @@ function Moment({
   alt,
   reverse,
   imageClass,
-}: {
+}: Readonly<{
   title: string;
   body: string[];
-  image: typeof boardDark;
+  image: typeof overview;
   alt: string;
   reverse?: boolean;
   imageClass?: string;
-}) {
+}>) {
   return (
     <section className='grid items-center gap-10 md:grid-cols-[2fr_3fr] md:gap-16'>
       <div className={reverse ? 'md:order-2' : ''}>

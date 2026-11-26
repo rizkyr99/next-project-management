@@ -18,13 +18,15 @@ interface TaskCardProps {
   commentCount?: number;
   /** While the board is filtered, cards open but can't be dragged. */
   dragDisabled?: boolean;
+  /** In the project's last column: finished, so a past due date isn't "overdue". */
+  done?: boolean;
 }
 
 /** The card's face. Also used, without drag behaviour, as the drag overlay. */
-export function TaskCardPreview({ task, commentCount = 0 }: TaskCardProps) {
+export function TaskCardPreview({ task, commentCount = 0, done = false }: TaskCardProps) {
   const p = priorityConfig[task.priority];
   const dueDate = task.dueDate ?? null;
-  const overdue = isOverdue(dueDate, task.dueHasTime);
+  const overdue = !done && isOverdue(dueDate, task.dueHasTime);
   const assignees = task.assignees.map((a) => a.user);
 
   return (
@@ -91,7 +93,7 @@ export const cardClassName =
  * A draggable board card. Clicking it (or pressing Enter) opens the task
  * sheet via `?task=`; Space picks it up for keyboard dragging.
  */
-export function TaskCard({ task, commentCount, dragDisabled = false }: TaskCardProps) {
+export function TaskCard({ task, commentCount, dragDisabled = false, done = false }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
     disabled: dragDisabled || task.pending,
@@ -106,7 +108,7 @@ export function TaskCard({ task, commentCount, dragDisabled = false }: TaskCardP
         aria-label={`Saving task ${task.title}`}
         data-testid='task-saving'
         className={cn(cardClassName, 'opacity-60 cursor-progress')}>
-        <TaskCardPreview task={task} commentCount={commentCount} />
+        <TaskCardPreview task={task} commentCount={commentCount} done={done} />
       </div>
     );
   }
@@ -135,7 +137,7 @@ export function TaskCard({ task, commentCount, dragDisabled = false }: TaskCardP
       aria-label={`Open task ${task.title}`}
       data-testid={`task-${task.id}`}
       className={cardClassName}>
-      <TaskCardPreview task={task} commentCount={commentCount} />
+      <TaskCardPreview task={task} commentCount={commentCount} done={done} />
     </div>
   );
 }

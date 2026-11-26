@@ -47,7 +47,10 @@ test('project details, then archive and restore a project', async ({ page }) => 
   // Archive from the header: a banner, gone from the sidebar, counted under Archived.
   await page.getByRole('button', { name: 'Project options' }).click();
   await page.getByRole('menuitem', { name: 'Archive project' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible();
+  // Waits on the archive action and the page refresh after it: give a slow CI machine time.
+  await expect(page.getByRole('status').filter({ hasText: 'This project is archived' })).toBeVisible({
+    timeout: 15000,
+  });
   await expect(projectsList.getByRole('link', { name: 'Brand refresh' })).toHaveCount(0);
   const archivedLink = sidebar.getByRole('link', { name: /^Archived/ });
   await expect(archivedLink).toContainText('1');

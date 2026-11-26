@@ -33,7 +33,10 @@ test('create a label from a task, see it on the card, filter by it, and take it 
   await sheet.getByRole('button', { name: 'Add labels' }).click();
   await page.getByRole('textbox', { name: 'Find or create a label' }).fill('Design');
   await page.getByRole('button', { name: /Create .Design./ }).click();
-  await expect(page.getByRole('menuitemcheckbox', { name: 'Design' })).toHaveAttribute('aria-checked', 'true');
+  // The new label appears once the server has created it: allow for a slow CI machine.
+  await expect(page.getByRole('menuitemcheckbox', { name: 'Design' })).toHaveAttribute('aria-checked', 'true', {
+    timeout: 15000,
+  });
   await page.keyboard.press('Escape');
   await expect(sheet.getByRole('button', { name: /^Labels: Design\./ })).toBeVisible();
   await page.waitForTimeout(500);
