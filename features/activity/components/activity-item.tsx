@@ -18,6 +18,7 @@ type ActivityAction =
   | 'task.approved'
   | 'task.changes_requested'
   | 'task.deleted'
+  | 'task.moved'
   | 'task.file_added'
   | 'task.file_removed'
   | 'project.created'
@@ -58,7 +59,9 @@ function describeAction(action: string, metadata: Record<string, string> | null)
 
   switch (action as ActivityAction) {
     case 'task.created':
-      return `created task ${task}`;
+      return m.duplicatedFrom ? `duplicated "${m.duplicatedFrom}" as ${task}` : `created task ${task}`;
+    case 'task.moved':
+      return `moved ${task} from "${m.fromProject ?? '?'}" to "${m.toProject ?? '?'}"`;
     case 'task.title_changed':
       return `renamed a task to ${task}`;
     case 'task.description_changed':

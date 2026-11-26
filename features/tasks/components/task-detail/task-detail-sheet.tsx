@@ -25,6 +25,7 @@ import { TaskApproval } from '@/features/approvals/components/task-approval';
 import type { Person, Priority, TaskData } from '../task-meta';
 import { deleteTaskWithUndo } from './delete-task';
 import { CopyTaskLink } from './copy-task-link';
+import { TaskActionsMenu } from './task-actions-menu';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { setTaskLabels } from '@/features/labels/actions';
 import type { LabelInfo } from '@/features/labels/schema';
@@ -310,6 +311,7 @@ function TaskDetailBody({
         )}
         </div>
         <CopyTaskLink taskId={task.id} />
+        {!readOnly && <TaskActionsMenu taskId={task.id} title={title} />}
       </SheetHeader>
 
       <div className='space-y-5 px-4 pb-6'>
