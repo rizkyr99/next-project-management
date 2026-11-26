@@ -12,15 +12,38 @@ import { endTrial } from './helpers/plan';
 
 /** Drags with the mouse the way a person would: press, move past the 5 px threshold, move, release. */
 async function drag(page: Page, from: Locator, to: Locator) {
-  // The page refreshes after each save, and rows can change height; let it settle before measuring.
-  await page.waitForTimeout(2000);
   const a = (await from.boundingBox())!;
   const b = (await to.boundingBox())!;
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await page.mouse.down();
   await page.mouse.move(a.x + a.width / 2 + 12, a.y + a.height / 2, { steps: 4 });
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 12 });
+  // The drop target is worked out on the next animation frame: pause over it,
+  // as a person does, so the release doesn't use one from along the way.
+  await page.mouse.move(b.x + b.width / 2 + 2, b.y + b.height / 2 + 2);
+  await page.waitForTimeout(150);
   await page.mouse.up();
+}
+
+/**
+ * Waits until a task's bar sits inside a day's cell. After a move the page
+ * refreshes and rows can change height; measuring the next drop target
+ * before that settles would aim at the wrong day.
+ */
+async function settledOn(bar: Locator, cell: Locator) {
+  await expect
+    .poll(
+      async () => {
+        const b = await bar.boundingBox();
+        const c = await cell.boundingBox();
+        if (!b || !c) return false;
+        const x = b.x + 4;
+        const y = b.y + b.height / 2;
+        return x >= c.x && x <= c.x + c.width && y >= c.y && y <= c.y + c.height;
+      },
+      { timeout: 15000 },
+    )
+    .toBe(true);
 }
 
 const localDay = (d: Date) =>
@@ -65,6 +88,7 @@ test('tasks on the calendar: ranges, drag to reschedule, schedule the undated, P
   const cell = (day: number) => page.locator(`[data-day="${localDay(on(day))}"]`);
 
   // Kickoff from the 10th to the 17th.
+  await settledOn(chip('Kickoff'), cell(10));
   await drag(page, chip('Kickoff'), cell(17));
   await expect(page.getByText(/Moved “Kickoff”/)).toBeVisible();
   await expect
@@ -73,6 +97,7 @@ test('tasks on the calendar: ranges, drag to reschedule, schedule the undated, P
       return localDay(new Date(row.due_date));
     })
     .toBe(localDay(on(17)));
+  await settledOn(chip('Kickoff'), cell(17));
 
   // Design (12th–15th) dragged to start on the 19th: it keeps its four days.
   await drag(page, chip('Design'), cell(19));
@@ -83,6 +108,7 @@ test('tasks on the calendar: ranges, drag to reschedule, schedule the undated, P
       return [localDay(new Date(row.start_date)), localDay(new Date(row.due_date))];
     })
     .toEqual([localDay(on(19)), localDay(on(22))]);
+  await settledOn(chip('Design'), cell(19));
 
   // Copy, undated, dropped on the 24th: it gets that due date.
   await drag(page, undated.getByRole('button', { name: /^Copy,/ }), cell(24));

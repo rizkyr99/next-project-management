@@ -33,8 +33,9 @@ export function ProjectViews({ project, commentCountMap, workspaceMembers, curre
     return <ListView key={dataKey} project={project} workspaceMembers={workspaceMembers} currentUserId={currentUserId} />;
   }
   if (view === 'calendar') {
-    // Remounted when the data changes, like the list and table; the month lives in the URL.
-    return <CalendarView key={dataKey} project={project} currentUserId={currentUserId} />;
+    // Not remounted on new data (unlike the list and table): a remount would
+    // cancel a drag in progress. It reconciles its own pending moves.
+    return <CalendarView project={project} currentUserId={currentUserId} />;
   }
   if (view === 'table') {
     return <TableView key={dataKey} project={project} workspaceMembers={workspaceMembers} currentUserId={currentUserId} />;

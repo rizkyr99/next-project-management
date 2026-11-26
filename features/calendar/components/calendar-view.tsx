@@ -41,6 +41,11 @@ interface CalendarViewProps {
   };
 }
 
+/** A task's dates as one comparable string. */
+function scheduleKey(t: Pick<TaskData, 'startDate' | 'dueDate' | 'dueHasTime'>) {
+  return `${t.startDate ?? ''}|${t.dueDate ? new Date(t.dueDate).getTime() : ''}|${t.dueHasTime ? 1 : 0}`;
+}
+
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTH = /^(\d{4})-(\d{2})$/;
 
@@ -84,7 +89,11 @@ function Calendar({ project, currentUserId }: Readonly<Required<Pick<CalendarVie
   const readOnly = useReadOnly();
   const [year, month] = useMonth();
   const { filters, active } = useTaskFilters();
-  const [moved, setMoved] = useState<Record<string, Pick<TaskData, 'startDate' | 'dueDate' | 'dueHasTime'>>>({});
+  // Moves shown before the server confirms them. Each remembers the task's
+  // dates when it was made: once the server's dates differ from those (the
+  // save landed, or someone else changed the task), the server's win. So the
+  // view never has to remount for new data, which would cancel a drag.
+  const [moved, setMoved] = useState<Record<string, { before: string; next: Pick<TaskData, 'startDate' | 'dueDate' | 'dueHasTime'> }>>({});
   const [dragging, setDragging] = useState<CalendarTask | null>(null);
   const [, start] = useTransition();
   const today = dayKey(new Date());
@@ -94,7 +103,7 @@ function Calendar({ project, currentUserId }: Readonly<Required<Pick<CalendarVie
     const all = statuses.flatMap((s, i) =>
       s.tasks.map((t) => ({
         ...t,
-        ...moved[t.id],
+        ...(moved[t.id]?.before === scheduleKey(t) ? moved[t.id].next : {}),
         statusId: s.id,
         statusName: s.name,
         statusColor: s.color ?? null,
@@ -123,8 +132,10 @@ function Calendar({ project, currentUserId }: Readonly<Required<Pick<CalendarVie
     const fromDay = (a.data.current?.fromDay as string | null) ?? null;
     if (!task || !toDay || toDay === fromDay) return;
     const next = moveSchedule(task, fromDay, toDay);
-    const before = { startDate: task.startDate ?? null, dueDate: task.dueDate ?? null, dueHasTime: task.dueHasTime };
-    setMoved((m) => ({ ...m, [task.id]: next }));
+    // The server's dates for this task, before any move shown here.
+    const server = project?.statuses.flatMap((st) => st.tasks).find((t) => t.id === task.id);
+    if (!server) return;
+    setMoved((m) => ({ ...m, [task.id]: { before: scheduleKey(server), next } }));
     start(async () => {
       const result = await updateTaskSchedule({
         taskId: task.id,
@@ -133,7 +144,11 @@ function Calendar({ project, currentUserId }: Readonly<Required<Pick<CalendarVie
         hasTime: next.dueHasTime,
       });
       if (result.error !== undefined) {
-        setMoved((m) => ({ ...m, [task.id]: before }));
+        setMoved((m) => {
+          const rest = { ...m };
+          delete rest[task.id];
+          return rest;
+        });
         toast.error(result.error, { position: 'top-center' });
       } else {
         toast.success(`Moved “${task.title}” to ${formatDay(next.startDate ?? toDay)}`, { position: 'top-center' });
