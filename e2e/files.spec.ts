@@ -2,6 +2,7 @@ import { test, expect, type Browser } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { registerAndLogin } from './helpers/auth';
+import { makePro } from './helpers/plan';
 import { addTask } from './helpers/tasks';
 
 /**
@@ -33,6 +34,7 @@ test('attach, download, share and remove task files; clients see only what is sh
   await owner.page.getByPlaceholder('e.g. tide-corp-design').fill(slug);
   await owner.page.getByRole('button', { name: /create workspace/i }).click();
   await expect(owner.page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
+  await makePro(slug);
   await owner.page.getByRole('button', { name: 'Add project' }).click();
   await owner.page.getByLabel('Name').fill('Acme website');
   await owner.page.getByRole('button', { name: 'Create project' }).click();

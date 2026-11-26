@@ -66,8 +66,9 @@ async function handleEvent(event: Stripe.Event) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId;
-      if (!userId || !session.subscription) break;
+      // E1: subscriptions belong to workspaces (features/billing/actions.ts).
+      const workspaceId = session.metadata?.workspaceId;
+      if (!workspaceId || !session.subscription) break;
 
       const stripeSub = await stripe.subscriptions.retrieve(
         session.subscription as string,
@@ -88,7 +89,7 @@ async function handleEvent(event: Stripe.Event) {
             : null,
           updatedAt: new Date(),
         })
-        .where(eq(subscription.userId, userId));
+        .where(eq(subscription.workspaceId, workspaceId));
       break;
     }
 

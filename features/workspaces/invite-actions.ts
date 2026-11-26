@@ -18,6 +18,8 @@ import {
 } from '@/lib/invite-token';
 import { findInviteById, findInviteByToken, type InviteRow } from '@/lib/invites';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { memberLimitProblem, planGateProblem, syncSeats } from '@/lib/subscription';
+import { after } from 'next/server';
 
 const inviteSchema = z
   .object({
@@ -116,8 +118,13 @@ export async function inviteUserToWorkspace(
       };
     }
 
-    // TODO(plan-limits): count pending invites + members against a member cap
-    // if plans ever get one.
+    // E1: clients are a Pro feature; team seats are limited on Free, with
+    // pending invites counted (a refreshed invite for this email isn't new).
+    const planProblem =
+      role === 'guest'
+        ? await planGateProblem(ws.id, 'clientGuests')
+        : await memberLimitProblem(ws.id, { exceptInviteEmail: email });
+    if (planProblem) return { error: planProblem };
 
     // Re-inviting the same email refreshes the pending invite (new token, new
     // expiry, new role) instead of creating a duplicate, so old links stop working.
@@ -199,8 +206,23 @@ export async function resendInvite(
   try {
     const { session, workspace: ws } = await requireInviteManager(workspaceSlug);
     await enforceRateLimit('invites', session.user.id);
-    const { token, hash } = generateInviteToken();
 
+    // Resending can bring an expired invite back, so it passes the plan's limits again.
+    const [current] = await db
+      .select({ email: workspaceInvite.email, role: workspaceInvite.role })
+      .from(workspaceInvite)
+      .where(
+        and(eq(workspaceInvite.id, inviteId), eq(workspaceInvite.workspaceId, ws.id), eq(workspaceInvite.status, 'pending')),
+      )
+      .limit(1);
+    if (!current) return { error: 'Invite not found.' };
+    const planProblem =
+      current.role === 'guest'
+        ? await planGateProblem(ws.id, 'clientGuests')
+        : await memberLimitProblem(ws.id, { exceptInviteEmail: current.email });
+    if (planProblem) return { error: planProblem };
+
+    const { token, hash } = generateInviteToken();
     const [updated] = await db
       .update(workspaceInvite)
       .set({ token: hash, expiresAt: inviteExpiry(), invitedByUserId: session.user.id })
@@ -305,6 +327,17 @@ async function loadInvite(
  * into the workspace. Works with the raw token (email link) or the invite ID
  * (/invites page, where the email match is the authorization).
  */
+/**
+ * A team seat on a Free workspace may have filled up since the invite was
+ * sent. The invite itself was counted then, so only members count now.
+ */
+async function seatProblem(invite: InviteRow): Promise<string | null> {
+  if (invite.role === 'guest') return null;
+  const full = await memberLimitProblem(invite.workspaceId, { includePendingInvites: false });
+  if (!full) return null;
+  return `${invite.workspaceName} has no room for another team member on the Free plan. Ask ${invite.inviterName ?? 'whoever invited you'} to upgrade it or free a seat.`;
+}
+
 export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
   const session = await requireSession();
   let slug: string;
@@ -327,6 +360,8 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
       if (!already) return { error: stateMessage(state) };
       slug = invite.workspaceSlug;
     } else {
+      const full = await seatProblem(invite);
+      if (full) return { error: full };
       // A single statement, so the membership is inserted only from the row
       // *this* request claimed (pending and unexpired). A revoke, an expiry or
       // a concurrent accept leaves `claimed` empty and inserts nothing, even
@@ -378,6 +413,10 @@ export async function acceptInvite(rawRef: InviteRef): Promise<ActionResult> {
         action: 'member.joined',
         metadata: { memberName: session.user.name, role: invite.role },
       });
+      // One more seat on a paid plan. A guest leaves the count as it is, so
+      // the sync does nothing for them.
+      const workspaceId = invite.workspaceId;
+      after(() => syncSeats(workspaceId));
       slug = invite.workspaceSlug;
     }
   } catch (error) {

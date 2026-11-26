@@ -2,6 +2,7 @@ import { test, expect, type Browser, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { registerAndLogin } from './helpers/auth';
+import { makePro } from './helpers/plan';
 import { addTask } from './helpers/tasks';
 
 /**
@@ -42,6 +43,7 @@ test('internal comments stay with the team; shared ones reach the client', async
   await owner.page.getByPlaceholder('e.g. tide-corp-design').fill(slug);
   await owner.page.getByRole('button', { name: /create workspace/i }).click();
   await expect(owner.page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
+  await makePro(slug);
   await owner.page.getByRole('button', { name: 'Add project' }).click();
   await owner.page.getByLabel('Name').fill('Acme website');
   await owner.page.getByRole('button', { name: 'Create project' }).click();

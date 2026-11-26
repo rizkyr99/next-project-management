@@ -38,10 +38,6 @@ export function CreateWorkspaceForm({ onSuccess }: CreateWorkspaceFormProps) {
   const onSubmit = async (values: z.infer<typeof workspaceFormSchema>) => {
     const result = await createWorkspace(values);
     if ('error' in result && result.error !== undefined) {
-      if (result.error.includes('limit')) {
-        router.push('/settings/billing');
-        return;
-      }
       toast.error(result.error, { position: 'top-center' });
       return;
     }

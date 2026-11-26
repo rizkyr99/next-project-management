@@ -11,7 +11,8 @@ const db = vi.hoisted(() => ({
 vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
-vi.mock('@/lib/subscription', () => ({ checkWorkspaceLimit: vi.fn() }));
+vi.mock('@/lib/subscription', () => ({ syncSeats: vi.fn(), cancelWorkspaceSubscription: vi.fn() }));
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => fn() }));
 vi.mock('@/lib/membership', () => ({
   lockWorkspace: vi.fn(() => 'lock'),
   unassignFromWorkspaceTasks: vi.fn(() => 'unassign'),

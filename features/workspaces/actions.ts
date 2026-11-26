@@ -5,9 +5,10 @@ import { requireSession, runAction } from '@/lib/authz';
 import { db } from '@/db/drizzle';
 import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
-import { checkWorkspaceLimit } from '@/lib/subscription';
+import { cancelWorkspaceSubscription, syncSeats } from '@/lib/subscription';
 import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { isUniqueViolation } from '@/lib/db-errors';
@@ -33,13 +34,7 @@ export async function createWorkspace(
       return { error: parsed.error.issues[0]?.message ?? 'Invalid workspace details' };
     }
     const validated = parsed.data;
-
-    const limitCheck = await checkWorkspaceLimit(userId);
-    if (!limitCheck.allowed) {
-      return {
-        error: `Workspace limit reached (${limitCheck.current}/${limitCheck.limit}). Upgrade your plan to create more workspaces.`,
-      };
-    }
+    // No limit on how many: every workspace has its own plan (E1).
 
     // The workspace and its owner membership are written in one batch (a single
     // transaction), so a failure can never leave a workspace without an owner.
@@ -190,6 +185,8 @@ export async function removeMember(workspaceSlug: string, memberId: string) {
       action: 'member.removed',
       metadata: { memberName: removedUser?.name ?? 'Unknown' },
     });
+    // One seat fewer on a paid plan (guests aren't billed).
+    if (targetMember.role !== 'guest') after(() => syncSeats(targetWorkspace.id));
 
     revalidatePath(`/workspaces/${workspaceSlug}/settings`);
     return { success: true };
@@ -300,6 +297,15 @@ export async function deleteWorkspace(workspaceSlug: string) {
 
     if (!actorMembership || actorMembership.role !== 'owner') {
       return { error: 'Only the workspace owner can delete this workspace' };
+    }
+
+    // Stop billing first: if Stripe can't be reached, the workspace stays
+    // rather than being deleted while its subscription keeps charging.
+    try {
+      await cancelWorkspaceSubscription(targetWorkspace.id);
+    } catch (error) {
+      console.error('[billing] cancel before delete failed:', error);
+      return { error: 'Couldn’t cancel this workspace’s subscription, so it wasn’t deleted. Try again in a moment.' };
     }
 
     // workspace.userId re-checks ownership at write time (it may have just been transferred).

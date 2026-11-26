@@ -9,6 +9,7 @@ const db = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
+vi.mock('@/lib/subscription', () => ({ planGateProblem: vi.fn(async () => null) }));
 vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));

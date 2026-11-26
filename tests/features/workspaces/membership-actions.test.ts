@@ -11,7 +11,8 @@ const db = vi.hoisted(() => ({
 vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
-vi.mock('@/lib/subscription', () => ({ checkWorkspaceLimit: vi.fn() }));
+vi.mock('@/lib/subscription', () => ({ syncSeats: vi.fn() }));
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => fn() }));
 vi.mock('@/lib/membership', () => ({
   lockWorkspace: vi.fn(() => ({ kind: 'lock' })),
   unassignFromWorkspaceTasks: vi.fn((userId: string) => ({ kind: 'unassign', userId })),
@@ -28,7 +29,7 @@ import { auth } from '@/lib/auth';
 import { insertActivity } from '@/lib/activity';
 import { AuthzError, requireWorkspaceMember } from '@/lib/authz';
 import { lockWorkspace, unassignFromWorkspaceTasks } from '@/lib/membership';
-import { checkWorkspaceLimit } from '@/lib/subscription';
+import { syncSeats } from '@/lib/subscription';
 import { redirect } from 'next/navigation';
 import { removeMember } from '@/features/workspaces/actions';
 import { leaveWorkspace, transferOwnership } from '@/features/workspaces/membership-actions';
@@ -78,6 +79,8 @@ describe('leaveWorkspace', () => {
     expect(unassignFromWorkspaceTasks).toHaveBeenCalledWith('u-owner', ws.id);
     expect(insertActivity).toHaveBeenCalledWith(expect.objectContaining({ action: 'member.left' }));
     expect(redirect).toHaveBeenCalledWith('/');
+    // E1: one seat fewer on a paid plan.
+    expect(syncSeats).toHaveBeenCalledWith(ws.id);
   });
 
   it('reports the refusal when ownership moved to them meanwhile (delete matched nothing under the lock)', async () => {
@@ -101,7 +104,6 @@ describe('transferOwnership', () => {
 
   beforeEach(() => {
     vi.mocked(requireWorkspaceMember).mockResolvedValue(ctx('owner') as never);
-    vi.mocked(checkWorkspaceLimit).mockResolvedValue({ allowed: true, current: 0, limit: 1 });
   });
 
   it('is owner-only', async () => {
@@ -128,15 +130,6 @@ describe('transferOwnership', () => {
     expect(db.batch).not.toHaveBeenCalled();
   });
 
-  it("refuses when the new owner's plan is at its workspace limit", async () => {
-    db.select.mockReturnValueOnce(chain([target]));
-    vi.mocked(checkWorkspaceLimit).mockResolvedValue({ allowed: false, current: 1, limit: 1 });
-    const result = await transferOwnership({ workspaceId: ws.id, toMemberId: target.id });
-    expect(result.error).toMatch(/Theo has reached their plan's workspace limit \(1\/1\)/);
-    expect(checkWorkspaceLimit).toHaveBeenCalledWith('u-2');
-    expect(db.batch).not.toHaveBeenCalled();
-  });
-
   it('promotes, demotes and moves workspace.userId in one batch', async () => {
     db.select.mockReturnValueOnce(chain([target]));
     expect(await transferOwnership({ workspaceId: ws.id, toMemberId: target.id })).toEqual({
@@ -155,7 +148,6 @@ describe('transferOwnership', () => {
 describe('transferOwnership under concurrency', () => {
   it('reports a stale transfer (promotion matched nothing under the lock) without logging', async () => {
     vi.mocked(requireWorkspaceMember).mockResolvedValue(ctx('owner') as never);
-    vi.mocked(checkWorkspaceLimit).mockResolvedValue({ allowed: true, current: 0, limit: 1 });
     db.select.mockReturnValueOnce(chain([{ id: 'm-2', userId: 'u-2', name: 'Theo' }]));
     db.batch.mockResolvedValue([[{ id: ws.id }], [], [], []]);
 
