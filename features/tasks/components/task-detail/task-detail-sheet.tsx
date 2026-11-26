@@ -29,6 +29,7 @@ import { setTaskLabels } from '@/features/labels/actions';
 import type { LabelInfo } from '@/features/labels/schema';
 import { TaskDescription } from './task-description';
 import { TaskChecklist } from '@/features/checklists/components/task-checklist';
+import { TaskFiles } from '@/features/attachments/components/task-files';
 import { useReadOnly } from '@/features/projects/read-only';
 import { LabelChips } from '@/features/labels/components/label-chip';
 import { TaskProperties } from './task-properties';
@@ -351,6 +352,14 @@ function TaskDetailBody({
         />
 
         <TaskChecklist taskId={task.id} items={task.checklist ?? []} />
+
+        <TaskFiles
+          taskId={task.id}
+          files={task.files ?? []}
+          currentUserId={currentUserId}
+          viewerRole={mentionable.find((m) => m.id === currentUserId)?.role}
+          projectHasGuests={mentionable.some((m) => m.role === 'guest')}
+        />
 
         <Separator />
         <TaskApproval

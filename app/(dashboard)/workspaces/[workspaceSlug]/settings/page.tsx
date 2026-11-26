@@ -9,6 +9,8 @@ import { label, member, project, projectGuest, taskLabel, user, workspace, works
 import { LabelManager } from '@/features/labels/components/label-manager';
 import { TemplateList } from '@/features/templates/components/template-list';
 import { savedTemplatesForSettings } from '@/features/templates/queries';
+import { workspaceStorage } from '@/features/attachments/server';
+import { formatBytes } from '@/lib/plans';
 import { auth } from '@/lib/auth';
 import { and, asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
@@ -141,6 +143,8 @@ export default async function WorkspaceSettingsPage({
     .groupBy(label.id)
     .orderBy(asc(label.name));
 
+  const storage = await workspaceStorage(membership.workspaceId);
+
   const templates = (await savedTemplatesForSettings(membership.workspaceId)).map((t) => ({
     id: t.id,
     name: t.name,
@@ -262,6 +266,28 @@ export default async function WorkspaceSettingsPage({
                 <div className='flex justify-between'>
                   <span className='text-muted-foreground'>Total members</span>
                   <span>{members.length}</span>
+                </div>
+                <Separator />
+                <div className='space-y-1.5'>
+                  <div className='flex justify-between'>
+                    <span className='text-muted-foreground'>File storage</span>
+                    <span>
+                      {formatBytes(storage.used)} of {formatBytes(storage.limit)}
+                    </span>
+                  </div>
+                  <div
+                    role='progressbar'
+                    aria-label='File storage used'
+                    aria-valuemin={0}
+                    aria-valuemax={storage.limit}
+                    aria-valuenow={Math.min(storage.used, storage.limit)}
+                    aria-valuetext={`${formatBytes(storage.used)} of ${formatBytes(storage.limit)}`}
+                    className='h-1 overflow-hidden rounded-full bg-muted'>
+                    <div
+                      className={storage.used >= storage.limit * 0.9 ? 'h-full bg-destructive' : 'h-full bg-primary'}
+                      style={{ width: `${Math.min(100, (storage.used / storage.limit) * 100)}%` }}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

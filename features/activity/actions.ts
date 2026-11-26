@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { and, desc, eq, lt, ne } from 'drizzle-orm';
+import { and, desc, eq, lt, notInArray } from 'drizzle-orm';
 import { db } from '@/db/drizzle';
 import { activityLog, user as userTable } from '@/db/schema';
 import {
@@ -97,9 +97,12 @@ export async function getTaskActivity(taskId: string) {
       .where(
         and(
           eq(activityLog.taskId, ctx.task.id),
-          // A client sees the comments shared with them in the thread itself;
-          // "X commented" here could point at an internal one.
-          ctx.role === 'guest' ? ne(activityLog.action, 'task.comment_added') : undefined,
+          // A client sees the comments and files shared with them in the
+          // thread and the Files list; "X commented" or "X attached brief.pdf"
+          // here could point at internal ones.
+          ctx.role === 'guest'
+            ? notInArray(activityLog.action, ['task.comment_added', 'task.file_added', 'task.file_removed'])
+            : undefined,
         ),
       )
       .orderBy(desc(activityLog.createdAt))
