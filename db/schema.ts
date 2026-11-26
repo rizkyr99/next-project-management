@@ -327,10 +327,11 @@ export const task = pgTable(
 );
 
 /**
- * A file uploaded to a task: for now, images pasted into a description or
- * comment. The bytes live in private storage (lib/storage.ts) and are only
- * served through /api/files/[id], which checks project access, so a file is
- * exactly as private as its task.
+ * A file uploaded to a task: an image pasted into a description or comment,
+ * or (B3, `listed`) a file attached in the task's Files section. The bytes
+ * live in private storage (lib/storage.ts) and are only served through
+ * /api/files/[id], which checks project access, so a file is exactly as
+ * private as its task.
  */
 export const attachment = pgTable(
   'attachment',
@@ -350,6 +351,14 @@ export const attachment = pgTable(
     name: varchar('name', { length: 255 }).notNull(),
     contentType: varchar('content_type', { length: 100 }).notNull(),
     size: integer('size').notNull(),
+    /** Shown in the task's Files list (B3). Pasted images live in the text instead. */
+    listed: boolean('listed').default(false).notNull(),
+    /**
+     * A listed file the project's client (guests) can see, like a
+     * client-visible comment (C2). The team's files start internal; a
+     * client's own uploads are always visible.
+     */
+    clientVisible: boolean('client_visible').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [

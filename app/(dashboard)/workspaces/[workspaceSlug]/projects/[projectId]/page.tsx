@@ -1,7 +1,8 @@
 import { db } from '@/db/drizzle';
-import { comment, label, project, projectGuest, taskApproval } from '@/db/schema';
-import { and, asc, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { attachment, comment, label, member, project, projectGuest, taskApproval, user } from '@/db/schema';
+import { and, asc, count, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import type { ApprovalState } from '@/features/approvals/states';
+import type { TaskFile } from '@/features/attachments/types';
 import { CallButton } from '@/features/call/components/call-button';
 import { ProjectViews } from '@/features/projects/components/project-views';
 import { ViewSwitcher } from '@/features/projects/components/view-switcher';
@@ -146,8 +147,47 @@ export default async function ProjectIdPage({
           .orderBy(taskApproval.taskId, desc(taskApproval.createdAt))
       : [];
   const approvalMap = new Map(approvals.map((a) => [a.taskId, a.status as ApprovalState]));
+
+  // Each task's Files list (B3). A client sees the files shared with them
+  // and their own; uploaders who are clients are marked as such.
+  const fileRows =
+    allTaskIds.length > 0
+      ? await db
+          .select({
+            id: attachment.id,
+            taskId: attachment.taskId,
+            name: attachment.name,
+            size: attachment.size,
+            contentType: attachment.contentType,
+            createdAt: attachment.createdAt,
+            uploadedById: attachment.uploadedById,
+            uploadedByName: user.name,
+            uploaderRole: member.role,
+            clientVisible: attachment.clientVisible,
+          })
+          .from(attachment)
+          .leftJoin(user, eq(user.id, attachment.uploadedById))
+          .leftJoin(member, and(eq(member.userId, attachment.uploadedById), eq(member.workspaceId, currentWorkspace.id)))
+          .where(
+            and(
+              eq(attachment.projectId, projectId),
+              eq(attachment.listed, true),
+              isGuest
+                ? or(eq(attachment.clientVisible, true), eq(attachment.uploadedById, session.user.id))
+                : undefined,
+            ),
+          )
+          .orderBy(asc(attachment.createdAt))
+      : [];
+  const filesByTask = new Map<string, TaskFile[]>();
+  for (const { taskId, uploaderRole, ...f } of fileRows) {
+    filesByTask.set(taskId, [...(filesByTask.get(taskId) ?? []), { ...f, fromClient: uploaderRole === 'guest' }]);
+  }
+
   for (const status of data.statuses) {
-    for (const t of status.tasks) Object.assign(t, { approval: approvalMap.get(t.id) ?? null });
+    for (const t of status.tasks) {
+      Object.assign(t, { approval: approvalMap.get(t.id) ?? null, files: filesByTask.get(t.id) ?? [] });
+    }
   }
 
   // The list and table keep local state (optimistic edits); remount them
@@ -171,6 +211,7 @@ export default async function ProjectIdPage({
             t.dueHasTime,
             t.checklist.map((c) => [c.id, c.done]),
             approvalMap.get(t.id) ?? null,
+            (filesByTask.get(t.id) ?? []).map((f) => [f.id, f.clientVisible]),
           ]),
         ]),
       ),

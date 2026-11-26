@@ -4,6 +4,7 @@ import { priorityConfig, type Priority } from '../priority';
 import type { LabelInfo } from '@/features/labels/schema';
 import type { ChecklistItemInfo } from '@/features/checklists/schema';
 import type { ApprovalState } from '@/features/approvals/states';
+import type { TaskFile } from '@/features/attachments/types';
 
 export { priorityConfig, type Priority };
 
@@ -30,6 +31,8 @@ export interface TaskData {
   assignees: { user: Person }[];
   /** The latest approval round's state (C3), if it was ever asked for. */
   approval?: ApprovalState | null;
+  /** The task's Files list (B3), already filtered to what the viewer may see. */
+  files?: TaskFile[];
   /** Client-only: just added, still being saved. Not openable or draggable yet. */
   pending?: boolean;
 }
