@@ -47,6 +47,11 @@ export const templateTaskSchema = z.object({
         .nullable(),
     })
     .nullable(),
+  /** B4: start day, as days after the start. Older templates don't have it. */
+  start: z
+    .object({ days: z.number().int().min(0).max(MAX_DUE_OFFSET_DAYS) })
+    .nullable()
+    .optional(),
   /** Label names, matched to the workspace's labels when the template is used. */
   labels: z.array(z.string().trim().min(1).max(40)).max(MAX_LABELS_PER_TASK),
   checklist: z.array(z.string().trim().min(1).max(255)).max(100),

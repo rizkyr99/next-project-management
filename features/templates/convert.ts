@@ -36,6 +36,8 @@ export interface ProjectRows {
     priority: Priority;
     dueDate: Date | null;
     dueHasTime: boolean;
+    /** B4: "YYYY-MM-DD", or null. */
+    startDate?: string | null;
     statusId: string;
   }[];
   labels: { taskId: string; name: string; color: string | null }[];
@@ -53,8 +55,13 @@ export function projectToTemplate(rows: ProjectRows, timeZone: string): Template
   const columnIndex = new Map(rows.statuses.map((s, i) => [s.id, i]));
   const defaultIndex = Math.max(0, rows.statuses.findIndex((s) => s.isDefault));
 
-  const dueDays = rows.tasks.flatMap((t) => (t.dueDate ? [dayInZone(t.dueDate, timeZone)] : []));
-  const start = dueDays.sort()[0];
+  // Start days count too (B4), so a task starting before the first due date
+  // still gets an offset of zero or more.
+  const days = rows.tasks.flatMap((t) => [
+    ...(t.dueDate ? [dayInZone(t.dueDate, timeZone)] : []),
+    ...(t.startDate ? [t.startDate] : []),
+  ]);
+  const start = days.sort()[0];
 
   const labelsByTask = new Map<string, string[]>();
   const labels = new Map<string, { name: string; color: StatusColor | null }>();
@@ -79,6 +86,7 @@ export function projectToTemplate(rows: ProjectRows, timeZone: string): Template
           t.dueDate && days !== null && days <= MAX_DUE_OFFSET_DAYS
             ? { days, time: t.dueHasTime ? timeInZone(t.dueDate, timeZone) : null }
             : null,
+        start: t.startDate && start ? { days: daysBetween(start, t.startDate) } : null,
         labels: labelsByTask.get(t.id) ?? [],
         checklist: checklistByTask.get(t.id) ?? [],
       };
@@ -97,6 +105,7 @@ export interface NewProjectRows {
     priority: Priority;
     dueDate: Date | null;
     dueHasTime: boolean;
+    startDate: string | null;
     order: number;
     updatedAt: null;
   }[];
@@ -165,6 +174,7 @@ export function templateToRows(
       priority: t.priority,
       dueDate: day ? zonedInstant(day, opts.timeZone, t.due?.time ?? '00:00') : null,
       dueHasTime: Boolean(t.due?.time),
+      startDate: t.start ? addDays(opts.startDay, t.start.days) : null,
       order,
       // task.updated_at's $onUpdate would also fire on insert.
       updatedAt: null,

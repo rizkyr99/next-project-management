@@ -157,3 +157,42 @@ describe('built-in templates', () => {
     }
   });
 });
+
+describe('start dates (B4)', () => {
+  it('keeps a task’s start as days after the earliest date, and puts it back from the new start day', () => {
+    const data = projectToTemplate(
+      {
+        ...rows,
+        tasks: [
+          // Starts two days before anything is due: that start is day 0.
+          { ...rows.tasks[0], startDate: '2026-11-10' },
+          rows.tasks[1],
+          rows.tasks[2],
+        ],
+      },
+      TZ,
+    );
+    expect(data.tasks[0].start).toEqual({ days: 0 });
+    expect(data.tasks[0].due).toEqual({ days: 2, time: null });
+    expect(data.tasks[1].start).toBeNull();
+    expect(templateDataSchema.safeParse(data).success).toBe(true);
+
+    const out = templateToRows(data, {
+      projectId: 'p',
+      workspaceId: 'w',
+      startDay: '2027-03-01',
+      timeZone: 'UTC',
+      existingLabels: [],
+      labelSlots: 10,
+    });
+    expect(out.tasks[0].startDate).toBe('2027-03-01');
+    expect(dayInZone(out.tasks[0].dueDate!, 'UTC')).toBe('2027-03-03');
+    expect(out.tasks[1].startDate).toBeNull();
+  });
+
+  it('accepts templates saved before start dates existed', () => {
+    const old = { columns: [{ name: 'To Do', color: null, isDefault: true }], labels: [], tasks: [] };
+    const task = { title: 'T', description: null, priority: 'low', column: 0, due: null, labels: [], checklist: [] };
+    expect(templateDataSchema.safeParse({ ...old, tasks: [task] }).success).toBe(true);
+  });
+});

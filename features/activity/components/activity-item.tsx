@@ -9,6 +9,7 @@ type ActivityAction =
   | 'task.status_changed'
   | 'task.priority_changed'
   | 'task.due_date_changed'
+  | 'task.start_date_changed'
   | 'task.assigned'
   | 'task.unassigned'
   | 'task.comment_added'
@@ -70,6 +71,12 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return m.dueDate
         ? `set due date of ${task} to ${new Date(m.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
         : `cleared the due date of ${task}`;
+    case 'task.start_date_changed': {
+      if (!m.startDate) return `cleared the start date of ${task}`;
+      // A calendar day: read it as local, not as UTC midnight.
+      const [y, mo, d] = m.startDate.split('-').map(Number);
+      return `set the start date of ${task} to ${new Date(y, mo - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
     case 'task.assigned':
       return `assigned ${m.assigneeName ?? 'someone'} to ${task}`;
     case 'task.unassigned':

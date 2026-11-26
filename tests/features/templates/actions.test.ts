@@ -177,6 +177,7 @@ describe('saveProjectAsTemplate', () => {
       priority: 'high',
       column: 0,
       due: { days: 0, time: null },
+      start: null,
       labels: ['Design'],
       checklist: ['Agenda'],
     });

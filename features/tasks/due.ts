@@ -38,3 +38,27 @@ export function withTime(day: Date, time: string) {
   const [h, m] = time.split(':').map(Number);
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h || 0, m || 0);
 }
+
+/**
+ * B4: start dates are calendar days ("2026-12-01"), not moments. These read
+ * them as local days, so "Dec 1" never shifts with the time zone.
+ */
+export function parseDay(day: string): Date {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** A Date's local calendar day, as "YYYY-MM-DD". */
+export function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/** "Dec 1", or "Dec 1, 2027" outside this year. */
+export function formatDay(day: string, now = new Date()): string {
+  const d = parseDay(day);
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+  });
+}
