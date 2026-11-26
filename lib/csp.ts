@@ -120,6 +120,11 @@ export const REPORTING_ENDPOINTS = `csp="${SENTRY_REPORT_URI}"`;
  */
 export const STATIC_PAGES = new Set(['/', '/pricing', '/privacy', '/terms', '/forgot-password', '/create-workspace']);
 
+/** Static at build time: the pages above, plus the help centre (E5: /help and /help/<slug>). */
+export function isStaticPage(pathname: string): boolean {
+  return STATIC_PAGES.has(pathname) || pathname === '/help' || /^\/help\/[a-z0-9-]+$/.test(pathname);
+}
+
 /** A random nonce, base64. Works in the proxy's runtime (Web Crypto). */
 export function createNonce() {
   const bytes = crypto.getRandomValues(new Uint8Array(16));

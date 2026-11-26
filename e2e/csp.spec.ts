@@ -52,6 +52,9 @@ test('static pages get no nonce; dynamic pages a fresh one each time', async ({ 
   const nonceOf = async (path: string) =>
     (await request.get(path)).headers()['content-security-policy-report-only']?.match(/'nonce-([^']+)'/)?.[1];
   expect(await nonceOf('/pricing')).toBeUndefined();
+  // E5: the help centre is built ahead of time too.
+  expect(await nonceOf('/help')).toBeUndefined();
+  expect(await nonceOf('/help/clients')).toBeUndefined();
   const a = await nonceOf('/login');
   const b = await nonceOf('/login');
   expect(a).toBeTruthy();
@@ -68,7 +71,7 @@ test('public and app pages run without CSP violations', async ({ page }) => {
     expect(await violations(page), label).toEqual([]);
   };
 
-  for (const path of ['/', '/pricing', '/privacy', '/terms', '/login', '/register', '/forgot-password']) {
+  for (const path of ['/', '/pricing', '/help', '/help/billing', '/privacy', '/terms', '/login', '/register', '/forgot-password']) {
     await page.goto(path);
     await check(path);
   }

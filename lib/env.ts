@@ -46,6 +46,10 @@ export const serverEnvSchema = z.object({
     })
     .optional(),
 
+  // Optional. Where in-app feedback is emailed (E5). Without it, feedback is
+  // still saved (the feedback table), just not emailed.
+  FEEDBACK_EMAIL: z.email('must be an email address').optional(),
+
   // Optional. Secret for /api/cron/daily (Vercel Cron sends it as a Bearer
   // token). Without it the cron route refuses every call.
   CRON_SECRET: z.string().trim().min(16, 'must be at least 16 characters').optional(),
