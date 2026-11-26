@@ -2,7 +2,8 @@ import 'server-only';
 import { db } from '@/db/drizzle';
 import { sql } from 'drizzle-orm';
 import { deleteExpiredNotifications } from '@/lib/notifications';
-import { APP_URL, sendDailyDigestEmail } from '@/lib/email';
+import { APP_URL, sendDailyDigestEmail, sendTrialNoticeEmail } from '@/lib/email';
+import { PLAN_DETAILS, TRIAL_REMINDER_DAYS } from '@/lib/plans';
 
 /** Reminder window. The job runs daily (Vercel Hobby crons), so look 48 h ahead. */
 export const DUE_SOON_WINDOW_HOURS = 48;
@@ -237,5 +238,98 @@ async function releaseDigestClaim(userId: string, claimedAt: string, prev: strin
     `);
   } catch (error) {
     console.error('[cron] could not release digest claim:', error);
+  }
+}
+
+export interface TrialNoticeResult {
+  ending: number;
+  ended: number;
+}
+
+type TrialNoticeRow = {
+  id: string;
+  name: string;
+  slug: string;
+  trial_ends_at: string;
+  email: string;
+  owner_name: string;
+  team: number;
+};
+
+/**
+ * E2: emails a workspace's owner TRIAL_REMINDER_DAYS before its Pro trial
+ * ends, and once it has ended, unless the workspace pays by then. Each
+ * notice is claimed in the same statement that finds it (a re-run or an
+ * overlapping run sends nothing twice), and released if the email fails,
+ * so the next run retries. A trial that ended over a week ago gets no
+ * "ended" email: that news is stale.
+ */
+export async function sendTrialNotices(now = new Date()): Promise<TrialNoticeResult> {
+  const result: TrialNoticeResult = { ending: 0, ended: 0 };
+  const at = now.toISOString();
+  for (const kind of ['ending', 'ended'] as const) {
+    const column = sql.raw(kind === 'ending' ? 'trial_reminder_sent_at' : 'trial_ended_sent_at');
+    const window =
+      kind === 'ending'
+        ? sql`w.trial_ends_at > ${at}::timestamptz and w.trial_ends_at <= ${at}::timestamptz + make_interval(days => ${TRIAL_REMINDER_DAYS})`
+        : sql`w.trial_ends_at <= ${at}::timestamptz and w.trial_ends_at > ${at}::timestamptz - interval '7 days'`;
+    const claimed = await db.execute<TrialNoticeRow>(sql`
+      with due as (
+        select w.id
+        from workspace w
+        join "user" u on u.id = w.user_id
+        left join subscription s on s.workspace_id = w.id
+        where ${window}
+          and w.${column} is null
+          and u.email_verified
+          and not coalesce(s.status in ('active', 'trialing', 'past_due') and s.plan = 'pro', false)
+        for update of w skip locked
+      )
+      update workspace w
+      set ${column} = ${at}::timestamptz
+      from due, "user" u
+      where w.id = due.id and u.id = w.user_id
+      returning w.id, w.name, w.slug, w.trial_ends_at, u.email, u.name as owner_name,
+        (select count(*)::int from member m where m.workspace_id = w.id and m.role <> 'guest') as team
+    `);
+    for (const row of claimed.rows) {
+      if (await deliverTrialNotice(kind, row)) result[kind] += 1;
+      else await releaseTrialNotice(column, row.id, at);
+    }
+  }
+  return result;
+}
+
+async function deliverTrialNotice(kind: 'ending' | 'ended', row: TrialNoticeRow): Promise<boolean> {
+  const seats = Math.max(1, Number(row.team));
+  const price = PLAN_DETAILS.pro.priceMonthly;
+  try {
+    const { sent } = await sendTrialNoticeEmail(row.email, {
+      kind,
+      ownerName: row.owner_name.split(' ')[0] || row.owner_name,
+      workspaceName: row.name,
+      endsOn: new Date(row.trial_ends_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' }),
+      priceLine: `$${seats * price} a month (${seats} team ${seats === 1 ? 'member' : 'members'} × $${price})`,
+      billingUrl: `${APP_URL}/workspaces/${row.slug}/settings?tab=billing`,
+    });
+    return sent;
+  } catch (error) {
+    console.error(`[cron] trial ${kind} email failed:`, error);
+    return false;
+  }
+}
+
+/**
+ * Puts a trial notice back for the next run, unless something moved it
+ * since. Compared against the value this run wrote (`claimedAt`, an ISO
+ * string), not one read back from the driver, whose format can differ.
+ */
+async function releaseTrialNotice(column: ReturnType<typeof sql.raw>, workspaceId: string, claimedAt: string) {
+  try {
+    await db.execute(
+      sql`update workspace set ${column} = null where id = ${workspaceId} and ${column} = ${claimedAt}::timestamptz`,
+    );
+  } catch (error) {
+    console.error('[cron] could not release trial notice claim:', error);
   }
 }

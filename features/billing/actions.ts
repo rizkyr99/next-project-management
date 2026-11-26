@@ -5,7 +5,7 @@ import { AuthzError, requireSession, runAction } from '@/lib/authz';
 import { db } from '@/db/drizzle';
 import { member, subscription, workspace } from '@/db/schema';
 import { PLANS, stripe } from '@/lib/stripe';
-import { getWorkspacePlan, teamMemberCount } from '@/lib/subscription';
+import { getWorkspacePlanState, teamMemberCount } from '@/lib/subscription';
 import { and, eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -42,7 +42,8 @@ export async function createCheckoutSession(workspaceSlug: string) {
   return runAction('Could not start checkout. Please try again.', async () => {
     const requestHeaders = await headers();
     const { session, workspace: ws } = await requireOwner(workspaceSlug);
-    if ((await getWorkspacePlan(ws.id)) === 'pro') return { error: 'This workspace is already on Pro.' };
+    // A trial isn't a subscription: upgrading during one starts paid Pro now (E2).
+    if ((await getWorkspacePlanState(ws.id)).paid) return { error: 'This workspace is already on Pro.' };
     if (!PLANS.pro.priceId) return { error: 'Upgrades aren’t set up yet.' };
 
     const appUrl = getAppUrl(requestHeaders);

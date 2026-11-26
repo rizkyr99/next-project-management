@@ -1,5 +1,6 @@
 import { UpgradeProvider } from '@/features/billing/components/upgrade';
 import { planSummaryBySlug } from '@/lib/subscription';
+import { trialDaysLeftLabel } from '@/lib/plans';
 import { AppSidebar } from '@/components/app-sidebar';
 import { Header } from '@/components/header';
 import { VerifyEmailBanner } from '@/features/account/components/verify-email-banner';
@@ -105,7 +106,8 @@ export default async function WorkspaceLayout({
       workspaceSlug={workspaceSlug}
       plan={planSummary?.plan ?? 'free'}
       isOwner={activeWorkspace.role === 'owner'}
-      teamMembers={planSummary?.teamMembers ?? 1}>
+      teamMembers={planSummary?.teamMembers ?? 1}
+      trialLabel={planSummary?.onTrial && planSummary.trialEndsAt ? trialDaysLeftLabel(planSummary.trialEndsAt) : null}>
       <AppSidebar workspaces={userWorkspaces} projects={workspaceProjects} />
       <div className='flex-1 h-screen overflow-x-auto flex flex-col'>
         <Header

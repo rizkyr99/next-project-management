@@ -13,6 +13,12 @@ import {
   type TaskNotificationEmailProps,
 } from '@/emails/task-notification';
 import { DailyDigestEmail, dailyDigestText, type DailyDigestEmailProps } from '@/emails/daily-digest';
+import {
+  TrialNoticeEmail,
+  trialNoticeSubject,
+  trialNoticeText,
+  type TrialNoticeEmailProps,
+} from '@/emails/trial-notice';
 import type { ReactElement } from 'react';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -227,6 +233,19 @@ export function sendTaskNotificationEmail(
     element: TaskNotificationEmail(full),
     text: taskNotificationText(full),
     template: `task-${props.kind}`,
+    senderName: props.workspaceName,
+  });
+}
+
+/** E2: "your Pro trial ends soon" / "has ended", to the workspace owner. Never throws. */
+export function sendTrialNoticeEmail(to: string, props: Omit<TrialNoticeEmailProps, 'appUrl'>) {
+  const full = { ...props, appUrl: APP_URL };
+  return deliver({
+    to,
+    subject: trialNoticeSubject(full),
+    element: TrialNoticeEmail(full),
+    text: trialNoticeText(full),
+    template: `trial-${props.kind}`,
     senderName: props.workspaceName,
   });
 }

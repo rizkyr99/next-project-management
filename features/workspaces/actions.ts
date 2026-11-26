@@ -5,7 +5,7 @@ import { requireSession, runAction } from '@/lib/authz';
 import { db } from '@/db/drizzle';
 import { member, user as userTable, workspace } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
-import { cancelWorkspaceSubscription, syncSeats } from '@/lib/subscription';
+import { cancelWorkspaceSubscription, syncSeats, trialEndForNewWorkspace } from '@/lib/subscription';
 import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
@@ -34,7 +34,9 @@ export async function createWorkspace(
       return { error: parsed.error.issues[0]?.message ?? 'Invalid workspace details' };
     }
     const validated = parsed.data;
-    // No limit on how many: every workspace has its own plan (E1).
+    // No limit on how many: every workspace has its own plan (E1). The
+    // owner's first one starts on a 14-day Pro trial (E2).
+    const trialEndsAt = await trialEndForNewWorkspace(userId);
 
     // The workspace and its owner membership are written in one batch (a single
     // transaction), so a failure can never leave a workspace without an owner.
@@ -48,6 +50,7 @@ export async function createWorkspace(
           slug: validated.url,
           description: validated.description,
           userId,
+          trialEndsAt,
         }),
         db.insert(member).values({ workspaceId, userId, role: 'owner' }),
         // P4.3: every new workspace starts with a short guided project.

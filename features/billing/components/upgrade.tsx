@@ -41,6 +41,8 @@ interface WorkspacePlan {
   plan: PlanName;
   isOwner: boolean;
   teamMembers: number;
+  /** E2: "12 days left" while on the Pro trial; null otherwise. Worked out on the server. */
+  trialLabel: string | null;
 }
 
 interface UpgradeApi extends WorkspacePlan {
@@ -58,6 +60,7 @@ const fallback: UpgradeApi = {
   plan: 'pro',
   isOwner: false,
   teamMembers: 0,
+  trialLabel: null,
   canUse: () => true,
   openUpgrade: () => {},
   showError: (message) => toast.error(message, { position: 'top-center' }),
@@ -69,7 +72,7 @@ export function useUpgrade(): UpgradeApi {
 
 export function UpgradeProvider({ children, ...value }: Readonly<WorkspacePlan & { children: ReactNode }>) {
   const [reason, setReason] = useState<UpgradeReason | null>(null);
-  const { workspaceSlug, plan, isOwner, teamMembers } = value;
+  const { workspaceSlug, plan, isOwner, teamMembers, trialLabel } = value;
   const openUpgrade = useCallback((r: UpgradeReason) => setReason(r), []);
   const api = useMemo<UpgradeApi>(
     () => ({
@@ -77,6 +80,7 @@ export function UpgradeProvider({ children, ...value }: Readonly<WorkspacePlan &
       plan,
       isOwner,
       teamMembers,
+      trialLabel,
       canUse: (feature) => planAllows(plan, feature),
       openUpgrade,
       showError: (message) => {
@@ -85,7 +89,7 @@ export function UpgradeProvider({ children, ...value }: Readonly<WorkspacePlan &
         else toast.error(message, { position: 'top-center' });
       },
     }),
-    [workspaceSlug, plan, isOwner, teamMembers, openUpgrade],
+    [workspaceSlug, plan, isOwner, teamMembers, trialLabel, openUpgrade],
   );
 
   return (
@@ -177,5 +181,28 @@ export function ProBadge({ className }: Readonly<{ className?: string }>) {
     <Badge variant='secondary' className={cn('ml-auto px-1.5 py-0 text-[10px] font-semibold', className)}>
       Pro
     </Badge>
+  );
+}
+
+/**
+ * E2: "Pro trial, 12 days left" in the sidebar, linking to Billing; the
+ * owner also gets the way to upgrade. Shown to the team, never to clients.
+ */
+export function TrialNotice() {
+  const { trialLabel, workspaceSlug, isOwner } = useUpgrade();
+  if (!trialLabel) return null;
+  return (
+    <Link
+      href={`/workspaces/${workspaceSlug}/settings?tab=billing`}
+      aria-label={`Pro trial, ${trialLabel}${isOwner ? '. Upgrade to keep Pro' : ''}`}
+      className='block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-muted/50'>
+      <span className='flex items-center justify-between gap-2'>
+        <span className='font-medium'>Pro trial</span>
+        <span className='text-xs text-muted-foreground'>{trialLabel}</span>
+      </span>
+      <span className='mt-0.5 block text-xs text-muted-foreground'>
+        {isOwner ? 'Upgrade to keep client features.' : 'Client features are on during the trial.'}
+      </span>
+    </Link>
   );
 }
