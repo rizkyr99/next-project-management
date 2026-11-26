@@ -632,6 +632,29 @@ export const projectFavorite = pgTable(
 );
 
 /**
+ * D3: a person's saved view of a project: its layout, filters and sort, as
+ * the query string the project page reads (features/views/query.ts).
+ */
+export const savedView = pgTable(
+  'saved_view',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 60 }).notNull(),
+    query: varchar('query', { length: 1000 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('saved_view_user_project_name_idx').on(table.userId, table.projectId, table.name)],
+);
+
+/**
  * B5: a project saved as a template, for starting new client jobs. `data`
  * is a snapshot (features/templates/shape.ts), validated on write and on
  * read, so later edits to the source project don't change the template.
