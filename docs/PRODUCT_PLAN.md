@@ -100,7 +100,7 @@ Security note: guest access goes through `lib/authz.ts` like everything else, wi
 
 | # | Item | Why | Size |
 |---|---|---|---|
-| E1 | **Choose the pricing model** | See below. Then move gates into `lib/plans.ts` and Stripe. | S |
+| E1 | **Choose the pricing model** | See below. Then move gates into `lib/plans.ts` and Stripe. | S. Done (#119, released #120): per team member, guests free |
 | E2 | **Trial** | 14-day Pro trial on sign-up, no card; clear downgrade behaviour. | M |
 | E3 | **Upgrade moments** | When a Free studio hits a gated feature, explain what Pro adds right there, with one click to upgrade. | S |
 | E4 | **Agency positioning** | Landing and pricing pages written for studios: client guests free, templates, overview. Screenshots of the new features. | M |
@@ -111,7 +111,7 @@ Security note: guest access goes through `lib/authz.ts` like everything else, wi
 | Model | How it works | For studios |
 |---|---|---|
 | Per workspace (today) | Free: 1 workspace; Pro $9: 5; Business $29: unlimited | Doesn't match value: a 12-person studio pays the same as a freelancer. |
-| **Per team member, guests free** *(suggested)* | Free: up to 3 members; Pro ~$8 / member / month; client guests always free | Matches how studios grow, makes free client guests a selling point, and is the model most buyers already know. |
+| **Per team member, guests free** *(chosen 2026-11-26: Free up to 3 members; Pro $9 / member / month)* | Free: up to 3 members; Pro ~$8 / member / month; client guests always free | Matches how studios grow, makes free client guests a selling point, and is the model most buyers already know. |
 | Flat tiers by team size | e.g. up to 5 people $25, up to 15 $59 | Simple and predictable; less fair at the tier edges. |
 
 Whatever is chosen, the features above are built so their plan can change in one file.
