@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { PLAN_DETAILS, PLAN_FEATURES, PLAN_ORDER, memberLimitLabel, storageLimitLabel, type PlanName } from '@/lib/plans';
+import { PLAN_DETAILS, PLAN_FEATURES, PLAN_ORDER, TRIAL_DAYS, memberLimitLabel, storageLimitLabel, type PlanName } from '@/lib/plans';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 
@@ -65,7 +65,7 @@ export function PricingTable({ headingLevel = 'h3' }: Readonly<{ headingLevel?: 
             </ul>
             <Button asChild variant={featured ? 'default' : 'outline'} className='mt-auto'>
               <Link href='/register'>
-                {key === 'free' ? 'Sign up free' : `Sign up, then upgrade to ${plan.name}`}
+                {key === 'free' ? 'Sign up free' : `Try ${plan.name} free for ${TRIAL_DAYS} days`}
               </Link>
             </Button>
           </section>

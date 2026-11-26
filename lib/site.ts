@@ -15,5 +15,7 @@ export function siteUrl(): string {
 }
 
 export const SITE_NAME = 'Tide';
+/** The one-line positioning (E4): who it's for and what makes it different. */
+export const SITE_TAGLINE = 'Project management for studios and agencies';
 export const SITE_DESCRIPTION =
-  'Project management for small teams: workspaces, kanban boards, tasks, comments and real-time updates.';
+  'Project management for small studios and agencies: one board for your team, and a place for each client to follow progress, comment and approve work. Clients join free.';

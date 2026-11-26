@@ -16,7 +16,7 @@ export function SiteHeader() {
           <Link href='/login'>Log in</Link>
         </Button>
         <Button asChild size='sm'>
-          <Link href='/register'>Sign up free</Link>
+          <Link href='/register'>Start free trial</Link>
         </Button>
       </nav>
     </header>

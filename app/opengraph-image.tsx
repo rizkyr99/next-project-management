@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
-import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 
-export const alt = `${SITE_NAME}: project management for small teams`;
+export const alt = `${SITE_NAME}: ${SITE_TAGLINE.toLowerCase()}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -26,7 +26,7 @@ export default function OpengraphImage() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div style={{ fontSize: 56, fontWeight: 700, lineHeight: 1.1, maxWidth: 900 }}>
-            Plan, track and ship together.
+            Client work, without the email chains.
           </div>
           <div style={{ fontSize: 30, color: '#a1a1aa', maxWidth: 900, lineHeight: 1.35 }}>
             {SITE_DESCRIPTION}
