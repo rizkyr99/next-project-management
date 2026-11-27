@@ -8,7 +8,7 @@ export interface TrialNoticeEmailProps {
   workspaceName: string;
   /** "December 10" */
   endsOn: string;
-  /** "$27 a month (3 team members × $9)" */
+  /** "$18 a month (3 team members × $6)" */
   priceLine: string;
   billingUrl: string;
   appUrl: string;
@@ -81,7 +81,7 @@ TrialNoticeEmail.PreviewProps = {
   ownerName: 'Ada',
   workspaceName: 'Northwind Studio',
   endsOn: 'December 10',
-  priceLine: '$27 a month (3 team members × $9)',
+  priceLine: '$18 a month (3 team members × $6)',
   billingUrl: 'https://tide.example.com/workspaces/northwind/settings?tab=billing',
   appUrl: 'https://tide.example.com',
 } satisfies TrialNoticeEmailProps;

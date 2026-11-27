@@ -111,10 +111,16 @@ Security note: guest access goes through `lib/authz.ts` like everything else, wi
 | Model | How it works | For studios |
 |---|---|---|
 | Per workspace (today) | Free: 1 workspace; Pro $9: 5; Business $29: unlimited | Doesn't match value: a 12-person studio pays the same as a freelancer. |
-| **Per team member, guests free** *(chosen 2026-11-26: Free up to 3 members; Pro $9 / member / month)* | Free: up to 3 members; Pro ~$8 / member / month; client guests always free | Matches how studios grow, makes free client guests a selling point, and is the model most buyers already know. |
+| **Per team member, guests free** *(chosen 2026-11-26: Free up to 3 members; Pro $6 / member / month; see the 2026-11-27 note below)* | Free: up to 3 members; Pro $6 / member / month; client guests always free | Matches how studios grow, makes free client guests a selling point, and is the model most buyers already know. |
 | Flat tiers by team size | e.g. up to 5 people $25, up to 15 $59 | Simple and predictable; less fair at the tier edges. |
 
 Whatever is chosen, the features above are built so their plan can change in one file.
+
+**Price lowered to $6 (2026-11-27).** Pro is now $6 per team member per month, in every region. Free, trial, limits and gates are unchanged. Existing $9 subscribers stay Pro. Deploy steps (owner):
+
+1. In Stripe, create a $6 per-unit monthly price for Pro.
+2. Set `STRIPE_PRO_PRICE_ID` to the new price ID.
+3. Put the old $9 price ID in `STRIPE_PRO_LEGACY_PRICE_IDS` (comma-separated for several). Without this, current payers would read as Free.
 
 ---
 

@@ -18,6 +18,14 @@ describe('PLANS (E1)', () => {
 });
 
 describe('getPlanFromPriceId', () => {
+  it('keeps legacy Pro price ids on Pro', () => {
+    vi.stubEnv('STRIPE_PRO_LEGACY_PRICE_IDS', ' price_old9 , price_old7 ');
+    expect(getPlanFromPriceId('price_old9')).toBe('pro');
+    expect(getPlanFromPriceId('price_old7')).toBe('pro');
+    expect(getPlanFromPriceId('price_other')).toBe('free');
+    vi.unstubAllEnvs();
+  });
+
   it('returns free for unknown, retired and empty price ids', () => {
     expect(getPlanFromPriceId('price_unknown_123')).toBe('free');
     expect(getPlanFromPriceId('')).toBe('free');
