@@ -48,7 +48,10 @@ export function TaskFilterBar({
   const [written, setWritten] = useState<string | null>(null);
   if (filters.q !== lastUrlQ) {
     setLastUrlQ(filters.q);
-    if (filters.q !== written) setText(filters.q);
+    // Our own write comes back once; after that, the same value from
+    // elsewhere (e.g. a saved view) must still reach the box.
+    if (filters.q === written) setWritten(null);
+    else setText(filters.q);
   }
   useEffect(() => {
     const value = text.trim();

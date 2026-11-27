@@ -6,7 +6,7 @@ import { db } from '@/db/drizzle';
 import { project, savedView, workspace } from '@/db/schema';
 import { requireProjectAccess, requireSession, toActionError, type ActionResult } from '@/lib/authz';
 import { isUniqueViolation } from '@/lib/db-errors';
-import { createSavedViewSchema, deleteSavedViewSchema, MAX_SAVED_VIEWS_PER_PROJECT } from './schema';
+import { createSavedViewSchema, deleteSavedViewSchema, MAX_SAVED_VIEWS_PER_PROJECT, MAX_VIEW_QUERY } from './schema';
 import { viewQuery } from './query';
 
 const projectPath = (workspaceSlug: string, projectId: string) => `/workspaces/${workspaceSlug}/projects/${projectId}`;
@@ -22,6 +22,7 @@ export async function createSavedView(input: { projectId: string; name: string; 
     // Only the view's own params are kept, in a fixed order.
     const query = viewQuery(parsed.query);
     if (!query) return { error: 'Set a filter, sort or layout to save first.' };
+    if (query.length > MAX_VIEW_QUERY) return { error: 'This view is too long to save. Shorten the search and try again.' };
     const userId = ctx.session.user.id;
     const [{ n }] = await db
       .select({ n: count() })

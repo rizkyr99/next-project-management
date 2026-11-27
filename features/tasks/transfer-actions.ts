@@ -1,6 +1,6 @@
 'use server';
 
-import { and, asc, eq, isNull, max, ne } from 'drizzle-orm';
+import { and, asc, eq, exists, isNull, max, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/db/drizzle';
@@ -17,7 +17,6 @@ import {
 } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
 import { followQuietly } from '@/lib/followers';
-import { after } from 'next/server';
 import { projectPath, requireTaskAccess, toActionError, type ActionResult } from '@/lib/authz';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { taskHref } from './task-link';
@@ -57,6 +56,8 @@ export async function duplicateTask(input: { taskId: string }): Promise<ActionRe
         .orderBy(asc(checklistItem.position), asc(checklistItem.createdAt)),
     ]);
     if (!source) return { error: 'That task no longer exists.' };
+    // Moved to another project since access was checked: don't copy it here.
+    if (source.projectId !== ctx.project.id) return { error: 'That task was just moved. Open it again and retry.' };
 
     const id = crypto.randomUUID();
     const title = `${source.title} (copy)`.slice(0, 255);
@@ -88,7 +89,8 @@ export async function duplicateTask(input: { taskId: string }): Promise<ActionRe
       taskId: id,
       metadata: { taskTitle: title, duplicatedFrom: source.title },
     });
-    after(() => followQuietly(id, [ctx.session.user.id]));
+    // The creator and the copied assignees follow the copy (I4).
+    await followQuietly(id, [ctx.session.user.id, ...assignees.map((a) => a.userId)]);
     revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
     return { taskId: id };
   } catch (error) {
@@ -155,16 +157,29 @@ export async function moveTask(input: {
     if (!column) return { error: 'That project has no columns yet.' };
 
     const href = taskHref(ctx.workspace.slug, target.id, ctx.task.id);
-    await db.batch([
+    // Files, notifications and history follow, so their links keep working;
+    // but only if this move is the one that moved the task. If another move
+    // got there first, the task update matches nothing, and neither do these.
+    const movedHere = and(
+      eq(task.id, ctx.task.id),
+      eq(task.projectId, target.id),
+      eq(task.statusId, column.id),
+    );
+    const isMoved = exists(db.select({ one: sql`1` }).from(task).where(movedHere));
+    const [updated] = await db.batch([
       db
         .update(task)
         .set({ projectId: target.id, statusId: column.id, order: await nextOrder(column.id) })
-        .where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id))),
-      // Files, notifications and history follow, so their links keep working.
-      db.update(attachment).set({ projectId: target.id }).where(eq(attachment.taskId, ctx.task.id)),
-      db.update(notification).set({ projectId: target.id, href }).where(eq(notification.taskId, ctx.task.id)),
-      db.update(activityLog).set({ projectId: target.id }).where(eq(activityLog.taskId, ctx.task.id)),
+        .where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)))
+        .returning({ id: task.id }),
+      db.update(attachment).set({ projectId: target.id }).where(and(eq(attachment.taskId, ctx.task.id), isMoved)),
+      db
+        .update(notification)
+        .set({ projectId: target.id, href })
+        .where(and(eq(notification.taskId, ctx.task.id), isMoved)),
+      db.update(activityLog).set({ projectId: target.id }).where(and(eq(activityLog.taskId, ctx.task.id), isMoved)),
     ]);
+    if (updated.length === 0) return { error: 'That task was just moved. Open it again and retry.' };
 
     await insertActivity({
       workspaceId: ctx.workspace.id,

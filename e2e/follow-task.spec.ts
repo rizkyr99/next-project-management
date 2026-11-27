@@ -44,6 +44,14 @@ test('a follower hears about comments and column moves until they unfollow (I4)'
   const taskId = crypto.randomUUID();
   await sql`insert into task (id, title, "order", project_id, status_id) values (${taskId}, 'Homepage copy', 1, ${projectId}, ${todo.id})`;
   const taskUrl = `/workspaces/${slug}/projects/${projectId}?task=${taskId}`;
+  // A third teammate who keeps following: their notifications show when the
+  // follower notifications for a comment have been written.
+  const ivyId = crypto.randomUUID();
+  await sql`insert into "user" (id, name, email) values (${ivyId}, 'Ivy', ${`follow-ivy+${s}@example.com`})`;
+  await sql`insert into member (id, workspace_id, user_id, role) values (${crypto.randomUUID()}, ${wsId}, ${ivyId}, 'member')`;
+  await sql`insert into task_follower (task_id, user_id) values (${taskId}, ${ivyId})`;
+  const ivyComments = async () =>
+    (await sql`select count(*)::int as n from notification where user_id = ${ivyId} and type = 'task_comment'`)[0].n;
   const notifications = async (type: string) =>
     sql`select actor_name, task_title, detail, read from notification where user_id = ${memberId} and type = ${type}`;
 
@@ -95,7 +103,8 @@ test('a follower hears about comments and column moves until they unfollow (I4)'
   await ownerSheet.getByPlaceholder(/Add (a|an internal) comment/).fill('Second draft');
   await ownerSheet.getByRole('button', { name: 'Send comment' }).click();
   await expect(ownerSheet.getByText('Second draft')).toBeVisible();
-  await owner.page.waitForTimeout(2000); // the notification would be written just after the response
+  // Once Ivy has heard about the second comment, the member would have too.
+  await expect.poll(ivyComments, { timeout: 15000 }).toBe(2);
   expect((await notifications('task_comment')).length).toBe(1);
 
   await owner.context.close();
