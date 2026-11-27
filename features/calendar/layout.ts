@@ -49,6 +49,29 @@ export function monthWeeks(year: number, month: number): string[][] {
   return weeks;
 }
 
+/** The day `n` days after (or before, if negative) a day. */
+export function addDays(day: string, n: number): string {
+  const d = parseDay(day);
+  d.setDate(d.getDate() + n);
+  return dayKey(d);
+}
+
+/** The week (Monday to Sunday) a day falls in. */
+export function weekOf(day: string): string[] {
+  const offset = (parseDay(day).getDay() + 6) % 7; // days back to Monday
+  return Array.from({ length: 7 }, (_, i) => addDays(day, i - offset));
+}
+
+/** "Nov 23 – 29, 2026", "Nov 30 – Dec 6, 2026", "Dec 28, 2026 – Jan 3, 2027". */
+export function weekLabel(week: string[]): string {
+  const a = parseDay(week[0]);
+  const b = parseDay(week[6]);
+  const md = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (a.getFullYear() !== b.getFullYear()) return `${md(a)}, ${a.getFullYear()} – ${md(b)}, ${b.getFullYear()}`;
+  if (a.getMonth() !== b.getMonth()) return `${md(a)} – ${md(b)}, ${b.getFullYear()}`;
+  return `${md(a)} – ${b.getDate()}, ${b.getFullYear()}`;
+}
+
 export interface Bar<T> {
   task: T;
   /** Columns 0–6 within the week. */
