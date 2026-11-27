@@ -68,9 +68,7 @@ test('duplicate a task with its checklist and labels; move it to another project
   await move.getByRole('button', { name: 'Move task' }).click();
   await expect(page.getByText('Moved “Hero illustration” to Brand')).toBeVisible();
   await expect(page.getByText('It’s in In Progress.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Open task Hero illustration', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Open task Hero illustration (copy)' })).toBeVisible();
-
+  // Straight to the toast's action, before it times out on a slow machine.
   await page.getByRole('button', { name: 'Open', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${ids.Brand}\\?task=${taskId}`));
   await expect(sheet.getByRole('button', { name: 'Hero illustration' })).toBeVisible({ timeout: 15000 });
@@ -80,4 +78,9 @@ test('duplicate a task with its checklist and labels; move it to another project
   await expect(
     page.getByTestId('column-In Progress').getByRole('button', { name: 'Open task Hero illustration', exact: true }),
   ).toContainText('Design');
+
+  // Website keeps only the copy.
+  await page.goto(`/workspaces/${slug}/projects/${ids.Website}`);
+  await expect(page.getByRole('button', { name: 'Open task Hero illustration (copy)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open task Hero illustration', exact: true })).toHaveCount(0);
 });

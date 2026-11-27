@@ -40,6 +40,8 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
   const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  // Bumped when the call stops, so a screen picked after leaving is dropped.
+  const callGenerationRef = useRef(0);
   const iceServersRef = useRef<RTCIceServer[] | undefined>(undefined);
 
   const setSharing = useCallback((remoteUserId: string, sharing: boolean) => {
@@ -213,9 +215,19 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
   const startScreenShare = useCallback(async () => {
     const camera = localStreamRef.current?.getVideoTracks()[0];
     if (!camera || screenTrackRef.current) return;
+    const generation = callGenerationRef.current;
     const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     const screen = display.getVideoTracks()[0];
-    if (!screen) return;
+    // The picker stays open while the call goes on: if the call ended (or
+    // another share started) meanwhile, don't leave this capture running.
+    const stale =
+      generation !== callGenerationRef.current ||
+      localStreamRef.current?.getVideoTracks()[0] !== camera ||
+      screenTrackRef.current !== null;
+    if (!screen || stale) {
+      display.getTracks().forEach((t) => t.stop());
+      return;
+    }
     screenTrackRef.current = screen;
     // The browser's own "Stop sharing" button ends the track.
     screen.addEventListener('ended', stopScreenShare);
@@ -227,6 +239,7 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
   }, [stopScreenShare]);
 
   const stop = useCallback(() => {
+    callGenerationRef.current += 1;
     screenTrackRef.current?.stop();
     screenTrackRef.current = null;
     setScreenStream(null);
