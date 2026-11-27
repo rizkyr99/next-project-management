@@ -162,6 +162,9 @@ test('the week view: one week, roomier, drag to another day, and back to the mon
     where project_id = ${projectId} and title = 'Review'`;
   await sql`update task set due_date = ${new Date(2027, 5, 16)} where project_id = ${projectId} and title = 'Launch'`;
 
+  // "Today" is pinned outside June 2027, so switching to the week opens the
+  // month's first week whenever this runs (in June 2027 it would open this week).
+  await page.clock.setFixedTime(new Date(2026, 10, 15, 12));
   await page.goto(`${projectUrl}?view=calendar&month=2027-06`);
   await expect(page.getByRole('heading', { name: 'June 2027' })).toBeVisible({ timeout: 15000 });
   const range = page.getByRole('group', { name: 'Calendar range' });

@@ -151,6 +151,9 @@ test('the share link also shows the calendar, read-only and without internal tas
   // Someone without an account.
   const context = await browser.newContext();
   const page = await context.newPage();
+  // "Today" is pinned outside June 2027, so switching to the week opens the
+  // month's first week whenever this runs (in June 2027 it would open this week).
+  await page.clock.setFixedTime(new Date(2026, 10, 15, 12));
   await page.goto(`/share/${token}`);
   const views = page.getByRole('navigation', { name: 'View' });
   await expect(views.getByRole('link', { name: 'Board' })).toHaveAttribute('aria-current', 'page', { timeout: 15000 });
