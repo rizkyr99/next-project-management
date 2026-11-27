@@ -6,7 +6,7 @@ import { FILTER_PARAMS } from '@/features/tasks/filters';
  * views are that part as a query string; applying one replaces it and leaves
  * the rest (an open task, the calendar's month) alone.
  */
-export const VIEW_PARAMS = ['view', ...FILTER_PARAMS, 'sort', 'dir'] as const;
+export const VIEW_PARAMS = ['view', ...FILTER_PARAMS, 'sort', 'dir', 'group'] as const;
 
 type Search = string | Pick<URLSearchParams, 'get'>;
 
