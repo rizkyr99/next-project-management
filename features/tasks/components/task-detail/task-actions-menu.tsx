@@ -112,6 +112,8 @@ function MoveTaskDialog({
       toast.success(`Moved “${title}” to ${result.projectName}`, {
         position: 'top-center',
         description: `It’s in ${result.column}.`,
+        // Long enough to reach "Open" (the default 4 s is short for an action).
+        duration: 10_000,
         action: {
           label: 'Open',
           onClick: () => router.push(taskHref(workspaceSlug, result.projectId, taskId)),
