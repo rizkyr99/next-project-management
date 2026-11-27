@@ -88,6 +88,7 @@ async function requireFileAccess(fileId: string) {
       clientVisible: attachment.clientVisible,
       taskId: attachment.taskId,
       taskTitle: task.title,
+      taskInternal: task.internal,
       projectId: project.id,
       workspaceId: workspace.id,
       workspaceSlug: workspace.slug,
@@ -103,7 +104,8 @@ async function requireFileAccess(fileId: string) {
   if (!row) throw new AuthzError();
   const isUploader = row.uploadedById === session.user.id;
   // A client only ever reaches their own files here; anything else doesn't exist for them.
-  if (row.role === 'guest' && !isUploader) throw new AuthzError();
+  // On an internal task (C2), not even that.
+  if (row.role === 'guest' && (!isUploader || row.taskInternal)) throw new AuthzError();
   return { session, row, isUploader, isManager: row.role === 'owner' || row.role === 'admin' };
 }
 

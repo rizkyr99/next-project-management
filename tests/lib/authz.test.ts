@@ -304,6 +304,30 @@ describe('guests (C1): refused unless the action opts in, and only on shared pro
     await expect(requireTaskAccess('t-1', { allowGuests: true })).resolves.toMatchObject({ role: 'guest' });
   });
 
+  it('to a guest, an internal task (C2) and its comments do not exist, even on a shared project', async () => {
+    mockSelect.mockReturnValueOnce(chain([{ ...taskRow('p-1'), internal: true }]));
+    await expect(requireTaskAccess('t-1', { allowGuests: true })).rejects.toBeInstanceOf(AuthzError);
+    mockSelect.mockReturnValueOnce(
+      chain([
+        {
+          commentId: 'c-1',
+          authorId: 'u-2',
+          clientVisible: true,
+          taskId: 't-1',
+          taskInternal: true,
+          projectId: 'p-1',
+          workspaceId: 'ws-1',
+          role: 'guest',
+          shared: 'p-1',
+        },
+      ]),
+    );
+    await expect(requireCommentAccess('c-1', { allowGuests: true })).rejects.toBeInstanceOf(AuthzError);
+    // The team still reaches it.
+    mockSelect.mockReturnValueOnce(chain([{ ...taskRow('p-1'), role: 'member', internal: true }]));
+    await expect(requireTaskAccess('t-1')).resolves.toMatchObject({ task: { internal: true } });
+  });
+
   it('never lets a guest past a roles list', async () => {
     mockSelect.mockReturnValueOnce(chain([projectRow('p-1')]));
     await expect(

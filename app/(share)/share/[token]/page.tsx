@@ -70,7 +70,8 @@ export default async function SharedBoardPage({ params }: { params: Promise<{ to
         dueHasTime: task.dueHasTime,
       })
       .from(task)
-      .where(eq(task.projectId, shared.id))
+      // C2: internal tasks are the team's; a share link never shows them.
+      .where(and(eq(task.projectId, shared.id), eq(task.internal, false)))
       .orderBy(asc(task.order)),
   ]);
   const taskIds = tasks.map((t) => t.id);

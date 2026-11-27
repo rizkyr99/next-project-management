@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { InternalBadge } from './internal-badge';
 import { cn } from '@/lib/utils';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -33,7 +34,12 @@ export function TaskCardPreview({ task, commentCount = 0, done = false }: TaskCa
     <>
       <div className='text-sm font-medium leading-snug'>{task.title}</div>
       <LabelChips labels={(task.labels ?? []).map((l) => l.label)} />
-      {task.approval && <ApprovalBadge state={task.approval} className='self-start' />}
+      {(task.approval || task.internal) && (
+        <div className='flex flex-wrap gap-1'>
+          {task.internal && <InternalBadge />}
+          {task.approval && <ApprovalBadge state={task.approval} />}
+        </div>
+      )}
       <div className='flex items-center gap-1.5 flex-wrap'>
         {task.priority !== 'none' && (
           <Badge variant={p.variant} className='gap-1 text-xs font-normal px-1.5 py-0'>

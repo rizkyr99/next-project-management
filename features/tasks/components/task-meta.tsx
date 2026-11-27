@@ -35,6 +35,8 @@ export interface TaskData {
   approval?: ApprovalState | null;
   /** The task's Files list (B3), already filtered to what the viewer may see. */
   files?: TaskFile[];
+  /** C2: the team's own task, hidden from the client. Never sent to a guest. */
+  internal?: boolean;
   /** Client-only: just added, still being saved. Not openable or draggable yet. */
   pending?: boolean;
 }

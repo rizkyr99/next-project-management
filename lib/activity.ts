@@ -20,6 +20,8 @@ export type ActivityAction =
   | 'task.changes_requested'
   | 'task.deleted'
   | 'task.moved'
+  // C2: made internal, or shown to the client again.
+  | 'task.visibility_changed'
   | 'project.created'
   | 'project.updated'
   | 'project.deleted'

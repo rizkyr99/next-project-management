@@ -76,6 +76,8 @@ export async function requestApproval(input: { taskId: string; message?: string 
     await enforceRateLimit('comments', ctx.session.user.id);
     const gated = await planGateProblem(ctx.workspace.id, 'approvals');
     if (gated) return { error: gated };
+    // C2: the client can't see an internal task, so can't be asked about it.
+    if (ctx.task.internal) return { error: 'This task is internal. Show it to the client first, then ask for approval.' };
 
     const guests = await db
       .select({ id: projectGuest.userId })
