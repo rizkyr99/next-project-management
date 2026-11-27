@@ -45,6 +45,8 @@ import { matchesFilters, sortTasks } from '@/features/tasks/filters';
 import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { SortButton } from '@/features/tasks/components/sort-button';
 import { ListTodo } from 'lucide-react';
+import { groupTasks } from '@/features/tasks/grouping';
+import { GroupBySelect, GroupToggle, useTaskGroups } from '@/features/tasks/components/task-groups';
 
 interface ListViewProps {
   currentUserId?: string;
@@ -114,6 +116,9 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
   // Bulk actions only ever apply to what's on screen: tasks hidden by a
   // filter or inside their undo window drop out of the selection.
   const visibleIds = new Set(visible.map((t) => t.id));
+  // I6: optional grouping, over what's on screen, in its current order.
+  const { group, setGroup, isCollapsed, toggle: toggleGroup } = useTaskGroups();
+  const groups = group ? groupTasks(visible, group, { statuses: statusOptions, currentUserId }) : null;
   const selectedIds = new Set([...rawSelectedIds].filter((id) => visibleIds.has(id)));
   const [isPending, setIsPending] = useState(false);
 
@@ -214,76 +219,9 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
     }
   };
 
-  return (
-    <div className='flex-1 flex flex-col overflow-hidden'>
-      {someSelected && (
-        <div className='flex items-center gap-2 px-4 py-2 bg-primary/5 border-b text-sm'>
-          <span className='text-muted-foreground'>
-            {selectedIds.size} selected
-          </span>
-          <div className='flex items-center gap-2 ml-auto'>
-            <Select onValueChange={handleBulkStatusChange} disabled={isPending}>
-              <SelectTrigger className='h-8 text-xs w-36'>
-                <SelectValue placeholder='Set status...' />
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className='text-xs'>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant='destructive' size='sm' disabled={isPending}>
-                  <Trash2 className='size-3.5' />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete tasks</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete {selectedIds.size}{' '}
-                    {selectedIds.size === 1 ? 'task' : 'tasks'}? This action
-                    cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleBulkDelete}
-                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </div>
-      )}
-      <div className='flex-1 overflow-y-auto p-4'>
-        <div>
-          <div className='grid grid-cols-[32px_1fr_160px_200px_40px] px-4 py-2 text-sm uppercase font-medium text-muted-foreground bg-muted rounded-lg'>
-            {readOnly ? (
-              <span />
-            ) : (
-              <Checkbox
-                checked={allSelected}
-                onCheckedChange={toggleAll}
-                aria-label='Select all'
-                className='mt-0.5'
-              />
-            )}
-            <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
-            <SortButton label='Status' sortKey='status' sort={sort} setSort={setSort} />
-            <span>Assignees</span>
-            <span />
-          </div>
-          {visible.map((task) => (
+  const renderRow = (task: (typeof visible)[number], key: string) => (
             <div
-              key={task.id}
+              key={key}
               className='group grid grid-cols-[32px_1fr_160px_200px_40px] px-4 py-2 items-center hover:bg-muted/30 transition-colors'>
               {readOnly ? (
                 <span />
@@ -381,7 +319,91 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
               </AlertDialog>
               )}
             </div>
-          ))}
+  );
+
+  return (
+    <div className='flex-1 flex flex-col overflow-hidden'>
+      {someSelected && (
+        <div className='flex items-center gap-2 px-4 py-2 bg-primary/5 border-b text-sm'>
+          <span className='text-muted-foreground'>
+            {selectedIds.size} selected
+          </span>
+          <div className='flex items-center gap-2 ml-auto'>
+            <Select onValueChange={handleBulkStatusChange} disabled={isPending}>
+              <SelectTrigger className='h-8 text-xs w-36'>
+                <SelectValue placeholder='Set status...' />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className='text-xs'>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant='destructive' size='sm' disabled={isPending}>
+                  <Trash2 className='size-3.5' />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete tasks</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete {selectedIds.size}{' '}
+                    {selectedIds.size === 1 ? 'task' : 'tasks'}? This action
+                    cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleBulkDelete}
+                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
+      <div className='flex-1 overflow-y-auto p-4'>
+        <div className='mb-2 flex justify-end'>
+          <GroupBySelect group={group} onChange={setGroup} />
+        </div>
+        <div>
+          <div className='grid grid-cols-[32px_1fr_160px_200px_40px] px-4 py-2 text-sm uppercase font-medium text-muted-foreground bg-muted rounded-lg'>
+            {readOnly ? (
+              <span />
+            ) : (
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={toggleAll}
+                aria-label='Select all'
+                className='mt-0.5'
+              />
+            )}
+            <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
+            <SortButton label='Status' sortKey='status' sort={sort} setSort={setSort} />
+            <span>Assignees</span>
+            <span />
+          </div>
+          {groups
+            ? groups.map((g) => (
+                <div key={g.key} role='group' aria-label={g.label} className='mt-3'>
+                  <GroupToggle
+                    label={g.label}
+                    count={g.tasks.length}
+                    collapsed={isCollapsed(g.key)}
+                    onToggle={() => toggleGroup(g.key)}
+                  />
+                  {!isCollapsed(g.key) && g.tasks.map((task) => renderRow(task, `${g.key}:${task.id}`))}
+                </div>
+              ))
+            : visible.map((task) => renderRow(task, task.id))}
         </div>
       </div>
     </div>
