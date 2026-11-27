@@ -110,6 +110,7 @@ function digestLine(n: {
   taskTitle: string | null;
   workspaceName: string | null;
   dueLabel: string | null;
+  detail?: string | null;
 }) {
   switch (n.type) {
     case 'task_assigned':
@@ -126,6 +127,10 @@ function digestLine(n: {
       return `${n.actorName ?? 'Someone'} approved ${n.taskTitle ?? 'a task'}`;
     case 'changes_requested':
       return `${n.actorName ?? 'Someone'} requested changes to ${n.taskTitle ?? 'a task'}`;
+    case 'task_comment':
+      return `${n.actorName ?? 'Someone'} commented on ${n.taskTitle ?? 'a task'}`;
+    case 'task_status_changed':
+      return `${n.actorName ?? 'Someone'} moved ${n.taskTitle ?? 'a task'} to ${n.detail ?? 'another column'}`;
     default:
       return 'New notification';
   }
@@ -188,10 +193,11 @@ export async function sendDailyDigests(): Promise<DigestResult> {
         task_title: string | null;
         workspace_name: string | null;
         due_label: string | null;
+        detail: string | null;
         href: string | null;
         total: number;
       }>(sql`
-        select type, actor_name, task_title, workspace_name, due_label, href,
+        select type, actor_name, task_title, workspace_name, due_label, detail, href,
                count(*) over ()::int as total
         from notification
         where user_id = ${row.user_id}
@@ -214,6 +220,7 @@ export async function sendDailyDigests(): Promise<DigestResult> {
             taskTitle: n.task_title,
             workspaceName: n.workspace_name,
             dueLabel: n.due_label,
+            detail: n.detail,
           }),
           url: `${APP_URL}${n.href && n.href.startsWith('/') && !n.href.startsWith('//') ? n.href : '/notifications'}`,
         })),

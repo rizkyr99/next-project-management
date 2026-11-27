@@ -16,6 +16,8 @@ import {
   taskStatus,
 } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
+import { followQuietly } from '@/lib/followers';
+import { after } from 'next/server';
 import { projectPath, requireTaskAccess, toActionError, type ActionResult } from '@/lib/authz';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { taskHref } from './task-link';
@@ -86,6 +88,7 @@ export async function duplicateTask(input: { taskId: string }): Promise<ActionRe
       taskId: id,
       metadata: { taskTitle: title, duplicatedFrom: source.title },
     });
+    after(() => followQuietly(id, [ctx.session.user.id]));
     revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
     return { taskId: id };
   } catch (error) {

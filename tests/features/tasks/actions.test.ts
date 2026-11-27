@@ -13,6 +13,7 @@ vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
 vi.mock('@/lib/notification-emails', () => ({ emailTaskNotification: vi.fn() }));
+vi.mock('@/lib/followers', () => ({ followQuietly: vi.fn(), notifyFollowers: vi.fn(), tasksLeavingColumn: vi.fn() }));
 vi.mock('@/lib/rate-limit', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/rate-limit')>();
   return { ...actual, enforceRateLimit: vi.fn() };
@@ -38,6 +39,7 @@ vi.mock('@/lib/authz', async (importOriginal) => {
 import { revalidatePath } from 'next/cache';
 import { insertActivity } from '@/lib/activity';
 import { emailTaskNotification } from '@/lib/notification-emails';
+import { followQuietly, notifyFollowers, tasksLeavingColumn } from '@/lib/followers';
 import { enforceRateLimit, RateLimitError } from '@/lib/rate-limit';
 import {
   AuthzError,
@@ -99,6 +101,7 @@ beforeEach(() => {
   vi.mocked(assertStatusInProject).mockResolvedValue(undefined);
   vi.mocked(assertTasksInProject).mockResolvedValue(undefined);
   vi.mocked(assertWorkspaceMembers).mockResolvedValue(undefined);
+  vi.mocked(tasksLeavingColumn).mockResolvedValue([]);
 });
 
 function expectNoWrites() {
@@ -178,6 +181,23 @@ describe('updateTaskStatus', () => {
     expect(result).toEqual({ success: true });
     expect(db.update).toHaveBeenCalledOnce();
   });
+
+  it('tells followers when the task changes column, not when it stays (I4)', async () => {
+    db.update.mockReturnValue(chain(undefined));
+    await updateTaskStatus({ taskId: TASK, statusId: STATUS, projectId: PROJECT });
+    expect(notifyFollowers).not.toHaveBeenCalled();
+
+    const DONE = '00000000-0000-4000-8000-000000000009';
+    await updateTaskStatus({ taskId: TASK, statusId: DONE, projectId: PROJECT });
+    expect(notifyFollowers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'task_status_changed',
+        statusId: DONE,
+        tasks: [{ id: TASK, title: 'Ship it' }],
+        actor: session.user,
+      }),
+    );
+  });
 });
 
 describe('bulkUpdateStatus', () => {
@@ -243,6 +263,17 @@ describe('reorderTasks', () => {
     expect(result).toEqual({ success: true });
     expect(db.batch).toHaveBeenCalledOnce();
     expect(db.batch.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it('tells followers only about the cards that came from another column (I4)', async () => {
+    db.update.mockReturnValue(chain(undefined));
+    db.batch.mockResolvedValue([]);
+    vi.mocked(tasksLeavingColumn).mockResolvedValue([{ id: TASK, title: 'Ship it' }]);
+    await reorderTasks({ projectId: PROJECT, statusId: STATUS, tasks: [{ id: TASK, order: 0 }, { id: COMMENT, order: 1 }] });
+    expect(tasksLeavingColumn).toHaveBeenCalledWith([TASK, COMMENT], STATUS, PROJECT);
+    expect(notifyFollowers).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'task_status_changed', tasks: [{ id: TASK, title: 'Ship it' }], statusId: STATUS }),
+    );
   });
 });
 
@@ -381,6 +412,7 @@ describe('task notifications link to the task', () => {
       }));
 
     expect(await updateTaskAssignees(TASK, ['user-2'])).toEqual({ success: true });
+    expect(followQuietly).toHaveBeenCalledWith(TASK, ['user-2']);
     expect(emailTaskNotification).toHaveBeenCalledWith({
       projectId: expect.any(String),
       kind: 'assigned',
@@ -415,6 +447,11 @@ describe('task notifications link to the task', () => {
 
     await addComment(TASK, 'hi @Bob');
     expect(written).toEqual([expect.objectContaining({ type: 'comment_mention', taskId: TASK, href })]);
+    // I4: the commenter follows; followers hear about it, except those just @mentioned.
+    expect(followQuietly).toHaveBeenCalledWith(TASK, ['user-1']);
+    expect(notifyFollowers).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'task_comment', tasks: [{ id: TASK, title: 'Ship it' }], skip: ['user-2'] }),
+    );
     expect(emailTaskNotification).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'mentioned', userIds: ['user-2'], href, excerpt: 'hi @Bob' }),
     );
