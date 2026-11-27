@@ -178,7 +178,7 @@ export async function deleteAccount(
             )`,
           ),
         )
-        .returning({ id: user.id }),
+        .returning({ id: user.id, image: user.image }),
     ]);
     if (deleted.length === 0) {
       return {
@@ -187,7 +187,8 @@ export async function deleteAccount(
       };
     }
     // Their uploaded profile photo (I11) goes too; a leftover file is only logged.
-    const photo = ownAvatarKey(session.user.image);
+    // From the deleted row, not the session: a photo changed during this request counts.
+    const photo = ownAvatarKey(deleted[0].image, userId);
     if (photo) after(() => deleteFile(photo).catch((error) => console.error('[account] photo delete failed:', error)));
     const jar = await cookies();
     for (const { name } of jar.getAll()) {

@@ -30,14 +30,23 @@ test('upload a profile photo, see it in the header, then remove it (I11)', async
 
   // Saved as a small square image at an unguessable URL, shown in the header.
   const sql = await testDb();
-  const [{ image }] = await sql`select image from "user" where email = ${email}`;
-  expect(image).toMatch(/^\/api\/avatars\/[0-9a-f-]{36}\.(webp|jpg)$/);
+  const [{ image, id: userId }] = await sql`select id, image from "user" where email = ${email}`;
+  expect(image).toMatch(new RegExp(`^/api/avatars/${userId}/[0-9a-f-]{36}\\.(webp|jpg)$`));
   await expect(page.locator(`header img[src="${image}"]`).first()).toBeVisible({ timeout: 10000 });
   const served = await page.request.get(image);
   expect(served.status()).toBe(200);
   expect(served.headers()['content-type']).toMatch(/^image\/(webp|jpeg)$/);
   expect((await served.body()).length).toBeLessThan(512 * 1024);
-  expect((await page.request.get('/api/avatars/not-a-photo.png')).status()).toBe(404);
+  expect((await page.request.get(`/api/avatars/${userId}/not-a-photo.png`)).status()).toBe(404);
+
+  // Better Auth's own profile update can't set a photo (only the upload can).
+  const sneaky = await page.request.post('/api/auth/update-user', {
+    headers: { Origin: new URL(page.url()).origin },
+    data: { image: '/api/avatars/someone-else/0f8fad5b-d9cb-469f-a165-70867728950e.png' },
+  });
+  expect(sneaky.ok()).toBe(false);
+  expect(await sneaky.text()).toContain('Change your photo from your account page.');
+  expect((await sql`select image from "user" where id = ${userId}`)[0].image).toBe(image);
 
   // Removing goes back to initials.
   await page.getByRole('button', { name: 'Remove' }).click();

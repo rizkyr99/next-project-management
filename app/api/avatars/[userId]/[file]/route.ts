@@ -1,15 +1,16 @@
-import { parseAvatarFile } from '@/features/account/avatar';
+import { parseAvatar } from '@/features/account/avatar';
 import { readFileStream } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * I11: a profile photo. Shown wherever the person appears (boards, comments,
- * share links), so there's no sign-in check; the URL is a random ID, and
+ * share links), so there's no sign-in check; the URL has a random ID, and
  * only images whose bytes were checked on upload are stored here.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ file: string }> }) {
-  const avatar = parseAvatarFile((await params).file);
+export async function GET(_request: Request, { params }: { params: Promise<{ userId: string; file: string }> }) {
+  const { userId, file } = await params;
+  const avatar = parseAvatar(userId, file);
   const stream = avatar ? await readFileStream(avatar.key) : null;
   if (!avatar || !stream) return new Response('Not found', { status: 404 });
   return new Response(stream, {
