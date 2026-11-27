@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { layoutWeek, monthWeeks, moveSchedule, taskSpan } from '@/features/calendar/layout';
+import { addDays, layoutWeek, monthWeeks, moveSchedule, taskSpan, weekLabel, weekOf } from '@/features/calendar/layout';
 import { dayKey } from '@/features/tasks/due';
 
 // Local times, like the browser that runs this.
@@ -77,5 +77,29 @@ describe('moveSchedule', () => {
     expect(fresh.startDate).toBeNull();
     expect(dayKey(fresh.dueDate!)).toBe('2026-12-09');
     expect(fresh.dueHasTime).toBe(false);
+  });
+});
+
+describe('week view (B4)', () => {
+  it('finds the Monday-to-Sunday week a day falls in, across months and years', () => {
+    expect(weekOf('2026-11-27')).toEqual([
+      '2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29',
+    ]);
+    expect(weekOf('2026-11-23')[0]).toBe('2026-11-23'); // a Monday is its own week's start
+    expect(weekOf('2026-11-29')[0]).toBe('2026-11-23'); // a Sunday ends it
+    expect(weekOf('2027-01-01')).toEqual([
+      '2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03',
+    ]);
+  });
+
+  it('steps by days across a DST change', () => {
+    expect(addDays('2026-03-07', 7)).toBe('2026-03-14');
+    expect(addDays('2026-11-02', -7)).toBe('2026-10-26');
+  });
+
+  it('labels a week compactly', () => {
+    expect(weekLabel(weekOf('2026-11-25'))).toBe('Nov 23 – 29, 2026');
+    expect(weekLabel(weekOf('2026-12-02'))).toBe('Nov 30 – Dec 6, 2026');
+    expect(weekLabel(weekOf('2027-01-01'))).toBe('Dec 28, 2026 – Jan 3, 2027');
   });
 });
