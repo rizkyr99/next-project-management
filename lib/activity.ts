@@ -19,6 +19,7 @@ export type ActivityAction =
   | 'task.approved'
   | 'task.changes_requested'
   | 'task.deleted'
+  | 'task.moved'
   | 'project.created'
   | 'project.updated'
   | 'project.deleted'
