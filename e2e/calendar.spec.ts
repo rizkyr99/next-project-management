@@ -135,3 +135,72 @@ test('tasks on the calendar: ranges, drag to reschedule, schedule the undated, P
   await page.getByRole('button', { name: 'See what Pro adds' }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: 'Plan by date with the calendar in Pro' })).toBeVisible();
 });
+
+test('the week view: one week, roomier, drag to another day, and back to the month (B4)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  const s = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const slug = `calw-${s}`;
+  await registerAndLogin(page, `calw+${s}@example.com`, 'Wren Week');
+  await page.goto('/create-workspace');
+  await page.getByPlaceholder('e.g. Tide Corp Design').fill(`Week ${s}`);
+  await page.getByPlaceholder('e.g. tide-corp-design').fill(slug);
+  await page.getByRole('button', { name: /create workspace/i }).click();
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${slug}$`), { timeout: 15000 });
+  await page.getByRole('button', { name: 'Add project' }).click();
+  await page.getByLabel('Name').fill('Site');
+  await page.getByRole('button', { name: 'Create project' }).click();
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: 15000 });
+  const projectUrl = new URL(page.url()).pathname;
+  const projectId = projectUrl.split('/').pop()!;
+  for (const title of ['Review', 'Launch']) await addTask(page, 'To Do', title);
+
+  // A fixed week, Monday 7 to Sunday 13 June 2027: Review due Tuesday at 3 pm,
+  // Launch the following week.
+  const sql = await testDb();
+  await sql`update task set due_date = ${new Date(2027, 5, 8, 15, 0)}, due_has_time = true
+    where project_id = ${projectId} and title = 'Review'`;
+  await sql`update task set due_date = ${new Date(2027, 5, 16)} where project_id = ${projectId} and title = 'Launch'`;
+
+  await page.goto(`${projectUrl}?view=calendar&month=2027-06`);
+  await expect(page.getByRole('heading', { name: 'June 2027' })).toBeVisible({ timeout: 15000 });
+  const range = page.getByRole('group', { name: 'Calendar range' });
+  await expect(range.getByRole('button', { name: 'Month' })).toHaveAttribute('aria-pressed', 'true');
+
+  // Week opens on the month's first week (June 2027 isn't this month).
+  await range.getByRole('button', { name: 'Week' }).click();
+  await expect(page.getByRole('heading', { name: 'May 31 – Jun 6, 2027' })).toBeVisible();
+  await expect(range.getByRole('button', { name: 'Week' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(range.getByRole('button', { name: 'Month' })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Next week' }).click();
+  await expect(page.getByRole('heading', { name: 'Jun 7 – 13, 2027' })).toBeVisible();
+  // Only this week's tasks, with their column and due time.
+  const review = page.getByRole('button', { name: /^Review,/ });
+  await expect(review).toContainText('3:00 PM · To Do');
+  await expect(page.getByRole('button', { name: /^Launch,/ })).toHaveCount(0);
+  await expect(page.locator('[data-day]')).toHaveCount(7);
+
+  // It survives a reload.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Jun 7 – 13, 2027' })).toBeVisible({ timeout: 15000 });
+
+  // Drag Review from Tuesday to Thursday: the time of day stays.
+  const cell = (day: string) => page.locator(`[data-day="${day}"]`);
+  await settledOn(review, cell('2027-06-08'));
+  await drag(page, review, cell('2027-06-10'));
+  await expect(page.getByText(/Moved “Review”/)).toBeVisible();
+  await expect
+    .poll(async () => {
+      const [row] = await sql`select due_date from task where project_id = ${projectId} and title = 'Review'`;
+      const d = new Date(row.due_date);
+      return [localDay(d), d.getHours()];
+    })
+    .toEqual(['2027-06-10', 15]);
+
+  // Back to the month the week is in.
+  await page.getByRole('button', { name: 'Next week' }).click();
+  await expect(page.getByRole('button', { name: /^Launch,/ })).toBeVisible();
+  await range.getByRole('button', { name: 'Month' }).click();
+  await expect(page.getByRole('heading', { name: 'June 2027' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Review,/ })).toBeVisible();
+});
