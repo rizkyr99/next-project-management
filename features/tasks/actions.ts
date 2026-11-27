@@ -106,7 +106,7 @@ export async function createTask(values: z.input<typeof createTaskSchema>): Prom
       taskId: newTask.id,
       metadata: { taskTitle: newTask.title },
     });
-    after(() => followQuietly(newTask.id, [ctx.session.user.id]));
+    await followQuietly(newTask.id, [ctx.session.user.id]);
 
     return { task: newTask };
   } catch (error) {
@@ -479,7 +479,7 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
     const removedIds = [...existingIds].filter((uid) => !nextIds.includes(uid));
 
     // People put on a task follow it (I4).
-    if (addedIds.length > 0) after(() => followQuietly(ctx.task.id, addedIds));
+    if (addedIds.length > 0) await followQuietly(ctx.task.id, addedIds);
     const notifyIds = addedIds.filter((uid) => uid !== actorId);
     if (notifyIds.length > 0) {
       await db.insert(notification).values(
@@ -641,7 +641,6 @@ export async function addComment(
           (m) => m.id !== actorId && mentionedSet.has(m.name),
         );
 
-        mentionedIds = mentioned.map((u) => u.id);
         if (mentioned.length > 0) {
           await db.insert(notification).values(
             mentioned.map((u) => ({
@@ -652,6 +651,8 @@ export async function addComment(
               ...taskLink,
             })),
           );
+          // Only once they were notified: if this failed, followers still hear.
+          mentionedIds = mentioned.map((u) => u.id);
           after(() =>
             emailTaskNotification({
               projectId: ctx.project.id,
@@ -683,19 +684,20 @@ export async function addComment(
       taskId: ctx.task.id,
       metadata: { taskTitle: ctx.task.title },
     });
-    // I4: the team follows what it comments on; followers hear about it
-    // (unless the comment @mentioned them, which already notified them).
-    after(async () => {
-      if (ctx.role !== 'guest') await followQuietly(ctx.task.id, [actorId]);
-      await notifyFollowers({
+    // I4: the team follows what it comments on, before the response, so an
+    // Unfollow right after can't be undone by a late follow. Followers hear
+    // about it (unless the comment @mentioned them, which already notified them).
+    if (ctx.role !== 'guest') await followQuietly(ctx.task.id, [actorId]);
+    after(() =>
+      notifyFollowers({
         type: 'task_comment',
         workspace: ctx.workspace,
         projectId: ctx.project.id,
         actor: ctx.session.user,
         tasks: [{ id: ctx.task.id, title: ctx.task.title }],
         skip: mentionedIds,
-      });
-    });
+      }),
+    );
 
     return { comment: withAuthor };
   } catch (error) {
