@@ -13,6 +13,9 @@ import { and, eq, sql } from 'drizzle-orm';
 import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
+import { deleteFile } from '@/lib/storage';
+import { ownAvatarKey } from './avatar';
 import { z } from 'zod';
 
 const updateProfileSchema = z.object({
@@ -183,6 +186,9 @@ export async function deleteAccount(
         blockingWorkspaces: (await getOwnedWorkspaces(userId)).filter((w) => w.otherMembers > 0),
       };
     }
+    // Their uploaded profile photo (I11) goes too; a leftover file is only logged.
+    const photo = ownAvatarKey(session.user.image);
+    if (photo) after(() => deleteFile(photo).catch((error) => console.error('[account] photo delete failed:', error)));
     const jar = await cookies();
     for (const { name } of jar.getAll()) {
       if (/^(__Secure-)?better-auth\./.test(name)) jar.delete(name);
