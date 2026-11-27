@@ -59,7 +59,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 | I9 | My tasks | **Group by date**: overdue, today, this week, later | It's the screen people open first each morning. | S | Done (#80) |
 | I10 | Activity | **Filter by project and person** | The feed is one stream for the whole workspace. | S | Done (#81) |
 | I11 | Account | **Profile photo upload** | Only Google accounts have photos; email sign-ups are initials. Faces matter once clients are in. | M | Done (#149, released #150): cropped to 256 px in the browser, checked on the server, private storage |
-| I12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M |  |
+| I12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M | Done (#153, #155; released #154): share a screen, window or tab in place of the camera; full-screen view; desktop browsers |
 | I13 | Search | **Recent items and filters** in ⌘K | Search shows nothing until you type, and can't narrow to tasks or a project. | S | Done (#82) |
 
 ## Phase B: Work the way studios work
