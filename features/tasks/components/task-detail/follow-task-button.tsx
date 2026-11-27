@@ -31,6 +31,7 @@ export function FollowTaskButton({ taskId, me }: Readonly<{ taskId: string; me: 
   const key = followKey(taskId);
   const state = useQuery({
     queryKey: key,
+    staleTime: 30_000,
     queryFn: async () => {
       const res = await getFollowState({ taskId });
       if (res.error !== undefined) throw new Error(res.error);
