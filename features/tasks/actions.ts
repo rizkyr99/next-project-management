@@ -638,11 +638,13 @@ export async function addComment(
               updatedAt: sql<Date | null>`null::timestamp`.as('updated_at'),
             })
             .from(task)
-            .where(eq(task.id, ctx.task.id)),
+            // A client can't comment on a task that was just hidden from them:
+            // the comment would be saved where they could never see it.
+            .where(and(eq(task.id, ctx.task.id), ctx.role === 'guest' ? eq(task.internal, false) : undefined)),
         )
         .returning({ id: comment.id, clientVisible: comment.clientVisible }),
     ]);
-    if (!newComment) return { error: 'Task not found.' };
+    if (!newComment) return { error: 'Not found.' };
     const clientVisible = newComment.clientVisible;
 
     let mentionedIds: string[] = [];
