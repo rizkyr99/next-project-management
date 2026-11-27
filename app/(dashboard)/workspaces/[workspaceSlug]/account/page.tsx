@@ -12,9 +12,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { UpdateProfileForm } from '@/features/account/components/update-profile-form';
+import { ProfilePhoto } from '@/features/account/components/profile-photo';
 import { ChangePasswordForm } from '@/features/account/components/change-password-form';
 import { DeleteAccountSection } from '@/features/account/components/delete-account-section';
 import { getOwnedWorkspaces } from '@/lib/account';
@@ -61,22 +61,15 @@ export default async function AccountPage() {
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>Update your display name.</CardDescription>
+          <CardDescription>Your photo and name, as your team and clients see them.</CardDescription>
         </CardHeader>
         <CardContent className='space-y-6'>
-          <div className='flex items-center gap-4'>
-            <Avatar className='size-16'>
-              <AvatarImage
-                src={currentUser.image ?? undefined}
-                referrerPolicy='no-referrer'
-              />
-              <AvatarFallback className='text-lg'>{initials}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className='font-medium'>{currentUser.name}</p>
-              <p className='text-sm text-muted-foreground'>{currentUser.email}</p>
-            </div>
-          </div>
+          <ProfilePhoto
+            image={currentUser.image ?? null}
+            name={currentUser.name}
+            email={currentUser.email}
+            initials={initials}
+          />
           <Separator />
           <UpdateProfileForm defaultName={currentUser.name} />
         </CardContent>

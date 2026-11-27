@@ -49,7 +49,9 @@ import {
   MoreHorizontal,
   Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
+import { groupTasks } from '@/features/tasks/grouping';
+import { GroupBySelect, GroupToggle, useTaskGroups } from '@/features/tasks/components/task-groups';
 import { toast } from 'sonner';
 import { usePendingDeletes } from '@/features/tasks/pending-deletes';
 import { openTask } from '@/features/tasks/task-link';
@@ -134,7 +136,14 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
   );
   // Bulk actions only ever apply to what's on screen: tasks hidden by a
   // filter or inside their undo window drop out of the selection.
-  const visibleIds = new Set(visible.map((t) => t.id));
+  // I6: optional grouping, over what's on screen, in its current order.
+  const { group, setGroup, isCollapsed, toggle: toggleGroup } = useTaskGroups();
+  const groups = group ? groupTasks(visible, group, { statuses: statusOptions, currentUserId }) : null;
+  // A folded group's tasks aren't on screen either (one shared with an open
+  // group still is).
+  const visibleIds = new Set(
+    groups ? groups.filter((g) => !isCollapsed(g.key)).flatMap((g) => g.tasks.map((t) => t.id)) : visible.map((t) => t.id),
+  );
   const selectedIds = new Set([...rawSelectedIds].filter((id) => visibleIds.has(id)));
   const [isPending, setIsPending] = useState(false);
 
@@ -161,11 +170,11 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
     );
   }
 
-  const allSelected = selectedIds.size === visible.length;
+  const allSelected = visibleIds.size > 0 && selectedIds.size === visibleIds.size;
   const someSelected = selectedIds.size > 0;
 
   const toggleAll = () => {
-    setSelectedIds(allSelected ? new Set() : new Set(visible.map((t) => t.id)));
+    setSelectedIds(allSelected ? new Set() : new Set(visibleIds));
   };
 
   const toggleOne = (id: string) => {
@@ -231,88 +240,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
     }
   };
 
-  return (
-    <div className='flex-1 flex flex-col overflow-hidden'>
-      {someSelected && (
-        <div className='flex items-center gap-2 px-4 py-2 bg-primary/5 border-b text-sm'>
-          <span className='text-muted-foreground'>
-            {selectedIds.size} selected
-          </span>
-          <div className='flex items-center gap-2 ml-auto'>
-            <Select onValueChange={handleBulkStatusChange} disabled={isPending}>
-              <SelectTrigger className='h-8 text-xs w-36'>
-                <SelectValue placeholder='Set status…' />
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className='text-xs'>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant='destructive' size='sm' disabled={isPending}>
-                  <Trash2 className='size-3.5' />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete tasks</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete {selectedIds.size}{' '}
-                    {selectedIds.size === 1 ? 'task' : 'tasks'}? This action
-                    cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleBulkDelete}
-                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </div>
-      )}
-
-      <div className='flex-1 overflow-auto p-4'>
-        <Table>
-          <TableHeader>
-            <TableRow className='hover:bg-transparent'>
-              <TableHead className='w-10'>
-                {!readOnly && (
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleAll}
-                    aria-label='Select all'
-                  />
-                )}
-              </TableHead>
-              <TableHead aria-sort={ariaSort(sort, 'title')}>
-                <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
-              </TableHead>
-              <TableHead className='w-40' aria-sort={ariaSort(sort, 'status')}>
-                <SortButton label='Status' sortKey='status' sort={sort} setSort={setSort} />
-              </TableHead>
-              <TableHead className='w-32' aria-sort={ariaSort(sort, 'priority')}>
-                <SortButton label='Priority' sortKey='priority' sort={sort} setSort={setSort} />
-              </TableHead>
-              <TableHead className='w-28'>Start</TableHead>
-              <TableHead className='w-36' aria-sort={ariaSort(sort, 'due')}>
-                <SortButton label='Due date' sortKey='due' sort={sort} setSort={setSort} />
-              </TableHead>
-              <TableHead className='w-48'>Assignees</TableHead>
-              <TableHead className='w-10' />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visible.map((task) => {
+  const renderRow = (task: (typeof visible)[number], key: string) => {
               const priority = priorityConfig[task.priority];
               const due = formatDate(
                 task.dueDate,
@@ -321,7 +249,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
               );
 
               return (
-                <TableRow key={task.id} data-state={selectedIds.has(task.id) ? 'selected' : undefined}>
+                <TableRow key={key} data-state={selectedIds.has(task.id) ? 'selected' : undefined}>
                   <TableCell>
                     {!readOnly && (
                       <Checkbox
@@ -452,7 +380,109 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                   </TableCell>
                 </TableRow>
               );
-            })}
+  };
+
+  return (
+    <div className='flex-1 flex flex-col overflow-hidden'>
+      {someSelected && (
+        <div className='flex items-center gap-2 px-4 py-2 bg-primary/5 border-b text-sm'>
+          <span className='text-muted-foreground'>
+            {selectedIds.size} selected
+          </span>
+          <div className='flex items-center gap-2 ml-auto'>
+            <Select onValueChange={handleBulkStatusChange} disabled={isPending}>
+              <SelectTrigger className='h-8 text-xs w-36'>
+                <SelectValue placeholder='Set status…' />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className='text-xs'>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant='destructive' size='sm' disabled={isPending}>
+                  <Trash2 className='size-3.5' />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete tasks</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete {selectedIds.size}{' '}
+                    {selectedIds.size === 1 ? 'task' : 'tasks'}? This action
+                    cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleBulkDelete}
+                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
+
+      <div className='flex-1 overflow-auto p-4'>
+        <div className='mb-2 flex justify-end'>
+          <GroupBySelect group={group} onChange={setGroup} />
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow className='hover:bg-transparent'>
+              <TableHead className='w-10'>
+                {!readOnly && (
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleAll}
+                    aria-label='Select all'
+                  />
+                )}
+              </TableHead>
+              <TableHead aria-sort={ariaSort(sort, 'title')}>
+                <SortButton label='Task' sortKey='title' sort={sort} setSort={setSort} />
+              </TableHead>
+              <TableHead className='w-40' aria-sort={ariaSort(sort, 'status')}>
+                <SortButton label='Status' sortKey='status' sort={sort} setSort={setSort} />
+              </TableHead>
+              <TableHead className='w-32' aria-sort={ariaSort(sort, 'priority')}>
+                <SortButton label='Priority' sortKey='priority' sort={sort} setSort={setSort} />
+              </TableHead>
+              <TableHead className='w-28'>Start</TableHead>
+              <TableHead className='w-36' aria-sort={ariaSort(sort, 'due')}>
+                <SortButton label='Due date' sortKey='due' sort={sort} setSort={setSort} />
+              </TableHead>
+              <TableHead className='w-48'>Assignees</TableHead>
+              <TableHead className='w-10' />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups
+              ? groups.map((g) => (
+                  <Fragment key={g.key}>
+                    <TableRow className='hover:bg-transparent'>
+                      <TableCell colSpan={8} className='pt-4 pb-1'>
+                        <GroupToggle
+                          label={g.label}
+                          count={g.tasks.length}
+                          collapsed={isCollapsed(g.key)}
+                          onToggle={() => toggleGroup(g.key)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                    {!isCollapsed(g.key) && g.tasks.map((task) => renderRow(task, `${g.key}:${task.id}`))}
+                  </Fragment>
+                ))
+              : visible.map((task) => renderRow(task, task.id))}
           </TableBody>
         </Table>
       </div>
