@@ -50,6 +50,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Fragment, useState } from 'react';
+import { InternalBadge } from '@/features/tasks/components/internal-badge';
 import { groupTasks } from '@/features/tasks/grouping';
 import { GroupBySelect, GroupToggle, useTaskGroups } from '@/features/tasks/components/task-groups';
 import { toast } from 'sonner';
@@ -79,6 +80,7 @@ interface TableViewProps {
         startDate?: string | null;
         labels?: { label: { id: string; name: string; color: string | null } }[];
         checklist?: { done: boolean }[];
+        internal?: boolean;
         assignees: {
           user: {
             id: string;
@@ -268,6 +270,7 @@ export function TableView({ project, currentUserId = '' }: Readonly<TableViewPro
                       {task.title}
                     </button>
                     <span className='flex flex-wrap items-center gap-1.5'>
+                      {task.internal && <InternalBadge />}
                       <ChecklistBadge items={task.checklist} />
                       <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={2} />
                     </span>

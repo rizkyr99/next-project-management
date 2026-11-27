@@ -59,7 +59,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 | I9 | My tasks | **Group by date**: overdue, today, this week, later | It's the screen people open first each morning. | S | Done (#80) |
 | I10 | Activity | **Filter by project and person** | The feed is one stream for the whole workspace. | S | Done (#81) |
 | I11 | Account | **Profile photo upload** | Only Google accounts have photos; email sign-ups are initials. Faces matter once clients are in. | M | Done (#149, released #150): cropped to 256 px in the browser, checked on the server, private storage |
-| I12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M |  |
+| I12 | Calls | **Screen sharing** | Design and site reviews are the main reason a studio would call from a project. | M | Done (#153, #155; released #154): share a screen, window or tab in place of the camera; full-screen view; desktop browsers |
 | I13 | Search | **Recent items and filters** in ⌘K | Search shows nothing until you type, and can't narrow to tasks or a project. | S | Done (#82) |
 
 ## Phase B: Work the way studios work
@@ -79,7 +79,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 | # | Item | Why | Size | Plan |
 |---|---|---|---|---|
 | C1 | **Client guests** | A guest role scoped to chosen projects: they see those boards, comment and approve, and nothing else in the workspace. **Guests are free and unlimited:** studios won't want to pay per client login, and several tools limit or charge for guests. | L | Pro. Done (#96, released #97); approvals come with C3 |
-| C2 | **Internal vs client-visible** | Comments, and optionally tasks, are internal by default in projects with guests; posting to the client is deliberate. | M | Pro. Comments done (#99, released #100); internal tasks not built |
+| C2 | **Internal vs client-visible** | Comments, and optionally tasks, are internal by default in projects with guests; posting to the client is deliberate. | M | Pro. Comments done (#99, released #100); internal tasks done (#157, released #158): visible by default, the team hides a task from the client |
 | C3 | **Approvals** | "Request approval" on a task: the client approves or requests changes, which is recorded in activity and notifies the team. | M | Pro. Done (#102, released #103) |
 | C4 | **Read-only share link** | A link to a project's board or timeline for clients who won't sign in. | S | Pro. Board done (#105, released #106); timeline view not built |
 | C5 | **Client-friendly emails** | Invites and notifications that read well to someone outside the studio, with the studio's name. | S | Pro. Done (#108, released #109) |

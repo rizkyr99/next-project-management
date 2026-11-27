@@ -18,18 +18,37 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useQuery } from '@tanstack/react-query';
-import { Copy, FolderInput, MoreHorizontal } from 'lucide-react';
+import { Copy, Eye, FolderInput, Lock, MoreHorizontal } from 'lucide-react';
+import { useClientAudience } from '@/features/projects/read-only';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { useResetOnOpen } from '@/hooks/use-reset-on-open';
 import { closeTask, switchTask, taskHref } from '../../task-link';
-import { duplicateTask, listMoveTargets, moveTask } from '../../transfer-actions';
+import { duplicateTask, listMoveTargets, moveTask, setTaskInternal } from '../../transfer-actions';
 
-/** I2: the task sheet's "⋯" menu: duplicate, or move to another project. */
-export function TaskActionsMenu({ taskId, title }: Readonly<{ taskId: string; title: string }>) {
+/** The task sheet's "⋯" menu: duplicate, move to another project (I2), hide from the client (C2). */
+export function TaskActionsMenu({
+  taskId,
+  title,
+  internal = false,
+}: Readonly<{ taskId: string; title: string; internal?: boolean }>) {
   const [moving, setMoving] = useState(false);
   const [isDuplicating, startDuplicate] = useTransition();
+  const [isChangingVisibility, startVisibility] = useTransition();
+  const clientAudience = useClientAudience();
+
+  const toggleInternal = () =>
+    startVisibility(async () => {
+      const result = await setTaskInternal({ taskId, internal: !internal });
+      if (result.error !== undefined) {
+        toast.error(result.error, { position: 'top-center' });
+        return;
+      }
+      toast.success(internal ? 'The client can see this task now' : 'Only your team can see this task now', {
+        position: 'top-center',
+      });
+    });
 
   const duplicate = () =>
     startDuplicate(async () => {
@@ -65,6 +84,13 @@ export function TaskActionsMenu({ taskId, title }: Readonly<{ taskId: string; ti
             <FolderInput />
             Move to project…
           </DropdownMenuItem>
+          {/* An internal task in a project the client no longer sees can still be shown again. */}
+          {(clientAudience || internal) && (
+            <DropdownMenuItem disabled={isChangingVisibility} onSelect={toggleInternal}>
+              {internal ? <Eye /> : <Lock />}
+              {internal ? 'Show to client' : 'Hide from client'}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <MoveTaskDialog taskId={taskId} title={title} open={moving} onOpenChange={setMoving} />

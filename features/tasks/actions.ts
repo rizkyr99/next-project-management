@@ -12,6 +12,7 @@ import { db } from '@/db/drizzle';
 import { comment, commentReaction, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { REACTIONS, type Reaction, type ReactionSummary } from './reaction-kinds';
 import { insertActivity } from '@/lib/activity';
+import { lockTask } from '@/lib/task-lock';
 import { mentionedNames } from './mentions';
 import { taskHref } from './task-link';
 import { projectAudience } from '@/lib/project-audience';
@@ -610,16 +611,41 @@ export async function addComment(
     // Clients (guests) can comment on projects shared with them.
     const ctx = await requireTaskAccess(idSchema.parse(taskId), { allowGuests: true });
     const text = commentBodySchema.parse(body);
-    const clientVisible = ctx.role === 'guest' || z.boolean().optional().parse(options.clientVisible) === true;
+    const wantsClient = ctx.role === 'guest' || z.boolean().optional().parse(options.clientVisible) === true;
     const actorId = ctx.session.user.id;
     await enforceRateLimit('comments', actorId);
     const taskLink = notificationLink(ctx);
 
-    const [newComment] = await db
-      .insert(comment)
-      // updated_at's $onUpdate would also fire on insert; a new comment isn't edited.
-      .values({ taskId: ctx.task.id, authorId: actorId, body: text, clientVisible, updatedAt: null })
-      .returning({ id: comment.id });
+    // On an internal task (C2) every comment is the team's. The task row is
+    // locked and the insert reads `internal` itself, so a concurrent hide
+    // can't slip between the check and the write; the mentions below follow
+    // what was saved.
+    const [, [newComment]] = await db.batch([
+      lockTask(ctx.task.id),
+      db
+        .insert(comment)
+        // An insert from a select lists every column, in table order.
+        .select((qb) =>
+          qb
+            .select({
+              id: sql<string>`gen_random_uuid()::text`.as('id'),
+              taskId: task.id,
+              authorId: sql<string>`${actorId}`.as('author_id'),
+              body: sql<string>`${text}`.as('body'),
+              clientVisible: sql<boolean>`${wantsClient} and not ${task.internal}`.as('client_visible'),
+              createdAt: sql<Date>`now()`.as('created_at'),
+              // A new comment isn't edited.
+              updatedAt: sql<Date | null>`null::timestamp`.as('updated_at'),
+            })
+            .from(task)
+            // A client can't comment on a task that was just hidden from them:
+            // the comment would be saved where they could never see it.
+            .where(and(eq(task.id, ctx.task.id), ctx.role === 'guest' ? eq(task.internal, false) : undefined)),
+        )
+        .returning({ id: comment.id, clientVisible: comment.clientVisible }),
+    ]);
+    if (!newComment) return { error: 'Not found.' };
+    const clientVisible = newComment.clientVisible;
 
     let mentionedIds: string[] = [];
     // Resolve @Name mentions against the workspace's real members, never
@@ -764,6 +790,9 @@ export async function setCommentVisibility(commentId: string, clientVisible: boo
       .where(and(eq(member.userId, ctx.comment.authorId), eq(member.workspaceId, ctx.workspace.id)));
     if (author?.role === 'guest') {
       return { error: 'A client’s own comments are always visible to them.' };
+    }
+    if (input.clientVisible && ctx.comment.taskInternal) {
+      return { error: 'This task is internal. Show it to the client first.' };
     }
 
     await db

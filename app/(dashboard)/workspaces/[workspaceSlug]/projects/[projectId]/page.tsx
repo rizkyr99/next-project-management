@@ -22,7 +22,7 @@ import { projectSnapshot } from '@/features/tasks/snapshot';
 import { ProjectDetails } from '@/features/projects/components/project-details';
 import { RestoreProjectButton } from '@/features/projects/components/restore-project-button';
 import { Archive } from 'lucide-react';
-import { ProjectReadOnly } from '@/features/projects/read-only';
+import { ProjectClientAudience, ProjectReadOnly } from '@/features/projects/read-only';
 import { projectAudience } from '@/lib/project-audience';
 
 
@@ -95,6 +95,8 @@ export default async function ProjectIdPage({
           orderBy: (taskStatus, { asc }) => [asc(taskStatus.order)],
           with: {
             tasks: {
+              // C2: a client never receives the team's internal tasks.
+              where: isGuest ? (t, { eq }) => eq(t.internal, false) : undefined,
               orderBy: (t, { asc }) => [asc(t.order)],
               with: {
                 assignees: {
@@ -214,6 +216,7 @@ export default async function ProjectIdPage({
             t.assignees.map((a) => a.user.id),
             t.labels.map((l) => [l.label.id, l.label.name, l.label.color]),
             t.dueHasTime,
+            t.internal,
             t.startDate,
             t.checklist.map((c) => [c.id, c.done]),
             approvalMap.get(t.id) ?? null,
@@ -227,8 +230,12 @@ export default async function ProjectIdPage({
   // Work is assigned to the team only; guests of this project can still be @mentioned.
   const teamMembers = workspaceMembers.filter((m) => m.role !== 'guest');
 
+  // C2: a client sees this project (guests, or a share link): offer "internal" on tasks.
+  const clientAudience = !isGuest && (teamMembers.length < workspaceMembers.length || Boolean(data.shareToken));
+
   return (
     <ProjectReadOnly readOnly={isGuest}>
+    <ProjectClientAudience value={clientAudience}>
     <div className='h-full flex flex-col'>
       <ProjectLiveUpdates projectId={data.id} snapshot={snapshot} />
       <RememberProject workspaceSlug={workspaceSlug} projectId={data.id} name={data.name} />
@@ -317,6 +324,7 @@ export default async function ProjectIdPage({
         />
       </Suspense>
     </div>
+    </ProjectClientAudience>
     </ProjectReadOnly>
   );
 }

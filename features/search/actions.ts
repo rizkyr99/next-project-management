@@ -63,7 +63,14 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
       })
       .from(task)
       .innerJoin(taskStatus, eq(task.statusId, taskStatus.id))
-      .where(and(inArray(task.projectId, projectIds), or(ilike(task.title, term), ilike(task.description, term))))
+      .where(
+        and(
+          inArray(task.projectId, projectIds),
+          or(ilike(task.title, term), ilike(task.description, term)),
+          // C2: nor the team's internal tasks.
+          isGuest ? eq(task.internal, false) : undefined,
+        ),
+      )
       .limit(8),
 
     db
@@ -86,8 +93,8 @@ export async function searchWorkspace(query: string, workspaceSlug: string): Pro
         and(
           inArray(task.projectId, projectIds),
           ilike(comment.body, term),
-          // Internal comments never surface for a client.
-          isGuest ? eq(comment.clientVisible, true) : undefined,
+          // Internal comments, or any on an internal task, never surface for a client.
+          isGuest ? and(eq(comment.clientVisible, true), eq(task.internal, false)) : undefined,
         ),
       )
       .limit(5),

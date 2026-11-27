@@ -17,3 +17,17 @@ export function ProjectReadOnly({ readOnly, children }: Readonly<{ readOnly: boo
 export function useReadOnly() {
   return useContext(ReadOnlyContext);
 }
+
+const ClientAudienceContext = createContext(false);
+
+/**
+ * C2: whether a client can see this project (it has guests, or a share
+ * link), so making a task internal means something here.
+ */
+export function ProjectClientAudience({ value, children }: Readonly<{ value: boolean; children: ReactNode }>) {
+  return <ClientAudienceContext.Provider value={value}>{children}</ClientAudienceContext.Provider>;
+}
+
+export function useClientAudience() {
+  return useContext(ClientAudienceContext);
+}

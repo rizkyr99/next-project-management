@@ -41,6 +41,8 @@ interface TaskCommentsProps {
   currentUserId: string;
   /** Everyone who can see the project; guests (clients) have role 'guest'. */
   workspaceMembers: { id: string; name: string; image?: string | null; role?: string }[];
+  /** C2: an internal task's comments are the team's; nothing to share. */
+  taskInternal?: boolean;
 }
 
 function getInitials(name: string) {
@@ -60,7 +62,7 @@ function wasEdited(c: { createdAt: Date; updatedAt: Date | null }) {
   return c.updatedAt !== null && new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime() > 1000;
 }
 
-export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCommentsProps) {
+export function TaskComments({ taskId, currentUserId, workspaceMembers, taskInternal = false }: TaskCommentsProps) {
   const queryClient = useQueryClient();
   const queryKey = ['comments', taskId];
   const memberNames = workspaceMembers.map((m) => m.name);
@@ -68,7 +70,7 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
   const viewerIsGuest = guestIds.has(currentUserId);
   const viewerRole = workspaceMembers.find((m) => m.id === currentUserId)?.role;
   // Internal vs client-visible only matters once a project has guests.
-  const showVisibility = !viewerIsGuest && guestIds.size > 0;
+  const showVisibility = !viewerIsGuest && guestIds.size > 0 && !taskInternal;
 
   const { data: comments = [] } = useQuery({
     queryKey,

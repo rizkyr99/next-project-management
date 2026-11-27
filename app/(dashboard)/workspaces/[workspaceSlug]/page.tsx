@@ -214,7 +214,14 @@ async function GuestHome({
     .innerJoin(task, eq(task.id, taskApproval.taskId))
     .innerJoin(project, eq(project.id, task.projectId))
     .innerJoin(projectGuest, and(eq(projectGuest.projectId, project.id), eq(projectGuest.userId, userId)))
-    .where(and(eq(taskApproval.status, 'pending'), eq(project.workspaceId, workspace.id), isNull(project.archivedAt)))
+    .where(
+      and(
+        eq(taskApproval.status, 'pending'),
+        eq(task.internal, false),
+        eq(project.workspaceId, workspace.id),
+        isNull(project.archivedAt),
+      ),
+    )
     .orderBy(taskApproval.createdAt)
     .limit(20);
   const firstName = userName?.split(' ')[0] ?? 'there';

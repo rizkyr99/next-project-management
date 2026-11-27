@@ -101,7 +101,12 @@ export async function getTaskActivity(taskId: string) {
           // thread and the Files list; "X commented" or "X attached brief.pdf"
           // here could point at internal ones.
           ctx.role === 'guest'
-            ? notInArray(activityLog.action, ['task.comment_added', 'task.file_added', 'task.file_removed'])
+            ? notInArray(activityLog.action, [
+                'task.comment_added',
+                'task.file_added',
+                'task.file_removed',
+                'task.visibility_changed',
+              ])
             : undefined,
         ),
       )

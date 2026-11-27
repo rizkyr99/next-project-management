@@ -147,6 +147,7 @@ export async function requireTaskAccess(taskId: string, opts?: AccessOptions) {
       taskId: task.id,
       taskTitle: task.title,
       statusId: task.statusId,
+      internal: task.internal,
       projectId: project.id,
       workspaceId: workspace.id,
       workspaceSlug: workspace.slug,
@@ -165,12 +166,14 @@ export async function requireTaskAccess(taskId: string, opts?: AccessOptions) {
     .limit(1);
 
   if (!row) throw new AuthzError();
-  assertRole(row.role, opts, row.shared !== null);
+  // C2: to a client guest, an internal task doesn't exist (nor its comments,
+  // files or approvals, which all come through here).
+  assertRole(row.role, opts, row.shared !== null && !row.internal);
 
   return {
     session,
     role: row.role,
-    task: { id: row.taskId, title: row.taskTitle, statusId: row.statusId },
+    task: { id: row.taskId, title: row.taskTitle, statusId: row.statusId, internal: row.internal },
     project: { id: row.projectId },
     workspace: { id: row.workspaceId, slug: row.workspaceSlug },
   };
@@ -185,6 +188,7 @@ export async function requireCommentAccess(commentId: string, opts?: AccessOptio
       authorId: comment.authorId,
       clientVisible: comment.clientVisible,
       taskId: comment.taskId,
+      taskInternal: task.internal,
       projectId: project.id,
       workspaceId: project.workspaceId,
       role: member.role,
@@ -203,12 +207,18 @@ export async function requireCommentAccess(commentId: string, opts?: AccessOptio
 
   if (!row) throw new AuthzError();
   // To a guest, an internal comment doesn't exist.
-  assertRole(row.role, opts, row.shared !== null && row.clientVisible);
+  assertRole(row.role, opts, row.shared !== null && row.clientVisible && !row.taskInternal);
 
   return {
     session,
     role: row.role,
-    comment: { id: row.commentId, authorId: row.authorId, taskId: row.taskId, clientVisible: row.clientVisible },
+    comment: {
+      id: row.commentId,
+      authorId: row.authorId,
+      taskId: row.taskId,
+      clientVisible: row.clientVisible,
+      taskInternal: row.taskInternal,
+    },
     project: { id: row.projectId },
     workspace: { id: row.workspaceId },
   };

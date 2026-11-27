@@ -2,9 +2,10 @@
 
 import z from 'zod';
 import { after } from 'next/server';
-import { aliasedTable, and, desc, eq, ne } from 'drizzle-orm';
+import { aliasedTable, and, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/db/drizzle';
-import { notification, projectGuest, taskApproval, taskAssignee, member, user } from '@/db/schema';
+import { notification, projectGuest, task, taskApproval, taskAssignee, member, user } from '@/db/schema';
+import { lockTask } from '@/lib/task-lock';
 import { insertActivity } from '@/lib/activity';
 import { emailTaskNotification } from '@/lib/notification-emails';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -76,6 +77,8 @@ export async function requestApproval(input: { taskId: string; message?: string 
     await enforceRateLimit('comments', ctx.session.user.id);
     const gated = await planGateProblem(ctx.workspace.id, 'approvals');
     if (gated) return { error: gated };
+    // C2: the client can't see an internal task, so can't be asked about it.
+    if (ctx.task.internal) return { error: 'This task is internal. Show it to the client first, then ask for approval.' };
 
     const guests = await db
       .select({ id: projectGuest.userId })
@@ -86,13 +89,41 @@ export async function requestApproval(input: { taskId: string; message?: string 
       return { error: 'Share this project with a client first: only clients can approve.' };
     }
 
-    // The partial unique index allows one waiting round per task.
-    const created = await db
-      .insert(taskApproval)
-      .values({ taskId: ctx.task.id, requestedById: ctx.session.user.id, message: message || null })
-      .onConflictDoNothing()
-      .returning({ id: taskApproval.id });
-    if (created.length === 0) return { error: 'This task is already waiting for approval.' };
+    // The partial unique index allows one waiting round per task. The task row
+    // is locked first and the insert re-checks it, so a concurrent hide can't
+    // leave an internal task waiting on the client (C2).
+    const [, created] = await db.batch([
+      lockTask(ctx.task.id),
+      db
+        .insert(taskApproval)
+        // An insert from a select lists every column, in table order.
+        .select((qb) =>
+          qb
+            .select({
+              id: sql<string>`gen_random_uuid()::text`.as('id'),
+              taskId: task.id,
+              status: sql<ApprovalStatus>`'pending'::approval_status`.as('status'),
+              requestedById: sql<string>`${ctx.session.user.id}`.as('requested_by_id'),
+              message: sql<string | null>`${message || null}`.as('message'),
+              respondedById: sql<string | null>`null::text`.as('responded_by_id'),
+              responseNote: sql<string | null>`null::text`.as('response_note'),
+              createdAt: sql<Date>`now()`.as('created_at'),
+              respondedAt: sql<Date | null>`null::timestamp`.as('responded_at'),
+            })
+            .from(task)
+            .where(and(eq(task.id, ctx.task.id), eq(task.internal, false))),
+        )
+        .onConflictDoNothing()
+        .returning({ id: taskApproval.id }),
+    ]);
+    if (created.length === 0) {
+      const [now] = await db.select({ internal: task.internal }).from(task).where(eq(task.id, ctx.task.id));
+      return {
+        error: now?.internal
+          ? 'This task is internal. Show it to the client first, then ask for approval.'
+          : 'This task is already waiting for approval.',
+      };
+    }
 
     const href = taskHref(ctx.workspace.slug, ctx.project.id, ctx.task.id);
     await db.insert(notification).values(

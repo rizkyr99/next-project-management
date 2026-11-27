@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { chain } from '../../helpers/db-mock';
 
-const db = vi.hoisted(() => ({ select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn() }));
+const db = vi.hoisted(() => ({ select: vi.fn(), insert: vi.fn(), update: vi.fn(), delete: vi.fn(), batch: vi.fn() }));
+const LOCK = 'lock-task';
+// The row lock is a batch's first statement (C2); the batch mock skips it.
+vi.mock('@/lib/task-lock', () => ({ lockTask: () => LOCK }));
 
 vi.mock('@/lib/subscription', () => ({ planGateProblem: vi.fn(async () => null) }));
 vi.mock('@/db/drizzle', () => ({ db }));
@@ -43,6 +46,14 @@ function captureInsert(into: unknown[][], result: unknown = undefined) {
   }));
 }
 
+/** The approval insert (from a select of the task row, if it isn't internal), in a batch. */
+function approvalInsert(returned: unknown[]) {
+  db.batch.mockImplementationOnce(async (queries: unknown[]) =>
+    Promise.all(queries.map((q) => (q === LOCK ? [] : q))),
+  );
+  db.insert.mockReturnValueOnce(chain(returned));
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
 });
@@ -65,20 +76,31 @@ describe('requestApproval', () => {
   it('allows one waiting request per task', async () => {
     vi.mocked(requireTaskAccess).mockResolvedValue(ctx('member') as never);
     db.select.mockReturnValueOnce(chain([{ id: 'guest-1' }]));
-    db.insert.mockReturnValueOnce(chain([])); // the partial unique index skipped it
+    approvalInsert([]); // the partial unique index skipped it
+    db.select.mockReturnValueOnce(chain([{ internal: false }]));
     expect((await requestApproval({ taskId: TASK })).error).toMatch(/already waiting/);
     expect(insertActivity).not.toHaveBeenCalled();
+  });
+
+  it('asks nothing of the client once the task went internal', async () => {
+    vi.mocked(requireTaskAccess).mockResolvedValue(ctx('member') as never);
+    db.select.mockReturnValueOnce(chain([{ id: 'guest-1' }]));
+    approvalInsert([]); // the insert's select found the task internal
+    db.select.mockReturnValueOnce(chain([{ internal: true }]));
+    expect((await requestApproval({ taskId: TASK })).error).toMatch(/internal/);
+    expect(db.insert).toHaveBeenCalledOnce();
+    expect(emailTaskNotification).not.toHaveBeenCalled();
   });
 
   it("notifies and emails the project's clients, and logs it", async () => {
     vi.mocked(requireTaskAccess).mockResolvedValue(ctx('member') as never);
     db.select.mockReturnValueOnce(chain([{ id: 'guest-1' }, { id: 'guest-2' }]));
     const rows: unknown[][] = [];
-    captureInsert(rows, [{ id: 'a-1' }]);
+    approvalInsert([{ id: 'a-1' }]);
     captureInsert(rows);
     expect(await requestApproval({ taskId: TASK, message: 'Please check the hero' })).toEqual({ success: true });
-    expect(rows[0][0]).toMatchObject({ taskId: TASK, requestedById: 'user-1', message: 'Please check the hero' });
-    expect(rows[1]).toEqual([
+    expect(db.batch).toHaveBeenCalledOnce();
+    expect(rows[0]).toEqual([
       expect.objectContaining({ userId: 'guest-1', type: 'approval_requested' }),
       expect.objectContaining({ userId: 'guest-2', type: 'approval_requested' }),
     ]);

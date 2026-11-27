@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { chain, failingChain } from '../../helpers/db-mock';
 
+const LOCK = 'lock-task';
 const db = vi.hoisted(() => ({
   select: vi.fn(),
   insert: vi.fn(),
@@ -13,6 +16,8 @@ vi.mock('@/db/drizzle', () => ({ db }));
 vi.mock('@/lib/auth', () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock('@/lib/activity', () => ({ insertActivity: vi.fn() }));
 vi.mock('@/lib/notification-emails', () => ({ emailTaskNotification: vi.fn() }));
+// The row lock is a batch's first statement (C2); the batch mock skips it.
+vi.mock('@/lib/task-lock', () => ({ lockTask: () => LOCK }));
 vi.mock('@/lib/followers', () => ({ followQuietly: vi.fn(), notifyFollowers: vi.fn(), tasksLeavingColumn: vi.fn() }));
 vi.mock('@/lib/rate-limit', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/rate-limit')>();
@@ -67,6 +72,32 @@ import {
   updateTaskStatus,
   updateTaskTitle,
 } from '@/features/tasks/actions';
+
+/** db.batch that runs each query mock (the task lock resolves to no rows). */
+function runBatch() {
+  db.batch.mockImplementationOnce(async (queries: unknown[]) =>
+    Promise.all(queries.map((q) => (q === LOCK ? [] : q))),
+  );
+}
+
+/**
+ * The comment insert (an insert from a select of the task row): records the
+ * selected fields, resolves to the row the database would return.
+ */
+function commentInsert(returned: Record<string, unknown>, fields?: Record<string, unknown>[]) {
+  runBatch();
+  db.insert.mockImplementationOnce(() => ({
+    select: (build: (qb: unknown) => unknown) => {
+      build({
+        select: (f: Record<string, unknown>) => {
+          fields?.push(f);
+          return chain(undefined);
+        },
+      });
+      return chain([returned]);
+    },
+  }));
+}
 
 const PROJECT = '00000000-0000-4000-8000-000000000001';
 const STATUS = '00000000-0000-4000-8000-000000000002';
@@ -435,7 +466,8 @@ describe('task notifications link to the task', () => {
 
   it('stores the task link on mention notifications', async () => {
     const written: Record<string, unknown>[] = [];
-    db.insert.mockReturnValueOnce(chain([{ id: COMMENT }])).mockImplementationOnce(() => ({
+    commentInsert({ id: COMMENT, clientVisible: false });
+    db.insert.mockImplementationOnce(() => ({
       values: (rows: Record<string, unknown>[]) => {
         written.push(...rows);
         return chain(undefined);
@@ -476,9 +508,8 @@ describe('addComment', () => {
   /** Runs addComment against the given members; returns notified user IDs. */
   async function notifiedBy(body: string, members: { id: string; name: string }[]) {
     const notified: string[] = [];
+    commentInsert({ id: COMMENT, clientVisible: false });
     db.insert
-      // comment insert
-      .mockReturnValueOnce(chain([{ id: COMMENT }]))
       // notification insert: capture what gets written
       .mockImplementationOnce(() => ({
         values: (rows: { userId: string }[]) => {
@@ -526,7 +557,7 @@ describe('addComment', () => {
   });
 
   it('skips the member lookup when there is no @', async () => {
-    db.insert.mockReturnValueOnce(chain([{ id: COMMENT }]));
+    commentInsert({ id: COMMENT, clientVisible: false });
     db.select.mockReturnValueOnce(chain([{ id: COMMENT, body: 'plain' }]));
     await addComment(TASK, 'plain comment');
     expect(db.select).toHaveBeenCalledOnce();
@@ -534,22 +565,22 @@ describe('addComment', () => {
 });
 
 describe('internal vs client-visible comments (C2)', () => {
-  /** Runs addComment; returns the saved comment row and who was notified. */
+  /**
+   * Runs addComment. The database decides visibility from the task row, so
+   * `stored` is what it returns; `asked` is whether the insert asked for the
+   * client to see it (before the task's own internal flag is applied).
+   */
   async function post(
     role: 'member' | 'guest',
     body: string,
     options: { clientVisible?: boolean },
     members: { id: string; name: string; role: string }[] = [],
+    stored?: boolean,
   ) {
     vi.mocked(requireTaskAccess).mockResolvedValue({ ...taskCtx, role } as never);
-    const saved: Record<string, unknown>[] = [];
+    const fields: Record<string, unknown>[] = [];
     const notified: string[] = [];
-    db.insert.mockImplementationOnce(() => ({
-      values: (row: Record<string, unknown>) => {
-        saved.push(row);
-        return chain([{ id: COMMENT }]);
-      },
-    }));
+    commentInsert({ id: COMMENT, clientVisible: stored ?? false }, fields);
     if (body.includes('@'))
       db.insert.mockImplementationOnce(() => ({
         values: (rows: { userId: string }[]) => {
@@ -560,7 +591,10 @@ describe('internal vs client-visible comments (C2)', () => {
     if (body.includes('@')) db.select.mockReturnValueOnce(chain(members));
     db.select.mockReturnValueOnce(chain([{ id: COMMENT, body }]));
     await addComment(TASK, body, options);
-    return { saved: saved[0], notified };
+    const visible = new PgDialect().sqlToQuery((fields[0].clientVisible as SQL.Aliased).sql);
+    // `<asked> and not "task"."internal"`: an internal task's comments stay with the team.
+    expect(visible.sql).toMatch(/and not "task"\."internal"$/);
+    return { asked: visible.params[0], notified };
   }
 
   const audience = [
@@ -570,12 +604,12 @@ describe('internal vs client-visible comments (C2)', () => {
   ];
 
   it('keeps a team comment internal unless it is posted to the client', async () => {
-    expect((await post('member', 'note', {})).saved.clientVisible).toBe(false);
-    expect((await post('member', 'for you', { clientVisible: true })).saved.clientVisible).toBe(true);
+    expect((await post('member', 'note', {})).asked).toBe(false);
+    expect((await post('member', 'for you', { clientVisible: true })).asked).toBe(true);
   });
 
   it("always shows a guest's comment to the client side", async () => {
-    expect((await post('guest', 'hi', { clientVisible: false })).saved.clientVisible).toBe(true);
+    expect((await post('guest', 'hi', { clientVisible: false })).asked).toBe(true);
   });
 
   it('never notifies a client about an internal comment, even if mentioned', async () => {
@@ -584,8 +618,23 @@ describe('internal vs client-visible comments (C2)', () => {
   });
 
   it('notifies a mentioned client about a comment posted to them', async () => {
-    const { notified } = await post('member', '@Cleo see this', { clientVisible: true }, audience);
+    const { notified } = await post('member', '@Cleo see this', { clientVisible: true }, audience, true);
     expect(notified).toEqual(['guest-1']);
+  });
+
+  it("refuses a client's comment on a task hidden from them meanwhile", async () => {
+    vi.mocked(requireTaskAccess).mockResolvedValue({ ...taskCtx, role: 'guest' } as never);
+    runBatch();
+    db.insert.mockImplementationOnce(() => ({ select: () => chain([]) })); // the task is internal now
+    expect(await addComment(TASK, 'hi')).toEqual({ error: 'Not found.' });
+    expect(insertActivity).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it('follows what was saved: asked for the client, but the task went internal', async () => {
+    const { asked, notified } = await post('member', '@Cleo @Bob see this', { clientVisible: true }, audience, false);
+    expect(asked).toBe(true);
+    expect(notified).toEqual(['user-2']);
   });
 
   const commentCtx = (role: string, authorId: string) => ({
