@@ -34,7 +34,7 @@ describe('sendTrialNotices (E2)', () => {
       ownerName: 'Ada',
       workspaceName: 'Northwind Studio',
       endsOn: 'December 10',
-      priceLine: '$27 a month (3 team members × $9)',
+      priceLine: '$18 a month (3 team members × $6)',
       billingUrl: 'https://tide.test/workspaces/northwind/settings?tab=billing',
     });
     // Claimed, sent, nothing released.
@@ -51,7 +51,7 @@ describe('sendTrialNotices (E2)', () => {
     expect(await sendTrialNotices(new Date('2026-12-11T08:00:00Z'))).toEqual({ ending: 0, ended: 0 });
     expect(email.sendTrialNoticeEmail).toHaveBeenCalledWith(
       'owner@gmail.com',
-      expect.objectContaining({ kind: 'ended', priceLine: '$9 a month (1 team member × $9)' }),
+      expect.objectContaining({ kind: 'ended', priceLine: '$6 a month (1 team member × $6)' }),
     );
     expect(db.execute).toHaveBeenCalledTimes(3);
   });

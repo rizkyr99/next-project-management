@@ -16,7 +16,16 @@ export const PLANS = {
 
 export type { PlanName };
 
-/** Pro for the Pro price; anything else (including retired prices) is Free. */
+/**
+ * Pro for the current Pro price or any legacy Pro price (subscribers who
+ * joined at an older rate keep Pro). Anything else is Free.
+ */
 export function getPlanFromPriceId(priceId: string): PlanName {
-  return priceId && priceId === PLANS.pro.priceId ? 'pro' : 'free';
+  if (!priceId) return 'free';
+  if (priceId === PLANS.pro.priceId) return 'pro';
+  const legacy = (process.env.STRIPE_PRO_LEGACY_PRICE_IDS ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return legacy.includes(priceId) ? 'pro' : 'free';
 }

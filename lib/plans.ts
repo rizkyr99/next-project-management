@@ -34,7 +34,7 @@ export const PLAN_DETAILS: Record<PlanName, PlanDetails> = {
   },
   pro: {
     name: 'Pro',
-    priceMonthly: 9,
+    priceMonthly: 6,
     perMember: true,
     maxMembers: null,
     storageBytes: 100 * GB,

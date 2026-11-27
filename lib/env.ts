@@ -27,6 +27,8 @@ export const serverEnvSchema = z.object({
   STRIPE_SECRET_KEY: z.string().trim().regex(/^(sk|rk)_(test|live)_/, 'must be a Stripe secret key (sk_test_… / sk_live_…)'),
   STRIPE_WEBHOOK_SECRET: z.string().trim().startsWith('whsec_', 'must be a Stripe webhook secret (whsec_…)'),
   STRIPE_PRO_PRICE_ID: z.string().trim().startsWith('price_', 'must be a Stripe price ID (price_…)'),
+  // Comma-separated old Pro price IDs. Subscribers on them stay Pro after the price changes.
+  STRIPE_PRO_LEGACY_PRICE_IDS: z.string().trim().optional(),
   // No longer used: Pro is the only paid plan (E1). Optional so existing deployments still validate.
   STRIPE_BUSINESS_PRICE_ID: z.string().trim().startsWith('price_', 'must be a Stripe price ID (price_…)').optional(),
 

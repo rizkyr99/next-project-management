@@ -168,6 +168,7 @@ Validated by [`lib/env.ts`](lib/env.ts); a unit test checks that every variable 
 | `STRIPE_SECRET_KEY` | yes | `sk_test_…` or `sk_live_…`. |
 | `STRIPE_WEBHOOK_SECRET` | yes | Webhook signing secret, `whsec_…`. |
 | `STRIPE_PRO_PRICE_ID` / `STRIPE_BUSINESS_PRICE_ID` | yes | Stripe price IDs for the paid plans. |
+| `STRIPE_PRO_LEGACY_PRICE_IDS` | no | Comma-separated old Pro price IDs. Their subscribers stay Pro. |
 | `RESEND_API_KEY` | yes | Resend API key, `re_…`. |
 | `EMAIL_FROM` | production | Sender on a domain verified in Resend, e.g. `Tide <notifications@your-domain>`. Locally it falls back to Resend's test sender, which only reaches the Resend account owner. |
 | `NEXT_PUBLIC_CONTACT_EMAIL` | production | Contact address shown on the privacy and terms pages. |
@@ -233,7 +234,7 @@ npm run test:e2e
 
 | | Free | Pro | Business |
 |---|---|---|---|
-| Price | $0 | $9 / month | $29 / month |
+| Price | $0 | $6 / member / month | $29 / month |
 | Workspaces you own | 1 | 5 | Unlimited |
 | Projects, members, tasks | Unlimited | Unlimited | Unlimited |
 
