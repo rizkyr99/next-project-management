@@ -216,6 +216,7 @@ export default async function ProjectIdPage({
             t.assignees.map((a) => a.user.id),
             t.labels.map((l) => [l.label.id, l.label.name, l.label.color]),
             t.dueHasTime,
+            t.internal,
             t.startDate,
             t.checklist.map((c) => [c.id, c.done]),
             approvalMap.get(t.id) ?? null,
