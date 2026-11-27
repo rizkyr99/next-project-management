@@ -69,7 +69,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 | B1 | **Labels** | Tag by type ("Design", "Copy", "Bug", "Client feedback"), colour-coded, filterable. A basic every comparable tool has. | M | Free. Done (#87) |
 | B2 | **Subtasks / checklists** | Break a deliverable into steps; progress on the card ("3/5"). | M | Free. Done (#91) |
 | B3 | **File attachments** | Upload or paste files and images onto tasks and comments (Vercel Blob). Handover lives with the work. Storage limit per plan. | L | Free: 1 GB; Pro: 100 GB per workspace (since E1). Done (#114, released #115) |
-| B4 | **Start dates + Calendar view** | A date range per task, and a month/week calendar across a project, with drag to reschedule. Studios plan by dates, not columns. | L | Pro. Done (#133, #134; released #135): start dates for everyone; month calendar with drag to reschedule is Pro. Week view not built |
+| B4 | **Start dates + Calendar view** | A date range per task, and a month/week calendar across a project, with drag to reschedule. Studios plan by dates, not columns. | L | Pro. Done (#133, #134; released #135): start dates for everyone; month calendar with drag to reschedule is Pro. Week view done (#161, released #163) |
 | B5 | **Project templates** | Save a project (columns, tasks, checklists, relative due dates) as a template; start new client jobs from it. Includes a few built-in studio templates (website build, brand identity, content calendar). | M | Pro (saving your own; built-ins are free). Done (#111, released #112); gated since E1 |
 | B6 | **Archive projects** | Finished client jobs leave the sidebar but stay searchable. | S | Free. Done (#94) |
 | B7 | **Project details** | Client name, project deadline and status ("On track", "At risk", "Off track", "Done") on each project. | S | Free. Done (#94) |
@@ -81,7 +81,7 @@ Gaps inside existing features, checked against the code (none of these exist tod
 | C1 | **Client guests** | A guest role scoped to chosen projects: they see those boards, comment and approve, and nothing else in the workspace. **Guests are free and unlimited:** studios won't want to pay per client login, and several tools limit or charge for guests. | L | Pro. Done (#96, released #97); approvals come with C3 |
 | C2 | **Internal vs client-visible** | Comments, and optionally tasks, are internal by default in projects with guests; posting to the client is deliberate. | M | Pro. Comments done (#99, released #100); internal tasks done (#157, released #158): visible by default, the team hides a task from the client |
 | C3 | **Approvals** | "Request approval" on a task: the client approves or requests changes, which is recorded in activity and notifies the team. | M | Pro. Done (#102, released #103) |
-| C4 | **Read-only share link** | A link to a project's board or timeline for clients who won't sign in. | S | Pro. Board done (#105, released #106); timeline view not built |
+| C4 | **Read-only share link** | A link to a project's board or timeline for clients who won't sign in. | S | Pro. Board done (#105, released #106); calendar (month and week, read-only) done (#162, released #163) |
 | C5 | **Client-friendly emails** | Invites and notifications that read well to someone outside the studio, with the studio's name. | S | Pro. Done (#108, released #109) |
 
 Security note: guest access goes through `lib/authz.ts` like everything else, with E2E proof that a guest can't reach other projects (as in `tenant-isolation.spec.ts`).
