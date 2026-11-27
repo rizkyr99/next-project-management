@@ -176,6 +176,13 @@
       "when": 1795740980142,
       "tag": "0024_task_followers",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795766866469,
+      "tag": "0025_internal_tasks",
+      "breakpoints": true
     }
   ]
 }

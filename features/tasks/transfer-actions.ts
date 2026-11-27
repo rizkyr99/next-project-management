@@ -12,6 +12,7 @@ import {
   project,
   task,
   taskAssignee,
+  taskApproval,
   taskLabel,
   taskStatus,
 } from '@/db/schema';
@@ -70,6 +71,7 @@ export async function duplicateTask(input: { taskId: string }): Promise<ActionRe
         dueDate: source.dueDate,
         dueHasTime: source.dueHasTime,
         startDate: source.startDate,
+        internal: source.internal,
         order: await nextOrder(source.statusId),
         projectId: ctx.project.id,
         statusId: source.statusId,
@@ -194,5 +196,45 @@ export async function moveTask(input: {
     return { projectId: target.id, projectName: target.name, column: column.name };
   } catch (error) {
     return toActionError(error, 'Could not move the task.');
+  }
+}
+
+const internalSchema = taskIdSchema.extend({ internal: z.boolean() });
+
+/**
+ * C2: make a task internal (the team's own work, hidden from the project's
+ * client guests and share link), or show it to the client again. Team only.
+ * A task waiting on the client's approval stays visible: the client couldn't
+ * answer it otherwise.
+ */
+export async function setTaskInternal(input: { taskId: string; internal: boolean }): Promise<ActionResult> {
+  try {
+    const { taskId, internal } = internalSchema.parse(input);
+    const ctx = await requireTaskAccess(taskId);
+    if (ctx.task.internal === internal) return { success: true };
+    if (internal) {
+      const [pending] = await db
+        .select({ id: taskApproval.id })
+        .from(taskApproval)
+        .where(and(eq(taskApproval.taskId, ctx.task.id), eq(taskApproval.status, 'pending')))
+        .limit(1);
+      if (pending) return { error: 'The client is asked to approve this task. Withdraw the request first.' };
+    }
+    await db
+      .update(task)
+      .set({ internal })
+      .where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)));
+    await insertActivity({
+      workspaceId: ctx.workspace.id,
+      actorId: ctx.session.user.id,
+      action: 'task.visibility_changed',
+      projectId: ctx.project.id,
+      taskId: ctx.task.id,
+      metadata: { taskTitle: ctx.task.title, internal: String(internal) },
+    });
+    revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+    return { success: true };
+  } catch (error) {
+    return toActionError(error, 'Could not change who sees this task.');
   }
 }

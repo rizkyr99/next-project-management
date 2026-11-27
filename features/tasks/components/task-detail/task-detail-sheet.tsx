@@ -27,6 +27,7 @@ import { deleteTaskWithUndo } from './delete-task';
 import { CopyTaskLink } from './copy-task-link';
 import { useQueryClient } from '@tanstack/react-query';
 import { TaskActionsMenu } from './task-actions-menu';
+import { InternalBadge } from '../internal-badge';
 import { FollowTaskButton, markFollowing } from './follow-task-button';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { setTaskLabels } from '@/features/labels/actions';
@@ -320,10 +321,11 @@ function TaskDetailBody({
             </button>
           </SheetTitle>
         )}
+        {task.internal && <InternalBadge className='ml-2' />}
         </div>
         <CopyTaskLink taskId={task.id} />
         {!readOnly && <FollowTaskButton taskId={task.id} me={me} />}
-        {!readOnly && <TaskActionsMenu taskId={task.id} title={title} />}
+        {!readOnly && <TaskActionsMenu taskId={task.id} title={title} internal={Boolean(task.internal)} />}
       </SheetHeader>
 
       <div className='space-y-5 px-4 pb-6'>
@@ -377,17 +379,24 @@ function TaskDetailBody({
           files={task.files ?? []}
           currentUserId={currentUserId}
           viewerRole={mentionable.find((m) => m.id === currentUserId)?.role}
-          projectHasGuests={mentionable.some((m) => m.role === 'guest')}
+          // An internal task (C2): nothing on it is shared with, or asked of, the client.
+          projectHasGuests={!task.internal && mentionable.some((m) => m.role === 'guest')}
         />
 
         <Separator />
         <TaskApproval
           taskId={task.id}
           viewerIsGuest={mentionable.some((m) => m.id === currentUserId && m.role === 'guest')}
-          projectHasGuests={mentionable.some((m) => m.role === 'guest')}
+          // An internal task (C2): nothing on it is shared with, or asked of, the client.
+          projectHasGuests={!task.internal && mentionable.some((m) => m.role === 'guest')}
           everAsked={Boolean(task.approval)}
         />
-        <TaskComments taskId={task.id} currentUserId={currentUserId} workspaceMembers={mentionable} />
+        <TaskComments
+          taskId={task.id}
+          currentUserId={currentUserId}
+          workspaceMembers={mentionable}
+          taskInternal={Boolean(task.internal)}
+        />
         <Separator />
         <TaskActivity taskId={task.id} />
         <Separator />

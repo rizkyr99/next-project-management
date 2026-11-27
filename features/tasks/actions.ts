@@ -610,7 +610,9 @@ export async function addComment(
     // Clients (guests) can comment on projects shared with them.
     const ctx = await requireTaskAccess(idSchema.parse(taskId), { allowGuests: true });
     const text = commentBodySchema.parse(body);
-    const clientVisible = ctx.role === 'guest' || z.boolean().optional().parse(options.clientVisible) === true;
+    // On an internal task (C2) every comment is the team's.
+    const clientVisible =
+      ctx.role === 'guest' || (!ctx.task.internal && z.boolean().optional().parse(options.clientVisible) === true);
     const actorId = ctx.session.user.id;
     await enforceRateLimit('comments', actorId);
     const taskLink = notificationLink(ctx);
@@ -764,6 +766,9 @@ export async function setCommentVisibility(commentId: string, clientVisible: boo
       .where(and(eq(member.userId, ctx.comment.authorId), eq(member.workspaceId, ctx.workspace.id)));
     if (author?.role === 'guest') {
       return { error: 'A client’s own comments are always visible to them.' };
+    }
+    if (input.clientVisible && ctx.comment.taskInternal) {
+      return { error: 'This task is internal. Show it to the client first.' };
     }
 
     await db

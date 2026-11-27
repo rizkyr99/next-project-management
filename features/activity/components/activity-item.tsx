@@ -19,6 +19,7 @@ type ActivityAction =
   | 'task.changes_requested'
   | 'task.deleted'
   | 'task.moved'
+  | 'task.visibility_changed'
   | 'task.file_added'
   | 'task.file_removed'
   | 'project.created'
@@ -62,6 +63,8 @@ function describeAction(action: string, metadata: Record<string, string> | null)
       return m.duplicatedFrom ? `duplicated "${m.duplicatedFrom}" as ${task}` : `created task ${task}`;
     case 'task.moved':
       return `moved ${task} from "${m.fromProject ?? '?'}" to "${m.toProject ?? '?'}"`;
+    case 'task.visibility_changed':
+      return m.internal === 'true' ? `made ${task} internal` : `showed ${task} to the client`;
     case 'task.title_changed':
       return `renamed a task to ${task}`;
     case 'task.description_changed':

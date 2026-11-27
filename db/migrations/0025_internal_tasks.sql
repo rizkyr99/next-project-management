@@ -1,0 +1,1 @@
+ALTER TABLE "task" ADD COLUMN "internal" boolean DEFAULT false NOT NULL;

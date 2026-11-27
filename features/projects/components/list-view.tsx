@@ -45,6 +45,7 @@ import { matchesFilters, sortTasks } from '@/features/tasks/filters';
 import { useTaskFilters } from '@/features/tasks/use-task-filters';
 import { SortButton } from '@/features/tasks/components/sort-button';
 import { ListTodo } from 'lucide-react';
+import { InternalBadge } from '@/features/tasks/components/internal-badge';
 import { groupTasks } from '@/features/tasks/grouping';
 import { GroupBySelect, GroupToggle, useTaskGroups } from '@/features/tasks/components/task-groups';
 
@@ -64,6 +65,7 @@ interface ListViewProps {
         dueDate?: Date | null;
         labels?: { label: { id: string; name: string; color: string | null } }[];
         checklist?: { done: boolean }[];
+        internal?: boolean;
         assignees: {
           user: {
             id: string;
@@ -241,6 +243,7 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
                 onClick={() => openTask(task.id)}
                 className='min-w-0 pr-4 text-left'>
                 <span data-testid='list-task-title' className='block truncate text-sm font-medium hover:underline'>{task.title}</span>
+                {task.internal && <InternalBadge className='mt-0.5' />}
                 <span className='flex flex-wrap items-center gap-1.5'>
                   <ChecklistBadge items={task.checklist} />
                   <LabelChips labels={(task.labels ?? []).map((l) => l.label)} max={3} />

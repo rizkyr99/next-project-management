@@ -48,12 +48,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         contentType: attachment.contentType,
         listed: attachment.listed,
         clientVisible: attachment.clientVisible,
+        taskInternal: task.internal,
       })
       .from(attachment)
+      .innerJoin(task, eq(task.id, attachment.taskId))
       .where(eq(attachment.id, id))
       .limit(1);
     if (!file) throw new AuthzError();
     const access = await requireProjectAccess(file.projectId, { allowGuests: true });
+    // C2: nothing on an internal task reaches a client, their own uploads included.
+    if (access.role === 'guest' && file.taskInternal) throw new AuthzError();
     // A client sees only what was shared with them: files shared from the
     // Files list, images in the task's description or client-visible
     // comments, and their own uploads. Anything internal stays internal.

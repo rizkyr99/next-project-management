@@ -320,6 +320,9 @@ export const task = pgTable(
      * keep them in order).
      */
     startDate: date('start_date', { mode: 'string' }),
+    // C2: the team's own work, hidden from the project's client guests and
+    // its share link. Off by default, so tasks stay visible as before.
+    internal: boolean('internal').default(false).notNull(),
     order: integer('order').notNull(),
     projectId: text('project_id')
       .notNull()
