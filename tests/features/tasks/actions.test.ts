@@ -622,6 +622,15 @@ describe('internal vs client-visible comments (C2)', () => {
     expect(notified).toEqual(['guest-1']);
   });
 
+  it("refuses a client's comment on a task hidden from them meanwhile", async () => {
+    vi.mocked(requireTaskAccess).mockResolvedValue({ ...taskCtx, role: 'guest' } as never);
+    runBatch();
+    db.insert.mockImplementationOnce(() => ({ select: () => chain([]) })); // the task is internal now
+    expect(await addComment(TASK, 'hi')).toEqual({ error: 'Not found.' });
+    expect(insertActivity).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
   it('follows what was saved: asked for the client, but the task went internal', async () => {
     const { asked, notified } = await post('member', '@Cleo @Bob see this', { clientVisible: true }, audience, false);
     expect(asked).toBe(true);
