@@ -29,11 +29,14 @@ export function TaskFilterBar({
   members,
   currentUserId,
   labels = [],
+  showApproval = false,
 }: {
   members: { id: string; name: string }[];
   currentUserId: string;
   /** The workspace's labels; the filter shows only when there are some. */
   labels?: LabelInfo[];
+  /** Some task here has a client approval round (C3); the filter shows when so, or when it's set. */
+  showApproval?: boolean;
 }) {
   const { filters, active, setFilter, clear } = useTaskFilters();
   // Local text so typing stays smooth; the URL follows shortly after. The
@@ -45,7 +48,10 @@ export function TaskFilterBar({
   const [written, setWritten] = useState<string | null>(null);
   if (filters.q !== lastUrlQ) {
     setLastUrlQ(filters.q);
-    if (filters.q !== written) setText(filters.q);
+    // Our own write comes back once; after that, the same value from
+    // elsewhere (e.g. a saved view) must still reach the box.
+    if (filters.q === written) setWritten(null);
+    else setText(filters.q);
   }
   useEffect(() => {
     const value = text.trim();
@@ -61,7 +67,7 @@ export function TaskFilterBar({
   // stays one row; from sm up they are always shown inline.
   const [open, setOpen] = useState(false);
   const panelId = useId();
-  const selectCount = [filters.assignee, filters.priority, filters.due, filters.label].filter(
+  const selectCount = [filters.assignee, filters.priority, filters.due, filters.label, filters.approval].filter(
     Boolean,
   ).length;
 
@@ -191,6 +197,26 @@ export function TaskFilterBar({
                   </span>
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        )}
+        {(showApproval || filters.approval) && (
+          <Select
+            value={filters.approval ?? ANY}
+            onValueChange={(v) => setFilter("approval", v === ANY ? null : v)}
+          >
+            <SelectTrigger
+              size="sm"
+              className="h-8 w-auto min-w-36 text-sm"
+              aria-label="Approval"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Any approval</SelectItem>
+              <SelectItem value="pending">Waiting on client</SelectItem>
+              <SelectItem value="changes_requested">Changes requested</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
             </SelectContent>
           </Select>
         )}

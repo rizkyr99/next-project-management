@@ -41,6 +41,9 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'approval_requested',
   'task_approved',
   'changes_requested',
+  // I4: on a task you follow (detail holds the new column's name).
+  'task_comment',
+  'task_status_changed',
 ]);
 export const approvalStatusEnum = pgEnum('approval_status', APPROVAL_STATUSES);
 export const inviteStatusEnum = pgEnum('invite_status', [
@@ -504,6 +507,25 @@ export const taskAssignee = pgTable(
   }),
 );
 
+/**
+ * I4: people who get notified about a task's comments and column changes.
+ * Team members only. Creating, being assigned to or commenting on a task
+ * follows it; anyone can unfollow.
+ */
+export const taskFollower = pgTable(
+  'task_follower',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => task.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.userId] })],
+);
+
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   members: many(member),
   invites: many(workspaceInvite),
@@ -632,6 +654,29 @@ export const projectFavorite = pgTable(
 );
 
 /**
+ * D3: a person's saved view of a project: its layout, filters and sort, as
+ * the query string the project page reads (features/views/query.ts).
+ */
+export const savedView = pgTable(
+  'saved_view',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 60 }).notNull(),
+    query: varchar('query', { length: 1000 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('saved_view_user_project_name_idx').on(table.userId, table.projectId, table.name)],
+);
+
+/**
  * B5: a project saved as a template, for starting new client jobs. `data`
  * is a snapshot (features/templates/shape.ts), validated on write and on
  * read, so later edits to the source project don't change the template.
@@ -709,6 +754,8 @@ export const notification = pgTable(
     taskTitle: text('task_title'),
     workspaceName: text('workspace_name'),
     dueLabel: text('due_label'),
+    // Extra context for the type, e.g. the column a followed task moved to.
+    detail: text('detail'),
     // What the notification is about, so it can link there. Cascades: a
     // notification about a deleted task, project or workspace goes with it,
     // so no notification ever links to something that's gone.

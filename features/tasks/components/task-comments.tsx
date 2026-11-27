@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Markdown } from '@/components/markdown';
 import { imageFiles, uploadTaskImage } from '../upload-image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { markFollowing } from './task-detail/follow-task-button';
 import { formatDistanceToNow } from 'date-fns';
 import { Eye, EyeOff, Lock, Pencil, Send, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
@@ -128,6 +129,8 @@ export function TaskComments({ taskId, currentUserId, workspaceMembers }: TaskCo
         return;
       }
       setComments((prev) => prev.map((c) => (c.id === pendingId ? res.comment : c)));
+      // The team follows what it comments on (I4).
+      if (!viewerIsGuest) markFollowing(queryClient, taskId, { id: currentUserId, name: me?.name ?? 'You' });
     },
     onError: (_err, { text }, ctx) => {
       if (ctx) failed(NETWORK_ERROR, ctx.previous);

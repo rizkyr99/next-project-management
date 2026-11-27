@@ -47,3 +47,27 @@ export function groupByDue<T extends Dated>(tasks: T[], now = new Date()) {
     ),
   }));
 }
+
+type InProject = Dated & { projectId: string; projectName: string };
+
+/**
+ * D3: "My tasks" by project instead: projects A–Z, and within each, open work
+ * by due date (as above), then finished work.
+ */
+export function groupByProject<T extends InProject>(tasks: T[]) {
+  const byProject = new Map<string, T[]>();
+  for (const task of tasks) byProject.set(task.projectId, [...(byProject.get(task.projectId) ?? []), task]);
+  const due = (t: T) => (t.dueDate ? new Date(t.dueDate).getTime() : Infinity);
+  return [...byProject.entries()]
+    .map(([key, list]) => ({
+      key,
+      label: list[0].projectName,
+      tasks: list.sort(
+        (a, b) =>
+          Number(Boolean(a.done)) - Number(Boolean(b.done)) ||
+          due(a) - due(b) ||
+          PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority],
+      ),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+}

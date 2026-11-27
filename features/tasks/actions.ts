@@ -15,6 +15,7 @@ import { insertActivity } from '@/lib/activity';
 import { mentionedNames } from './mentions';
 import { taskHref } from './task-link';
 import { projectAudience } from '@/lib/project-audience';
+import { followQuietly, notifyFollowers, tasksLeavingColumn } from '@/lib/followers';
 import {
   type ActionResult,
   AuthzError,
@@ -105,6 +106,7 @@ export async function createTask(values: z.input<typeof createTaskSchema>): Prom
       taskId: newTask.id,
       metadata: { taskTitle: newTask.title },
     });
+    await followQuietly(newTask.id, [ctx.session.user.id]);
 
     return { task: newTask };
   } catch (error) {
@@ -134,6 +136,18 @@ export async function updateTaskStatus(values: z.infer<typeof updateTaskStatusSc
       taskId: ctx.task.id,
       metadata: { taskTitle: ctx.task.title },
     });
+    if (ctx.task.statusId !== input.statusId) {
+      after(() =>
+        notifyFollowers({
+          type: 'task_status_changed',
+          workspace: ctx.workspace,
+          projectId: ctx.project.id,
+          actor: ctx.session.user,
+          tasks: [{ id: ctx.task.id, title: ctx.task.title }],
+          statusId: input.statusId,
+        }),
+      );
+    }
 
     return { success: true };
   } catch (error) {
@@ -147,6 +161,7 @@ export async function bulkUpdateStatus(values: z.infer<typeof bulkUpdateStatusSc
     const ctx = await requireProjectAccess(input.projectId);
     await assertStatusInProject(input.statusId, ctx.project.id);
     await assertTasksInProject(input.taskIds, ctx.project.id);
+    const moved = await tasksLeavingColumn(input.taskIds, input.statusId, ctx.project.id);
 
     await db
       .update(task)
@@ -154,6 +169,16 @@ export async function bulkUpdateStatus(values: z.infer<typeof bulkUpdateStatusSc
       .where(and(inArray(task.id, input.taskIds), eq(task.projectId, ctx.project.id)));
 
     revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+    after(() =>
+      notifyFollowers({
+        type: 'task_status_changed',
+        workspace: ctx.workspace,
+        projectId: ctx.project.id,
+        actor: ctx.session.user,
+        tasks: moved,
+        statusId: input.statusId,
+      }),
+    );
     return { success: true };
   } catch (error) {
     return toActionError(error, 'Failed to update status.');
@@ -201,6 +226,12 @@ export async function reorderTasks(values: z.infer<typeof reorderTasksSchema>): 
       input.tasks.map((t) => t.id),
       ctx.project.id,
     );
+    // Dragging a card into this column is the only change of column here.
+    const moved = await tasksLeavingColumn(
+      input.tasks.map((t) => t.id),
+      input.statusId,
+      ctx.project.id,
+    );
 
     // One HTTP round-trip for all updates instead of one per task.
     const [first, ...rest] = input.tasks.map((t) =>
@@ -212,6 +243,16 @@ export async function reorderTasks(values: z.infer<typeof reorderTasksSchema>): 
     if (first) await db.batch([first, ...rest]);
 
     revalidatePath(projectPath(ctx.workspace.slug, ctx.project.id));
+    after(() =>
+      notifyFollowers({
+        type: 'task_status_changed',
+        workspace: ctx.workspace,
+        projectId: ctx.project.id,
+        actor: ctx.session.user,
+        tasks: moved,
+        statusId: input.statusId,
+      }),
+    );
     return { success: true };
   } catch (error) {
     return toActionError(error, 'Failed to reorder tasks.');
@@ -437,6 +478,8 @@ export async function updateTaskAssignees(taskId: string, assigneeIds: string[])
     const addedIds = nextIds.filter((uid) => !existingIds.has(uid));
     const removedIds = [...existingIds].filter((uid) => !nextIds.includes(uid));
 
+    // People put on a task follow it (I4).
+    if (addedIds.length > 0) await followQuietly(ctx.task.id, addedIds);
     const notifyIds = addedIds.filter((uid) => uid !== actorId);
     if (notifyIds.length > 0) {
       await db.insert(notification).values(
@@ -578,6 +621,7 @@ export async function addComment(
       .values({ taskId: ctx.task.id, authorId: actorId, body: text, clientVisible, updatedAt: null })
       .returning({ id: comment.id });
 
+    let mentionedIds: string[] = [];
     // Resolve @Name mentions against the workspace's real members, never
     // against a list supplied by the client. The comment is already saved, so
     // a notification failure must not turn into an error (a retry would post
@@ -607,6 +651,8 @@ export async function addComment(
               ...taskLink,
             })),
           );
+          // Only once they were notified: if this failed, followers still hear.
+          mentionedIds = mentioned.map((u) => u.id);
           after(() =>
             emailTaskNotification({
               projectId: ctx.project.id,
@@ -638,6 +684,20 @@ export async function addComment(
       taskId: ctx.task.id,
       metadata: { taskTitle: ctx.task.title },
     });
+    // I4: the team follows what it comments on, before the response, so an
+    // Unfollow right after can't be undone by a late follow. Followers hear
+    // about it (unless the comment @mentioned them, which already notified them).
+    if (ctx.role !== 'guest') await followQuietly(ctx.task.id, [actorId]);
+    after(() =>
+      notifyFollowers({
+        type: 'task_comment',
+        workspace: ctx.workspace,
+        projectId: ctx.project.id,
+        actor: ctx.session.user,
+        tasks: [{ id: ctx.task.id, title: ctx.task.title }],
+        skip: mentionedIds,
+      }),
+    );
 
     return { comment: withAuthor };
   } catch (error) {

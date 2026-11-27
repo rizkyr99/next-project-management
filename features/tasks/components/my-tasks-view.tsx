@@ -23,9 +23,10 @@ import {
 import { CheckSquare } from 'lucide-react';
 import { PRIORITIES, priorityConfig, type Priority } from '../priority';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { projectHref, taskHref } from '../task-link';
-import { groupByDue } from '../due-groups';
+import { groupByDue, groupByProject } from '../due-groups';
+import { setUrlParams } from '../use-task-filters';
 import { formatDue, isOverdue } from '../due';
 
 
@@ -55,8 +56,13 @@ function formatDate(date: Date | null, hasTime = false, done = false) {
 }
 
 export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>) {
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  // In the URL, so a reload or a shared link keeps them (D3).
+  const params = useSearchParams();
+  const priorityFilter = params.get('priority') ?? 'all';
+  const statusFilter = params.get('status') ?? 'all';
+  const byProject = params.get('group') === 'project';
+  const setPriorityFilter = (v: string) => setUrlParams({ priority: v === 'all' ? null : v });
+  const setStatusFilter = (v: string) => setUrlParams({ status: v === 'all' ? null : v });
 
   const uniqueStatuses = Array.from(
     new Map(tasks.map((t) => [t.statusId, t.statusName])).entries(),
@@ -87,7 +93,7 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
   return (
     <div className='flex-1 flex flex-col overflow-hidden'>
       {/* Filters */}
-      <div className='flex items-center gap-3 px-4 py-3 border-b'>
+      <div className='flex flex-wrap items-center gap-3 px-4 py-3 border-b'>
         <span className='text-xs text-muted-foreground font-medium'>Filter:</span>
         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
           <SelectTrigger className='h-8 w-36 text-xs'>
@@ -117,6 +123,25 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
           </SelectContent>
         </Select>
 
+        <div role='group' aria-label='Group by' className='flex items-center gap-1 rounded-lg bg-secondary p-1'>
+          <Button
+            size='sm'
+            variant={byProject ? 'ghost' : 'outline'}
+            className='h-6 text-xs'
+            aria-pressed={!byProject}
+            onClick={() => setUrlParams({ group: null })}>
+            Due date
+          </Button>
+          <Button
+            size='sm'
+            variant={byProject ? 'outline' : 'ghost'}
+            className='h-6 text-xs'
+            aria-pressed={byProject}
+            onClick={() => setUrlParams({ group: 'project' })}>
+            Project
+          </Button>
+        </div>
+
         <span className='ml-auto text-xs text-muted-foreground'>
           {filtered.length} {filtered.length === 1 ? 'task' : 'tasks'}
         </span>
@@ -130,19 +155,28 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
           </EmptyState>
         ) : (
           <div className='space-y-6'>
-            {groupByDue(filtered).map((group) => (
-              <section key={group.key} aria-labelledby={`due-${group.key}`} data-testid={`due-group-${group.key}`}>
+            {(byProject ? groupByProject(filtered) : groupByDue(filtered)).map((group) => (
+              <section
+                key={group.key}
+                aria-labelledby={`due-${group.key}`}
+                data-testid={byProject ? `project-group-${group.key}` : `due-group-${group.key}`}>
                 <h2
                   id={`due-${group.key}`}
                   className={`mb-1 flex items-baseline gap-2 text-sm font-semibold ${group.key === 'overdue' ? 'text-destructive' : ''}`}>
-                  {group.label}
+                  {byProject ? (
+                    <Link href={projectHref(workspaceSlug, group.key)} className='hover:underline'>
+                      {group.label}
+                    </Link>
+                  ) : (
+                    group.label
+                  )}
                   <span className='text-xs font-normal text-muted-foreground tabular-nums'>{group.tasks.length}</span>
                 </h2>
                 <Table>
                   <TableHeader className='sr-only sm:not-sr-only'>
                     <TableRow className='hover:bg-transparent'>
                       <TableHead>Task</TableHead>
-                      <TableHead className='w-40'>Project</TableHead>
+                      {!byProject && <TableHead className='w-40'>Project</TableHead>}
                       <TableHead className='w-36'>Status</TableHead>
                       <TableHead className='w-32'>Priority</TableHead>
                       <TableHead className='w-36'>Due date</TableHead>
@@ -163,13 +197,15 @@ export function MyTasksView({ tasks, workspaceSlug }: Readonly<MyTasksViewProps>
                             </Link>
                           </TableCell>
 
-                          <TableCell>
-                            <Link
-                              href={projectHref(workspaceSlug, t.projectId)}
-                              className='text-sm text-muted-foreground hover:text-foreground truncate block'>
-                              {t.projectName}
-                            </Link>
-                          </TableCell>
+                          {!byProject && (
+                            <TableCell>
+                              <Link
+                                href={projectHref(workspaceSlug, t.projectId)}
+                                className='text-sm text-muted-foreground hover:text-foreground truncate block'>
+                                {t.projectName}
+                              </Link>
+                            </TableCell>
+                          )}
 
                           <TableCell>
                             <span className='text-sm text-muted-foreground'>{t.statusName}</span>

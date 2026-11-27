@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dueGroup, groupByDue } from '@/features/tasks/due-groups';
+import { dueGroup, groupByDue, groupByProject } from '@/features/tasks/due-groups';
 
 // Wednesday 18 Nov 2026, 15:00 local time.
 const now = new Date(2026, 10, 18, 15, 0);
@@ -57,5 +57,27 @@ describe('calendar days (B4)', () => {
     expect(parseDay('2026-12-01').getHours()).toBe(0);
     expect(formatDay('2026-12-01', new Date(2026, 5, 1))).toBe('Dec 1');
     expect(formatDay('2027-01-04', new Date(2026, 5, 1))).toBe('Jan 4, 2027');
+  });
+});
+
+describe('groupByProject', () => {
+  it('orders projects by name, open work by due date, then finished work', () => {
+    const t = (id: string, projectName: string, dueDate: Date | null, done = false) => ({
+      id,
+      projectId: projectName.toLowerCase(),
+      projectName,
+      dueDate,
+      priority: 'medium' as const,
+      done,
+    });
+    const groups = groupByProject([
+      t('a', 'Website', new Date(2026, 11, 5)),
+      t('b', 'Brand', null),
+      t('c', 'Website', new Date(2026, 11, 1), true),
+      t('d', 'Website', new Date(2026, 11, 3)),
+      t('e', 'brand kit', new Date(2026, 11, 2)),
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(['Brand', 'brand kit', 'Website']);
+    expect(groups[2].tasks.map((x) => x.id)).toEqual(['d', 'a', 'c']);
   });
 });

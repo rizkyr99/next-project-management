@@ -58,9 +58,10 @@ test('tasks, comments and column names show at once, before the server answers',
   await rename.fill('Backlog');
   await rename.press('Enter');
   // The header shows the new name at once; the column's test ID follows the
-  // saved name once the server answers.
+  // saved name once the server answers. Server actions run one at a time and
+  // each is held 2 s here, so the rename waits behind the sheet's loads.
   await expect(page.getByTitle('Double-click to rename').first()).toHaveText('Backlog', { timeout: 500 });
-  await expect(page.getByTestId('column-Backlog')).toBeVisible({ timeout: 10000 });
+  await expect(page.getByTestId('column-Backlog')).toBeVisible({ timeout: 20000 });
 });
 
 test('a task that fails to save disappears, and what was typed comes back', async ({ page }) => {

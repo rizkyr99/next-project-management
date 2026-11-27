@@ -2,7 +2,18 @@
 
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { ChevronRight, CircleCheck, Clock3, MessageSquare, Stamp, Undo2, UserPlus, Users } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  ChevronRight,
+  CircleCheck,
+  Clock3,
+  MessageCircle,
+  MessageSquare,
+  Stamp,
+  Undo2,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { NotificationRow } from '../actions';
 import { isSafeNotificationHref } from '../href';
@@ -67,6 +78,26 @@ function describe(item: NotificationRow): { icon: ReactNode; title: string; desc
         description: (
           <>
             {strong(item.actorName)} requested changes to {strong(item.taskTitle)}
+          </>
+        ),
+      };
+    case 'task_comment':
+      return {
+        icon: <MessageCircle className='size-5 text-muted-foreground' />,
+        title: 'New comment',
+        description: (
+          <>
+            {strong(item.actorName)} commented on {strong(item.taskTitle)}
+          </>
+        ),
+      };
+    case 'task_status_changed':
+      return {
+        icon: <ArrowRightLeft className='size-5 text-muted-foreground' />,
+        title: 'Task moved',
+        description: (
+          <>
+            {strong(item.actorName)} moved {strong(item.taskTitle)} to {strong(item.detail)}
           </>
         ),
       };

@@ -29,6 +29,7 @@ describe('parseFilters', () => {
       priority: 'high',
       due: 'week',
       label: null,
+      approval: null,
       q: 'plan',
     });
     expect(parseFilters(params('priority=urgent')).priority).toBe('urgent');
@@ -38,6 +39,7 @@ describe('parseFilters', () => {
       priority: null,
       due: null,
       label: null,
+      approval: null,
       q: '',
     });
     expect(filtersActive(parseFilters(params('view=list&task=x')))).toBe(false);
@@ -49,14 +51,14 @@ describe('matchesFilters', () => {
     const mine = t({ assignees: [{ user: { id: 'me-id' } }] });
     const theirs = t({ assignees: [{ user: { id: 'u2' } }] });
     const nobody = t();
-    const f = (assignee: string) => ({ assignee, priority: null, due: null, label: null, q: '' });
+    const f = (assignee: string) => ({ assignee, priority: null, due: null, label: null, approval: null, q: '' });
     expect([mine, theirs, nobody].map((x) => matchesFilters(x, f('me'), ctx))).toEqual([true, false, false]);
     expect([mine, theirs, nobody].map((x) => matchesFilters(x, f('unassigned'), ctx))).toEqual([false, false, true]);
     expect([mine, theirs, nobody].map((x) => matchesFilters(x, f('u2'), ctx))).toEqual([false, true, false]);
   });
 
   it('label: keeps tasks that carry the label', () => {
-    const f = { assignee: null, priority: null, due: null, label: 'l-1', q: '' };
+    const f = { assignee: null, priority: null, due: null, label: 'l-1', approval: null, q: '' };
     const ctx = { currentUserId: 'me' };
     const task = (ids: string[]) => ({ title: 't', priority: 'medium' as const, assignees: [], labels: ids.map((id) => ({ label: { id } })) });
     expect(matchesFilters(task(['l-1', 'l-2']), f, ctx)).toBe(true);
@@ -65,8 +67,17 @@ describe('matchesFilters', () => {
     expect(parseFilters(params('label=l-1')).label).toBe('l-1');
   });
 
+  it('approval: the latest round, e.g. waiting on the client', () => {
+    const f = { assignee: null, priority: null, due: null, label: null, approval: 'pending' as const, q: '' };
+    expect(matchesFilters(t({ approval: 'pending' }), f, ctx)).toBe(true);
+    expect(matchesFilters(t({ approval: 'approved' }), f, ctx)).toBe(false);
+    expect(matchesFilters(t(), f, ctx)).toBe(false);
+    expect(parseFilters(params('approval=pending')).approval).toBe('pending');
+    expect(parseFilters(params('approval=cancelled')).approval).toBeNull();
+  });
+
   it('due: overdue is before today; this week is today through 6 days on; none has no date', () => {
-    const f = (due: 'overdue' | 'week' | 'none') => ({ assignee: null, priority: null, due, label: null, q: '' });
+    const f = (due: 'overdue' | 'week' | 'none') => ({ assignee: null, priority: null, due, label: null, approval: null, q: '' });
     const yesterday = t({ dueDate: day(16) });
     const today = t({ dueDate: day(17) });
     const in6 = t({ dueDate: day(23) });
@@ -82,7 +93,7 @@ describe('matchesFilters', () => {
   });
 
   it('text matches title or description, case-insensitively; filters combine', () => {
-    const base = { assignee: null, priority: null, due: null, label: null } as const;
+    const base = { assignee: null, priority: null, due: null, label: null, approval: null } as const;
     expect(matchesFilters(t(), { ...base, q: 'LAUNCH' }, ctx)).toBe(true);
     expect(matchesFilters(t(), { ...base, q: 'friday' }, ctx)).toBe(true);
     expect(matchesFilters(t(), { ...base, q: 'budget' }, ctx)).toBe(false);
@@ -124,7 +135,7 @@ describe('due "this week" across a daylight-saving change', () => {
     process.env.TZ = 'America/New_York';
     try {
       const nowDst = new Date(2026, 2, 7, 12, 0); // Sat Mar 7; clocks go forward Sun Mar 8
-      const f = { assignee: null, priority: null, due: 'week' as const, label: null, q: '' };
+      const f = { assignee: null, priority: null, due: 'week' as const, label: null, approval: null, q: '' };
       const at = (d: number) => t({ dueDate: new Date(2026, 2, d, 0, 0) });
       const c = { currentUserId: 'me-id', now: nowDst };
       expect(matchesFilters(at(13), f, c)).toBe(true); // 6th day after today

@@ -16,6 +16,7 @@ export type NotificationRow = {
   taskTitle: string | null;
   workspaceName: string | null;
   dueLabel: string | null;
+  detail: string | null;
   href: string | null;
   createdAt: Date;
 };
@@ -28,6 +29,7 @@ const columns = {
   taskTitle: notification.taskTitle,
   workspaceName: notification.workspaceName,
   dueLabel: notification.dueLabel,
+  detail: notification.detail,
   href: notification.href,
   createdAt: notification.createdAt,
 };

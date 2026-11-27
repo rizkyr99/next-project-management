@@ -35,6 +35,17 @@ export function openTask(taskId: string) {
 }
 
 /**
+ * Show another task in the open sheet in place of this one (a duplicate just
+ * made), so closing it goes back to where the sheet was opened from, not to
+ * the task before.
+ */
+export function switchTask(taskId: string) {
+  const current = new URL(window.location.href).searchParams.get(TASK_PARAM);
+  if (current && current === pushedTaskId) pushedTaskId = taskId;
+  setTaskParam(taskId, 'replace');
+}
+
+/**
  * Close the sheet. If we opened it with a history entry, go back so the
  * Back button doesn't land on the same task again; a deep-linked task
  * (pasted URL, search result) just drops the param.
