@@ -8,7 +8,7 @@ import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CallRoom } from './call-room';
 import { useCallStream, type Participant } from '../hooks/use-call-stream';
-import { useWebRTC } from '../hooks/use-webrtc';
+import { canShareScreen, useWebRTC } from '../hooks/use-webrtc';
 
 interface CallButtonProps {
   projectId: string;
@@ -24,8 +24,38 @@ export function CallButton({ projectId, currentUserId, currentUserName }: CallBu
   const [participants, setParticipants] = useState<Participant[]>([]);
   const rejoining = useRef(false);
 
-  const { localStream, remoteStreams, isMuted, isCameraOff, start, stop, connectToParticipants, handleIncomingSignal, toggleMute, toggleCamera } =
-    useWebRTC({ projectId, userId: currentUserId });
+  const {
+    localStream,
+    remoteStreams,
+    isMuted,
+    isCameraOff,
+    start,
+    stop,
+    connectToParticipants,
+    handleIncomingSignal,
+    toggleMute,
+    toggleCamera,
+    screenStream,
+    sharingUserIds,
+    startScreenShare,
+    stopScreenShare,
+  } = useWebRTC({ projectId, userId: currentUserId });
+
+  // I12: share a screen, window or tab in place of the camera.
+  const toggleScreen = async () => {
+    if (screenStream) {
+      stopScreenShare();
+      return;
+    }
+    try {
+      await startScreenShare();
+    } catch (error) {
+      // Choosing "Cancel" in the browser's picker isn't an error worth showing.
+      if (!(error instanceof DOMException && error.name === 'NotAllowedError')) {
+        toast.error('Your screen couldn’t be shared. Try again, or share a single window.');
+      }
+    }
+  };
 
   const post = useCallback(
     async (path: 'join' | 'leave'): Promise<JoinResult> => {
@@ -156,6 +186,9 @@ export function CallButton({ projectId, currentUserId, currentUserName }: CallBu
           onToggleMute={toggleMute}
           onToggleCamera={toggleCamera}
           onLeave={() => endCall()}
+          screenStream={screenStream}
+          sharingUserIds={sharingUserIds}
+          onToggleScreen={canShareScreen() ? () => void toggleScreen() : null}
         />
       )}
     </>

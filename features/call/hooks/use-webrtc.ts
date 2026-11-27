@@ -13,14 +13,61 @@ export interface RemoteStream {
   stream: MediaStream;
 }
 
+/** Sent over each peer's data channel: whether this person is sharing their screen (I12). */
+type PeerMessage = { type: 'screen'; sharing: boolean };
+
+function parseMessage(data: unknown): PeerMessage | null {
+  try {
+    const value = JSON.parse(String(data)) as Partial<PeerMessage>;
+    return value?.type === 'screen' && typeof value.sharing === 'boolean' ? (value as PeerMessage) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether this browser can share a screen (desktop browsers; not phones). */
+export const canShareScreen = () =>
+  typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+
 export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<RemoteStream[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
+  // I12: my screen while I share it, and who else is sharing theirs.
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [sharingUserIds, setSharingUserIds] = useState<string[]>([]);
   const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   const iceServersRef = useRef<RTCIceServer[] | undefined>(undefined);
+
+  const setSharing = useCallback((remoteUserId: string, sharing: boolean) => {
+    setSharingUserIds((prev) => {
+      const without = prev.filter((id) => id !== remoteUserId);
+      return sharing ? [...without, remoteUserId] : without;
+    });
+  }, []);
+
+  const tell = (peer: SimplePeer.Instance, message: PeerMessage) => {
+    // Not connected yet: the 'connect' handler sends the current state.
+    if (peer.connected) peer.send(JSON.stringify(message));
+  };
+
+  /**
+   * Swap the video every peer receives (camera ↔ screen) on the live
+   * connection: no renegotiation. simple-peer tracks the sender by the
+   * track it was given, so swapping back works the same way.
+   */
+  const swapVideo = (peer: SimplePeer.Instance, from: MediaStreamTrack, to: MediaStreamTrack) => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    try {
+      peer.replaceTrack(from, to, stream);
+    } catch (error) {
+      console.error('[call] replaceTrack failed:', error);
+    }
+  };
 
   const sendSignal = useCallback(
     async (toUserId: string, type: string, payload: unknown) => {
@@ -50,6 +97,15 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
         sendSignal(remoteUserId, type, data);
       });
 
+      peer.on('connect', () => {
+        if (screenTrackRef.current) tell(peer, { type: 'screen', sharing: true });
+      });
+
+      peer.on('data', (data) => {
+        const message = parseMessage(data);
+        if (message) setSharing(remoteUserId, message.sharing);
+      });
+
       peer.on('stream', (remoteStream) => {
         setRemoteStreams((prev) => {
           const filtered = prev.filter((r) => r.userId !== remoteUserId);
@@ -60,17 +116,22 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
       peer.on('close', () => {
         peersRef.current.delete(remoteUserId);
         setRemoteStreams((prev) => prev.filter((r) => r.userId !== remoteUserId));
+        setSharing(remoteUserId, false);
       });
 
       peer.on('error', () => {
         peersRef.current.delete(remoteUserId);
         setRemoteStreams((prev) => prev.filter((r) => r.userId !== remoteUserId));
+        setSharing(remoteUserId, false);
       });
 
       peersRef.current.set(remoteUserId, peer);
+      // Joined while I'm sharing: they get my screen, not my camera.
+      const camera = stream.getVideoTracks()[0];
+      if (screenTrackRef.current && camera) swapVideo(peer, camera, screenTrackRef.current);
       return peer;
     },
-    [sendSignal],
+    [sendSignal, setSharing],
   );
 
   const start = useCallback(async () => {
@@ -135,7 +196,41 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
     setIsCameraOff((prev) => !prev);
   }, []);
 
+  const stopScreenShare = useCallback(() => {
+    const screen = screenTrackRef.current;
+    if (!screen) return;
+    screenTrackRef.current = null;
+    const camera = localStreamRef.current?.getVideoTracks()[0];
+    for (const peer of peersRef.current.values()) {
+      if (camera) swapVideo(peer, screen, camera);
+      tell(peer, { type: 'screen', sharing: false });
+    }
+    screen.stop();
+    setScreenStream(null);
+  }, []);
+
+  /** Share a screen, window or tab instead of the camera. Throws if the person cancels. */
+  const startScreenShare = useCallback(async () => {
+    const camera = localStreamRef.current?.getVideoTracks()[0];
+    if (!camera || screenTrackRef.current) return;
+    const display = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const screen = display.getVideoTracks()[0];
+    if (!screen) return;
+    screenTrackRef.current = screen;
+    // The browser's own "Stop sharing" button ends the track.
+    screen.addEventListener('ended', stopScreenShare);
+    for (const peer of peersRef.current.values()) {
+      swapVideo(peer, camera, screen);
+      tell(peer, { type: 'screen', sharing: true });
+    }
+    setScreenStream(display);
+  }, [stopScreenShare]);
+
   const stop = useCallback(() => {
+    screenTrackRef.current?.stop();
+    screenTrackRef.current = null;
+    setScreenStream(null);
+    setSharingUserIds([]);
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
     setLocalStream(null);
@@ -161,6 +256,10 @@ export function useWebRTC({ projectId, userId }: UseWebRTCOptions) {
     handleIncomingSignal,
     toggleMute,
     toggleCamera,
+    screenStream,
+    sharingUserIds,
+    startScreenShare,
+    stopScreenShare,
   };
 }
 
