@@ -57,6 +57,16 @@ test('group the list by assignee and the table by priority; fold a group; the UR
   await expect(myToggle).toHaveAttribute('aria-expanded', 'false');
   await expect(mine.getByTestId('list-task-title')).toHaveCount(0);
 
+  // Select all takes only what's on screen: "Copy" (still open under Teo),
+  // not "Logo", which is only in the folded group.
+  await page.getByRole('checkbox', { name: 'Select all' }).click();
+  await myToggle.click();
+  await expect(mine.getByRole('checkbox', { name: 'Select Logo' })).not.toBeChecked();
+  await expect(mine.getByRole('checkbox', { name: 'Select Copy' })).toBeChecked();
+  await page.getByRole('checkbox', { name: 'Select all' }).click(); // now not all: selects the rest
+  await page.getByRole('checkbox', { name: 'Select all' }).click(); // clears
+  await expect(page.getByText(/\d+ selected/)).toHaveCount(0);
+
   // Table, grouped by priority, survives a reload.
   await page.goto(`/workspaces/${slug}/projects/${projectId}?view=table`);
   await page.getByRole('combobox', { name: 'Group by' }).click();

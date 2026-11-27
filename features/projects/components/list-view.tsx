@@ -115,10 +115,14 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
   );
   // Bulk actions only ever apply to what's on screen: tasks hidden by a
   // filter or inside their undo window drop out of the selection.
-  const visibleIds = new Set(visible.map((t) => t.id));
   // I6: optional grouping, over what's on screen, in its current order.
   const { group, setGroup, isCollapsed, toggle: toggleGroup } = useTaskGroups();
   const groups = group ? groupTasks(visible, group, { statuses: statusOptions, currentUserId }) : null;
+  // A folded group's tasks aren't on screen either (one shared with an open
+  // group still is).
+  const visibleIds = new Set(
+    groups ? groups.filter((g) => !isCollapsed(g.key)).flatMap((g) => g.tasks.map((t) => t.id)) : visible.map((t) => t.id),
+  );
   const selectedIds = new Set([...rawSelectedIds].filter((id) => visibleIds.has(id)));
   const [isPending, setIsPending] = useState(false);
 
@@ -145,14 +149,14 @@ export function ListView({ project, currentUserId = '' }: Readonly<ListViewProps
     );
   }
 
-  const allSelected = selectedIds.size === visible.length;
+  const allSelected = visibleIds.size > 0 && selectedIds.size === visibleIds.size;
   const someSelected = selectedIds.size > 0;
 
   const toggleAll = () => {
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(visible.map((t) => t.id)));
+      setSelectedIds(new Set(visibleIds));
     }
   };
 

@@ -1,6 +1,7 @@
 import { db } from '@/db/drizzle';
 import { account, session, user, verification } from '@/db/schema';
 import { betterAuth } from 'better-auth';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { after } from 'next/server';
 
@@ -20,6 +21,17 @@ export const auth = betterAuth({
   // user in a production build shared one sign-up limit (3 per 10 s).
   advanced: {
     ipAddress: { ipAddressHeaders: ['x-real-ip', 'x-forwarded-for'] },
+  },
+  // I11: a profile photo is only ever set by our upload action, which
+  // checks the image and who uploaded it. Better Auth's own update-user
+  // endpoint can't set one (it would take any URL, including someone
+  // else's photo).
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === '/update-user' && ctx.body && typeof ctx.body === 'object' && 'image' in ctx.body) {
+        throw new APIError('BAD_REQUEST', { message: 'Change your photo from your account page.' });
+      }
+    }),
   },
   socialProviders: {
     google: {
