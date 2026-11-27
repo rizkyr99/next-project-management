@@ -107,8 +107,21 @@ export function CalendarView({ project, currentUserId = '' }: Readonly<CalendarV
   return <Calendar project={project} currentUserId={currentUserId} />;
 }
 
-function Calendar({ project, currentUserId }: Readonly<Required<Pick<CalendarViewProps, 'currentUserId'>> & CalendarViewProps>) {
-  const readOnly = useReadOnly();
+/**
+ * C4: the calendar on a project's read-only share link, for someone without
+ * an account: no dragging, and tasks don't open (there's no sheet to open).
+ */
+export function SharedCalendar({ project }: Readonly<Pick<CalendarViewProps, 'project'>>) {
+  return <Calendar project={project} currentUserId='' shared />;
+}
+
+function Calendar({
+  project,
+  currentUserId,
+  shared = false,
+}: Readonly<Required<Pick<CalendarViewProps, 'currentUserId'>> & CalendarViewProps & { shared?: boolean }>) {
+  const projectReadOnly = useReadOnly();
+  const readOnly = shared || projectReadOnly;
   const { range, year, month, week } = usePlace();
   const { filters, active } = useTaskFilters();
   // Moves shown before the server confirms them. Each remembers the task's
@@ -240,6 +253,7 @@ function Calendar({ project, currentUserId }: Readonly<Required<Pick<CalendarVie
                   today={today}
                   tasks={tasks}
                   draggable={!readOnly}
+                  openable={!shared}
                   detailed={range === 'week'}
                 />
               ))}
@@ -257,7 +271,7 @@ function Calendar({ project, currentUserId }: Readonly<Required<Pick<CalendarVie
             <ul className='space-y-1.5'>
               {unscheduled.map((t) => (
                 <li key={t.id}>
-                  <TaskChip task={t} fromDay={null} draggable={!readOnly} />
+                  <TaskChip task={t} fromDay={null} draggable={!readOnly} openable={!shared} />
                 </li>
               ))}
             </ul>
@@ -282,6 +296,7 @@ function Week({
   today,
   tasks,
   draggable,
+  openable,
   detailed = false,
 }: Readonly<{
   week: string[];
@@ -290,6 +305,7 @@ function Week({
   today: string;
   tasks: CalendarTask[];
   draggable: boolean;
+  openable: boolean;
   detailed?: boolean;
 }>) {
   const bars = layoutWeek(week, tasks);
@@ -319,6 +335,7 @@ function Week({
               task={bar.task}
               fromDay={taskSpan(bar.task)!.start}
               draggable={draggable}
+              openable={openable}
               continuesBefore={bar.continuesBefore}
               continuesAfter={bar.continuesAfter}
               detailed={detailed}
@@ -359,10 +376,13 @@ function TaskChip({
   continuesAfter = false,
   overlay = false,
   detailed = false,
+  openable = true,
 }: Readonly<{
   task: CalendarTask;
   fromDay: string | null;
   draggable: boolean;
+  /** Click opens the task (not on a share link, which has nothing to open). */
+  openable?: boolean;
   continuesBefore?: boolean;
   continuesAfter?: boolean;
   overlay?: boolean;
@@ -384,24 +404,20 @@ function TaskChip({
         : `starts ${formatDay(span.start)}`
       : `${formatDay(span.start)} to ${task.dueDate ? formatDue(task.dueDate, task.dueHasTime) : formatDay(span.end)}`;
 
-  return (
-    <button
-      ref={overlay ? undefined : setNodeRef}
-      type='button'
-      {...(draggable && !overlay ? { ...attributes, ...listeners } : {})}
-      aria-roledescription={draggable ? 'draggable task' : undefined}
-      aria-label={`${task.title}, ${when}, ${task.statusName}${late ? ', overdue' : ''}`}
-      onClick={() => openTask(task.id)}
-      className={cn(
-        'flex w-full items-center gap-1.5 truncate border bg-card px-1.5 text-left text-xs shadow-sm hover:bg-muted',
-        detailed ? 'h-10' : 'h-6',
-        continuesBefore ? 'rounded-l-none border-l-0' : 'rounded-l-md',
-        continuesAfter ? 'rounded-r-none border-r-0' : 'rounded-r-md',
-        isDragging && 'opacity-40',
-        overlay && 'w-56 cursor-grabbing shadow-md',
-        task.done && 'text-muted-foreground line-through',
-        late && 'border-destructive/50 text-destructive',
-      )}>
+  const label = `${task.title}, ${when}, ${task.statusName}${late ? ', overdue' : ''}`;
+  const className = cn(
+    'flex w-full items-center gap-1.5 truncate border bg-card px-1.5 text-left text-xs shadow-sm',
+    (openable || draggable) && 'hover:bg-muted',
+    detailed ? 'h-10' : 'h-6',
+    continuesBefore ? 'rounded-l-none border-l-0' : 'rounded-l-md',
+    continuesAfter ? 'rounded-r-none border-r-0' : 'rounded-r-md',
+    isDragging && 'opacity-40',
+    overlay && 'w-56 cursor-grabbing shadow-md',
+    task.done && 'text-muted-foreground line-through',
+    late && 'border-destructive/50 text-destructive',
+  );
+  const content = (
+    <>
       <span className={cn('size-2 shrink-0 rounded-full', statusDotClass(task.statusColor))} aria-hidden />
       {detailed ? (
         <span className='flex min-w-0 flex-col'>
@@ -417,6 +433,27 @@ function TaskChip({
       ) : (
         <span className='truncate'>{task.title}</span>
       )}
+    </>
+  );
+
+  if (!openable && !draggable) {
+    // Nothing to do with it: a labelled item, not a button.
+    return (
+      <div role='group' aria-label={label} className={className}>
+        {content}
+      </div>
+    );
+  }
+  return (
+    <button
+      ref={overlay ? undefined : setNodeRef}
+      type='button'
+      {...(draggable && !overlay ? { ...attributes, ...listeners } : {})}
+      aria-roledescription={draggable ? 'draggable task' : undefined}
+      aria-label={label}
+      onClick={openable ? () => openTask(task.id) : undefined}
+      className={className}>
+      {content}
     </button>
   );
 }
