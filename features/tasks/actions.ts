@@ -12,6 +12,7 @@ import { db } from '@/db/drizzle';
 import { comment, commentReaction, member, notification, task, taskAssignee, user as userTable } from '@/db/schema';
 import { REACTIONS, type Reaction, type ReactionSummary } from './reaction-kinds';
 import { insertActivity } from '@/lib/activity';
+import { lockTask } from '@/lib/task-lock';
 import { mentionedNames } from './mentions';
 import { taskHref } from './task-link';
 import { projectAudience } from '@/lib/project-audience';
@@ -610,18 +611,39 @@ export async function addComment(
     // Clients (guests) can comment on projects shared with them.
     const ctx = await requireTaskAccess(idSchema.parse(taskId), { allowGuests: true });
     const text = commentBodySchema.parse(body);
-    // On an internal task (C2) every comment is the team's.
-    const clientVisible =
-      ctx.role === 'guest' || (!ctx.task.internal && z.boolean().optional().parse(options.clientVisible) === true);
+    const wantsClient = ctx.role === 'guest' || z.boolean().optional().parse(options.clientVisible) === true;
     const actorId = ctx.session.user.id;
     await enforceRateLimit('comments', actorId);
     const taskLink = notificationLink(ctx);
 
-    const [newComment] = await db
-      .insert(comment)
-      // updated_at's $onUpdate would also fire on insert; a new comment isn't edited.
-      .values({ taskId: ctx.task.id, authorId: actorId, body: text, clientVisible, updatedAt: null })
-      .returning({ id: comment.id });
+    // On an internal task (C2) every comment is the team's. The task row is
+    // locked and the insert reads `internal` itself, so a concurrent hide
+    // can't slip between the check and the write; the mentions below follow
+    // what was saved.
+    const [, [newComment]] = await db.batch([
+      lockTask(ctx.task.id),
+      db
+        .insert(comment)
+        // An insert from a select lists every column, in table order.
+        .select((qb) =>
+          qb
+            .select({
+              id: sql<string>`gen_random_uuid()::text`.as('id'),
+              taskId: task.id,
+              authorId: sql<string>`${actorId}`.as('author_id'),
+              body: sql<string>`${text}`.as('body'),
+              clientVisible: sql<boolean>`${wantsClient} and not ${task.internal}`.as('client_visible'),
+              createdAt: sql<Date>`now()`.as('created_at'),
+              // A new comment isn't edited.
+              updatedAt: sql<Date | null>`null::timestamp`.as('updated_at'),
+            })
+            .from(task)
+            .where(eq(task.id, ctx.task.id)),
+        )
+        .returning({ id: comment.id, clientVisible: comment.clientVisible }),
+    ]);
+    if (!newComment) return { error: 'Task not found.' };
+    const clientVisible = newComment.clientVisible;
 
     let mentionedIds: string[] = [];
     // Resolve @Name mentions against the workspace's real members, never

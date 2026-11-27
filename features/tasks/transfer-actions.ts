@@ -1,6 +1,6 @@
 'use server';
 
-import { and, asc, eq, exists, isNull, max, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, isNull, max, ne, not, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/db/drizzle';
@@ -17,6 +17,7 @@ import {
   taskStatus,
 } from '@/db/schema';
 import { insertActivity } from '@/lib/activity';
+import { lockTask } from '@/lib/task-lock';
 import { followQuietly } from '@/lib/followers';
 import { projectPath, requireTaskAccess, toActionError, type ActionResult } from '@/lib/authz';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -212,18 +213,35 @@ export async function setTaskInternal(input: { taskId: string; internal: boolean
     const { taskId, internal } = internalSchema.parse(input);
     const ctx = await requireTaskAccess(taskId);
     if (ctx.task.internal === internal) return { success: true };
-    if (internal) {
-      const [pending] = await db
+    // Lock the row first so a concurrent approval request is serialized with
+    // this: a task can't end up internal with a request waiting on the client.
+    const pending = exists(
+      db
         .select({ id: taskApproval.id })
         .from(taskApproval)
-        .where(and(eq(taskApproval.taskId, ctx.task.id), eq(taskApproval.status, 'pending')))
-        .limit(1);
-      if (pending) return { error: 'The client is asked to approve this task. Withdraw the request first.' };
+        .where(and(eq(taskApproval.taskId, ctx.task.id), eq(taskApproval.status, 'pending'))),
+    );
+    const [, changed] = await db.batch([
+      lockTask(ctx.task.id),
+      db
+        .update(task)
+        .set({ internal })
+        .where(
+          and(
+            eq(task.id, ctx.task.id),
+            eq(task.projectId, ctx.project.id),
+            ne(task.internal, internal),
+            internal ? not(pending) : undefined,
+          ),
+        )
+        .returning({ id: task.id }),
+    ]);
+    if (changed.length === 0) {
+      if (!internal) return { success: true };
+      const [now] = await db.select({ internal: task.internal }).from(task).where(eq(task.id, ctx.task.id));
+      if (now?.internal) return { success: true };
+      return { error: 'The client is asked to approve this task. Withdraw the request first.' };
     }
-    await db
-      .update(task)
-      .set({ internal })
-      .where(and(eq(task.id, ctx.task.id), eq(task.projectId, ctx.project.id)));
     await insertActivity({
       workspaceId: ctx.workspace.id,
       actorId: ctx.session.user.id,
